@@ -1,0 +1,16 @@
+{
+  "name": "Palian Money Lending",
+  "short_name": "Palian",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F2D5C",
+  "theme_color": "#0F2D5C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

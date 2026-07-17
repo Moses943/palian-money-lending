@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Palian Money Lending</title>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#0F2D5C"/>
+<style>
+  html,body{margin:0;padding:0;background:#F5F7FA;-webkit-tap-highlight-color:transparent;}
+  #root{min-height:100vh;}
+</style>
+</head>
+<body>
+<div id="root">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#607D8B;font-size:14px;">Loading Palian…</div>
+</div>
+
+<script>
+  // Show any error directly on the page, since mobile browsers make devtools hard to reach.
+  window.onerror = function(msg, source, lineno, colno, error){
+    document.getElementById("root").innerHTML =
+      '<div style="padding:20px;font-family:monospace;font-size:12px;color:#C62828;white-space:pre-wrap;background:#FFF3F3;min-height:100vh;box-sizing:border-box;">'
+      + '⚠️ App failed to load\n\n'
+      + 'Message: ' + msg + '\n'
+      + 'File: ' + (source||'').split('/').pop() + '\n'
+      + 'Line: ' + lineno + ':' + colno + '\n\n'
+      + (error && error.stack ? error.stack : '')
+      + '</div>';
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function(e){
+    document.getElementById("root").innerHTML =
+      '<div style="padding:20px;font-family:monospace;font-size:12px;color:#C62828;white-space:pre-wrap;background:#FFF3F3;min-height:100vh;box-sizing:border-box;">'
+      + '⚠️ App failed to load (promise error)\n\n'
+      + (e.reason && e.reason.message ? e.reason.message : String(e.reason))
+      + '</div>';
+  });
+  // Watchdog: if nothing replaced the loading message after 8s, something failed silently
+  // (e.g. a script blocked/failed to fetch) — show a clear message instead of staying blank.
+  setTimeout(function(){
+    var root = document.getElementById("root");
+    if(root && root.innerHTML.indexOf("Loading Palian") !== -1){
+      root.innerHTML =
+        '<div style="padding:20px;font-family:monospace;font-size:12px;color:#C62828;white-space:pre-wrap;background:#FFF3F3;min-height:100vh;box-sizing:border-box;">'
+        + '⚠️ App did not finish loading after 8 seconds.\n\n'
+        + 'This usually means one of the script files (React, Babel, or Supabase) failed to load — check your internet connection, or a required file is missing from the deploy.'
+        + '</div>';
+    }
+  }, 8000);
+</script>
+
+<!-- React (production builds) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- jsPDF: generates real PDF files client-side, for uploading reports -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<!-- App config (Supabase URL + key) -->
+<script src="config.js"></script>
+
+<!-- App code — pre-compiled to plain JavaScript, no in-browser transform needed -->
+<script src="app.js"></script>
+
+<script>
+  if("serviceWorker" in navigator){
+    window.addEventListener("load",()=>{
+      navigator.serviceWorker.register("sw.js").catch(()=>{});
+    });
+  }
+</script>
+</body>
+</html>
