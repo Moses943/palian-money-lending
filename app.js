@@ -1106,6 +1106,10 @@ function HODashboard({ db, user, onReport }) {
     const rec = allDue > 0 ? (allPaid / allDue * 100).toFixed(1) : 0;
     const countSt = s => loans.filter(l => getSt(l, payments) === s).length;
     const healthOk = parseFloat(rec) >= 70;
+    const pendingLoans = loans.filter(l => l.approvalStatus === "Pending").length;
+    const pendingDeletions = (db.clients || []).filter(c => c.deletionRequested).length;
+    const pendingReports = (db.dailyReports || []).filter(r => r.status === "Pending").length;
+    const hasNotifications = pendingLoans > 0 || pendingDeletions > 0 || pendingReports > 0;
     return (React.createElement("div", null,
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
@@ -1126,6 +1130,18 @@ function HODashboard({ db, user, onReport }) {
                         "Recovery: ",
                         rec,
                         "%")))),
+        hasNotifications && React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}`, background: "#FAF5FF" } },
+            React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Needs Your Attention"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                pendingLoans > 0 && React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#fff", borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\u2705 Loans awaiting approval"),
+                    React.createElement("span", { style: { background: C.blue, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingLoans)),
+                pendingDeletions > 0 && React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#fff", borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\uD83D\uDDD1\uFE0F Client deletion requests"),
+                    React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingDeletions)),
+                pendingReports > 0 && React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#fff", borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\uD83D\uDDD2\uFE0F Daily reports awaiting approval"),
+                    React.createElement("span", { style: { background: C.gold, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingReports)))),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [["Clients", db.clients.length, C.navy, "👥"], ["Active", countSt("Active"), C.green, "✅"], ["Overdue", countSt("Overdue"), C.orange, "⏰"], ["Defaulted", countSt("Defaulted"), C.red, "⚠️"], ["Cleared", countSt("Cleared"), C.teal, "🎉"], ["Staff", db.staff.filter(s => s.active).length, C.purple, "👤"]].map(([l, v, c, i]) => (React.createElement(StatCard, { key: l, label: l, value: v, color: c, icon: i })))),
         loans.filter(l => ["Overdue", "Defaulted"].includes(getSt(l, payments))).length > 0 && (React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
             React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Overdue / Defaulted Across All Branches"),
@@ -1154,6 +1170,9 @@ function BranchDashboard({ db, user, onNewLoan, onReport }) {
     const totalDue = loans.reduce((s, l) => s + l.totalDue, 0);
     const rec = totalDue > 0 ? (collected / totalDue * 100).toFixed(1) : 0;
     const overdue = loans.filter(l => ["Overdue", "Defaulted"].includes(getSt(l, payments)));
+    const pendingLoans = loans.filter(l => l.approvalStatus === "Pending").length;
+    const pendingReports = (db.dailyReports || []).filter(r => r.status === "Pending" && r.branch === branch).length;
+    const hasNotifications = user.role === "manager" && (pendingLoans > 0 || pendingReports > 0);
     return (React.createElement("div", null,
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
@@ -1181,6 +1200,15 @@ function BranchDashboard({ db, user, onNewLoan, onReport }) {
                 React.createElement("div", { style: { fontSize: 10, opacity: 0.75 } }, "Your Loan Fund"),
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: myFund > 0 ? C.gold : "#ff6b6b" } }, fmt(myFund)))),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [["Clients", bC(db, branch).length, C.navy, "👥"], ["Active", countSt("Active"), C.green, "✅"], ["Overdue", countSt("Overdue"), C.orange, "⏰"], ["Defaulted", countSt("Defaulted"), C.red, "⚠️"], ["Cleared", countSt("Cleared"), C.teal, "🎉"], ["Recovery", rec + "%", parseFloat(rec) >= 70 ? C.green : C.red, "📊"]].map(([l, v, c, i]) => (React.createElement(StatCard, { key: l, label: l, value: v, color: c, icon: i, small: true })))),
+        hasNotifications && React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}`, background: "#FAF5FF" } },
+            React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Needs Your Attention"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                pendingLoans > 0 && React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#fff", borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\u2705 Loans awaiting approval"),
+                    React.createElement("span", { style: { background: C.blue, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingLoans)),
+                pendingReports > 0 && React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#fff", borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\uD83D\uDDD2\uFE0F Daily reports awaiting approval"),
+                    React.createElement("span", { style: { background: C.gold, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingReports)))),
         overdue.length > 0 && React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
             React.createElement(ST, { color: C.red },
                 "\u26A0\uFE0F Overdue in ",
@@ -1952,7 +1980,7 @@ function HRSystem({ db, setDb, user }) {
     }
     function approveLeave(id, status) { const nd = { ...db, leaveRequests: db.leaveRequests.map(r => r.id === id ? { ...r, status, approvedBy: user.name } : r) }; saveDB(nd); setDb(nd); }
     return (React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" } }, (isAccountsOnly ? [["payslips", "💰 Payslips"], ["payroll", "📊 Payroll"]] : [["staff", "👥 Staff"], ["payslips", "💰 Payslips"], ["leave", "🏖️ Leave"], ["payroll", "📊 Payroll"], ["org", "🏢 Org"], ["audit", "🔐 Audit"]]).map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setTab(id), style: { padding: "7px 11px", borderRadius: 8, border: `1.5px solid ${tab === id ? C.navy : C.border}`, background: tab === id ? C.navy : "white", color: tab === id ? "white" : "#333", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, lb)))),
+        React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" } }, (isAccountsOnly ? [["payslips", "💰 Payslips"], ["payroll", "📊 Payroll"], ["finance", "🏛️ Finance"]] : [["staff", "👥 Staff"], ["payslips", "💰 Payslips"], ["leave", "🏖️ Leave"], ["payroll", "📊 Payroll"], ["finance", "🏛️ Finance"], ["org", "🏢 Org"], ["audit", "🔐 Audit"]]).map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setTab(id), style: { padding: "7px 11px", borderRadius: 8, border: `1.5px solid ${tab === id ? C.navy : C.border}`, background: tab === id ? C.navy : "white", color: tab === id ? "white" : "#333", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, lb)))),
         tab === "payslips" && React.createElement(PayslipGenerator, { db: db }),
         tab === "staff" && (React.createElement("div", null,
             React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 16, marginBottom: 14 } },
@@ -2072,6 +2100,7 @@ function HRSystem({ db, setDb, user }) {
                     React.createElement("div", { style: { fontWeight: 700, color: C.green } }, fmt(s.salary)),
                     React.createElement(Btn, { sm: true, color: C.teal, onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "\uD83D\uDCB0 Slip"),
                     React.createElement(Btn, { sm: true, color: C.blue, onClick: () => downloadPayslipPDF(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "\u2B07\uFE0F"))))))),
+        tab === "finance" && React.createElement(FinanceTracker, { db: db, user: user }),
         tab === "org" && (React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "\uD83C\uDFE2 Organisation Chart"),
             ["ceo", "admin", "director", "strategic", "hr", "accounts", "manager", "officer", "consultant"].map(role => {
@@ -2359,6 +2388,7 @@ function Install() {
 }
 // ── PARCEL / TRANSPORT DATA HELPERS ───────────────────────────────────────────
 const PSC = { Booked: C.blue, "In Transit": C.amber, Arrived: C.teal, Collected: C.green };
+function statusLabel(s) { return { Booked: "Sent", "In Transit": "In Transit", Arrived: "Delivered", Collected: "Received" }[s] || s; }
 function dataURLtoBlob(dataurl) {
     const arr = dataurl.split(",");
     const mime = arr[0].match(/:(.*?);/)[1];
@@ -2408,6 +2438,42 @@ async function saveParcelRow(row) {
     }
 }
 function smsLink(phone, msg) { return `sms:${(phone || "").replace(/\s+/g, "")}?body=${encodeURIComponent(msg)}`; }
+
+// ── PTD PRICING / FINANCE DATA HELPERS ────────────────────────────────────────
+async function loadRoutePrices() {
+    try { const { data } = await sb.from("route_prices").select("*"); return data || []; }
+    catch (e) { console.error(e); return []; }
+}
+async function lookupRoutePrice(origin, dest, serviceType) {
+    try {
+        const { data } = await sb.from("route_prices").select("*").eq("origin_town", origin).eq("dest_town", dest).eq("service_type", serviceType).maybeSingle();
+        return data || null;
+    } catch (e) { console.error(e); return null; }
+}
+async function saveRoutePrice(row) {
+    try { await sb.from("route_prices").upsert([row], { onConflict: "origin_town,dest_town,service_type" }); }
+    catch (e) { console.error(e); }
+}
+async function loadPayrollBudget() {
+    try { const { data } = await sb.from("payroll_budget").select("*").eq("id", 1).maybeSingle(); return data?.total_budget || 0; }
+    catch (e) { console.error(e); return 0; }
+}
+async function savePayrollBudget(amount, user) {
+    try { await sb.from("payroll_budget").upsert([{ id: 1, total_budget: amount, updated_by: user.name, updated_at: new Date().toISOString() }]); }
+    catch (e) { console.error(e); }
+}
+async function loadStatutory() {
+    try { const { data } = await sb.from("statutory_obligations").select("*").order("created_at", { ascending: true }); return data || []; }
+    catch (e) { console.error(e); return []; }
+}
+async function saveStatutory(row) {
+    try { await sb.from("statutory_obligations").upsert([row]); }
+    catch (e) { console.error(e); }
+}
+async function addStatutory(name, user) {
+    try { await sb.from("statutory_obligations").insert([{ name, amount_due: 0, amount_paid: 0, added_by: user.name }]); }
+    catch (e) { console.error(e); }
+}
 // ── SYSTEM SELECT ──────────────────────────────────────────────────────────────
 function SystemSelect({ user, onSelect, onLogout }) {
     return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 } },
@@ -2426,8 +2492,8 @@ function SystemSelect({ user, onSelect, onLogout }) {
             React.createElement("button", { onClick: () => onSelect("transport"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCE6"),
                 React.createElement("div", { style: { textAlign: "left" } },
-                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Transport"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Send & track parcels between towns")))),
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "PTD"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery \u2014 parcels, shifting")))),
         React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout")));
 }
 // ── NEW PARCEL FORM ────────────────────────────────────────────────────────────
@@ -2437,10 +2503,25 @@ function NewParcelForm({ user, onBooked }) {
     const [originTown, setOriginTown] = useState(isHO(user.role) ? "" : user.branch);
     const [destProvince, setDestProvince] = useState("");
     const [destTown, setDestTown] = useState("");
-    const [f, setF] = useState({ senderName: "", senderNrc: "", senderPhone: "", receiverName: "", receiverPhone: "", description: "", price: "" });
+    const [serviceType, setServiceType] = useState("Parcel");
+    const [homeDelivery, setHomeDelivery] = useState(false);
+    const [routePrice, setRoutePrice] = useState(null);
+    const [priceLoading, setPriceLoading] = useState(false);
+    const [f, setF] = useState({ senderName: "", senderNrc: "", senderPhone: "", receiverName: "", receiverPhone: "", description: "", vehiclePlate: "", driverName: "" });
     const [photo, setPhoto] = useState(null);
     const [busy, setBusy] = useState(false);
     const [done, setDone] = useState(null);
+    useEffect(() => {
+        if (originTown && destTown) {
+            setPriceLoading(true);
+            lookupRoutePrice(originTown, destTown, serviceType).then(r => { setRoutePrice(r); setPriceLoading(false); });
+        }
+        else
+            setRoutePrice(null);
+    }, [originTown, destTown, serviceType]);
+    const basePrice = routePrice?.price || 0;
+    const hdFee = homeDelivery ? (routePrice?.home_delivery_fee || 0) : 0;
+    const totalPrice = basePrice + hdFee;
     async function submit() {
         if (!originTown || !destTown) {
             alert("Select origin and destination town.");
@@ -2459,30 +2540,50 @@ function NewParcelForm({ user, onBooked }) {
         const seq = pad(Math.floor(Math.random() * 9000) + 1000);
         const trackingNo = `PCL-${oInfo.townCode}${dInfo.townCode}-${seq}`;
         const photoUrl = await uploadParcelPhoto(photo, trackingNo);
-        const row = { tracking_no: trackingNo, sender_name: f.senderName.trim(), sender_nrc: f.senderNrc.trim().toUpperCase(), sender_phone: f.senderPhone.trim(), receiver_name: f.receiverName.trim(), receiver_phone: f.receiverPhone.trim(), origin_branch: originTown, origin_province: originProvince, origin_code: oInfo.townCode, dest_branch: destTown, dest_province: destProvince, dest_code: dInfo.townCode, description: f.description.trim(), photo_url: photoUrl, price: parseFloat(f.price) || 0, status: "Booked", booked_by: user.name };
+        const row = { tracking_no: trackingNo, sender_name: f.senderName.trim(), sender_nrc: f.senderNrc.trim().toUpperCase(), sender_phone: f.senderPhone.trim(), receiver_name: f.receiverName.trim(), receiver_phone: f.receiverPhone.trim(), origin_branch: originTown, origin_province: originProvince, origin_code: oInfo.townCode, dest_branch: destTown, dest_province: destProvince, dest_code: dInfo.townCode, description: f.description.trim(), photo_url: photoUrl, price: basePrice, status: "Booked", booked_by: user.name, service_type: serviceType, vehicle_plate: f.vehiclePlate.trim(), driver_name: f.driverName.trim(), home_delivery: homeDelivery, home_delivery_fee: hdFee };
         await saveParcelRow(row);
         setBusy(false);
         setDone(row);
-        setF({ senderName: "", senderNrc: "", senderPhone: "", receiverName: "", receiverPhone: "", description: "", price: "" });
+        setF({ senderName: "", senderNrc: "", senderPhone: "", receiverName: "", receiverPhone: "", description: "", vehiclePlate: "", driverName: "" });
         setPhoto(null);
         setDestProvince("");
         setDestTown("");
+        setHomeDelivery(false);
     }
     if (done)
         return (React.createElement(Card, { style: { textAlign: "center", padding: 32 } },
             React.createElement("div", { style: { fontSize: 40 } }, "\u2705"),
-            React.createElement("div", { style: { fontWeight: 800, fontSize: 17, color: C.green, marginTop: 8, marginBottom: 4 } }, "Parcel Booked!"),
+            React.createElement("div", { style: { fontWeight: 800, fontSize: 17, color: C.green, marginTop: 8, marginBottom: 4 } },
+                done.service_type,
+                " Booked!"),
             React.createElement("div", { style: { fontSize: 22, fontWeight: 900, color: C.navy, letterSpacing: 1, marginBottom: 16 } }, done.tracking_no),
             React.createElement(IR, { label: "From", value: `${done.origin_branch}, ${done.origin_province}` }),
             React.createElement(IR, { label: "To", value: `${done.dest_branch}, ${done.dest_province}` }),
             React.createElement(IR, { label: "Receiver", value: `${done.receiver_name} · ${done.receiver_phone}` }),
-            React.createElement(Btn, { full: true, color: C.navy, style: { marginTop: 16 }, onClick: () => setDone(null) }, "\u2795 Book Another Parcel")));
+            React.createElement(IR, { label: "Amount", value: fmt((done.price || 0) + (done.home_delivery_fee || 0)), bold: true }),
+            React.createElement(Btn, { full: true, color: C.navy, style: { marginTop: 16 }, onClick: () => setDone(null) }, "\u2795 Book Another")));
     return (React.createElement(Card, null,
-        React.createElement(ST, null, "\uD83D\uDCE6 Book New Parcel"),
+        React.createElement(ST, null,
+            "\uD83D\uDCE6 Book New ",
+            serviceType),
+        React.createElement(Sel, { label: "Service Type", value: serviceType, onChange: e => setServiceType(e.target.value) },
+            React.createElement("option", null, "Parcel"),
+            React.createElement("option", null, "Shifting")),
         React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "4px 0 8px", borderLeft: `3px solid ${C.blue}`, paddingLeft: 8 } }, "Origin (sending from)"),
         React.createElement(ProvinceTownSelect, { required: true, province: originProvince, town: originTown, onProvince: setOriginProvince, onTown: setOriginTown }),
         React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "4px 0 8px", borderLeft: `3px solid ${C.orange}`, paddingLeft: 8 } }, "Destination"),
         React.createElement(ProvinceTownSelect, { required: true, province: destProvince, town: destTown, onProvince: setDestProvince, onTown: setDestTown }),
+        originTown && destTown && (priceLoading ? React.createElement(Alrt, { type: "info" }, "Looking up price for this route...")
+            : routePrice ? React.createElement(Alrt, { type: "success" },
+                "\uD83D\uDCB0 Route price: ",
+                React.createElement("strong", null, fmt(basePrice)),
+                routePrice.home_delivery_fee > 0 ? ` (+${fmt(routePrice.home_delivery_fee)} for home delivery)` : "")
+                : React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F No price set for this route yet \u2014 ask System Admin to set it in PTD \u2192 Prices.")),
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, margin: "10px 0", padding: "10px 12px", background: C.light, borderRadius: 8 } },
+            React.createElement("input", { type: "checkbox", checked: homeDelivery, onChange: e => setHomeDelivery(e.target.checked), style: { width: 18, height: 18 } }),
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.navy } },
+                "Needs home delivery",
+                routePrice?.home_delivery_fee > 0 ? ` (+${fmt(routePrice.home_delivery_fee)})` : "")),
         React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.teal}`, paddingLeft: 8 } }, "Sender"),
         React.createElement(Inp, { label: "Sender Full Name", req: true, value: f.senderName, onChange: e => setF(x => ({ ...x, senderName: e.target.value })) }),
         React.createElement(Inp, { label: "Sender NRC", req: true, value: f.senderNrc, onChange: e => setF(x => ({ ...x, senderNrc: e.target.value.toUpperCase() })), placeholder: "123456/78/1" }),
@@ -2490,13 +2591,18 @@ function NewParcelForm({ user, onBooked }) {
         React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.purple}`, paddingLeft: 8 } }, "Receiver"),
         React.createElement(Inp, { label: "Receiver Full Name", req: true, value: f.receiverName, onChange: e => setF(x => ({ ...x, receiverName: e.target.value })) }),
         React.createElement(Inp, { label: "Receiver Phone", req: true, value: f.receiverPhone, onChange: e => setF(x => ({ ...x, receiverPhone: e.target.value })), placeholder: "For arrival SMS notification", note: "Used to notify them when the parcel arrives" }),
-        React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.gold}`, paddingLeft: 8 } }, "Parcel"),
-        React.createElement(PhotoUpload, { label: "Parcel Photo", value: photo, onChange: setPhoto }),
-        React.createElement(Inp, { label: "Description", value: f.description, onChange: e => setF(x => ({ ...x, description: e.target.value })), placeholder: "e.g. Documents, clothing, electronics" }),
-        React.createElement(Inp, { label: "Price Charged (K)", type: "number", value: f.price, onChange: e => setF(x => ({ ...x, price: e.target.value })), placeholder: "0.00" }),
-        React.createElement(Btn, { full: true, color: C.navy, onClick: submit, disabled: busy }, busy ? "⏳ Booking..." : "📦 Book Parcel")));
+        React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.gold}`, paddingLeft: 8 } }, "Vehicle & Driver"),
+        React.createElement(Inp, { label: "Vehicle Number Plate", value: f.vehiclePlate, onChange: e => setF(x => ({ ...x, vehiclePlate: e.target.value })), placeholder: "e.g. ABC 1234" }),
+        React.createElement(Inp, { label: "Driver Name", value: f.driverName, onChange: e => setF(x => ({ ...x, driverName: e.target.value })) }),
+        React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.red}`, paddingLeft: 8 } }, serviceType),
+        React.createElement(PhotoUpload, { label: `${serviceType} Photo`, value: photo, onChange: setPhoto }),
+        React.createElement(Inp, { label: "Description", value: f.description, onChange: e => setF(x => ({ ...x, description: e.target.value })), placeholder: "e.g. Documents, furniture, electronics" }),
+        totalPrice > 0 && React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 12, padding: 16, textAlign: "center", marginBottom: 14 } },
+            React.createElement("div", { style: { fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 700 } }, "TOTAL AMOUNT"),
+            React.createElement("div", { style: { fontSize: 22, fontWeight: 900, color: C.gold } }, fmt(totalPrice))),
+        React.createElement(Btn, { full: true, color: C.navy, onClick: submit, disabled: busy }, busy ? "⏳ Booking..." : `📦 Book ${serviceType}`)));
 }
-// ── PARCEL LIST / TRACKING / STATUS ───────────────────────────────────────────
+
 function ParcelList({ user }) {
     const [parcels, setParcels] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -2504,8 +2610,20 @@ function ParcelList({ user }) {
     const [sf, setSf] = useState("");
     const [sel, setSel] = useState(null);
     const [collectNrc, setCollectNrc] = useState("");
+    const [damageAmt, setDamageAmt] = useState("");
+    const [damageNote, setDamageNote] = useState("");
     async function refresh() { setLoading(true); const p = await loadParcels(); setParcels(p); setLoading(false); }
     useEffect(() => { refresh(); }, []);
+    async function reportDamage(p, whoSide) {
+        if (!damageAmt && !damageNote) { alert("Enter a damage amount or a description."); return; }
+        const patch = { damage_amount: parseFloat(damageAmt) || p.damage_amount || 0, damage_reported_at: new Date().toISOString() };
+        if (whoSide === "sender") patch.damage_report_sender = damageNote;
+        else patch.damage_report_receiver = damageNote;
+        await saveParcelRow({ ...p, ...patch });
+        setDamageAmt(""); setDamageNote("");
+        refresh();
+        alert("✅ Damage report saved.");
+    }
     const filtered = parcels.filter(p => {
         const mQ = !q || p.tracking_no.toLowerCase().includes(q.toLowerCase()) || p.sender_name.toLowerCase().includes(q.toLowerCase()) || p.receiver_name.toLowerCase().includes(q.toLowerCase());
         const mS = !sf || p.status === sf;
@@ -2528,13 +2646,13 @@ function ParcelList({ user }) {
     }
     if (sel) {
         const p = sel;
-        const arrivalMsg = `Dear ${p.receiver_name}, your parcel ${p.tracking_no} from ${p.origin_branch} has ARRIVED at ${p.dest_branch}. Please collect it with your ID. — Palian Transport`;
+        const arrivalMsg = `Dear ${p.receiver_name}, your parcel ${p.tracking_no} from ${p.origin_branch} has ARRIVED at ${p.dest_branch}. Please collect it with your ID. — Palian Transport & Delivery (PTD)`;
         return (React.createElement("div", null,
             React.createElement(GBtn, { onClick: () => setSel(null), style: { marginBottom: 14 } }, "\u2190 All Parcels"),
             React.createElement(Card, null,
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 10 } },
                     React.createElement("div", { style: { fontWeight: 900, fontSize: 18, color: C.navy } }, p.tracking_no),
-                    React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700 } }, p.status)),
+                    React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700 } }, statusLabel(p.status))),
                 p.photo_url && React.createElement("img", { src: p.photo_url, alt: "Parcel", style: { width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 10, marginBottom: 12 } }),
                 React.createElement(ST, null, "Route"),
                 React.createElement(IR, { label: "From", value: `${p.origin_branch}, ${p.origin_province} (${p.origin_code})` }),
@@ -2548,19 +2666,34 @@ function ParcelList({ user }) {
                 React.createElement(IR, { label: "Phone", value: p.receiver_phone }),
                 React.createElement(ST, null, "Details"),
                 React.createElement(IR, { label: "Description", value: p.description || "—" }),
+                React.createElement(IR, { label: "Service Type", value: p.service_type || "Parcel" }),
                 React.createElement(IR, { label: "Price", value: fmt(p.price) }),
+                p.home_delivery && React.createElement(IR, { label: "Home Delivery Fee", value: fmt(p.home_delivery_fee) }),
+                (p.vehicle_plate || p.driver_name) && React.createElement(IR, { label: "Vehicle / Driver", value: `${p.vehicle_plate || "—"} · ${p.driver_name || "—"}` }),
                 React.createElement(IR, { label: "Booked By", value: p.booked_by }),
                 React.createElement(IR, { label: "Booked", value: p.booked_date ? new Date(p.booked_date).toLocaleString() : "—" }),
                 p.arrived_date && React.createElement(IR, { label: "Arrived", value: new Date(p.arrived_date).toLocaleString() }),
                 p.collected_date && React.createElement(IR, { label: "Collected", value: new Date(p.collected_date).toLocaleString() }),
+                (p.damage_amount > 0 || p.damage_report_sender || p.damage_report_receiver) && React.createElement("div", { style: { background: "#FFF5F5", border: `1.5px solid ${C.red}`, borderRadius: 10, padding: 12, marginTop: 10, marginBottom: 10 } },
+                    React.createElement("div", { style: { fontWeight: 800, color: C.red, fontSize: 12, marginBottom: 6 } }, "⚠️ Damage Reported"),
+                    p.damage_amount > 0 && React.createElement(IR, { label: "Damage Amount", value: fmt(p.damage_amount) }),
+                    p.damage_report_sender && React.createElement(IR, { label: "Sender's Report", value: p.damage_report_sender }),
+                    p.damage_report_receiver && React.createElement(IR, { label: "Receiver's Report", value: p.damage_report_receiver })),
+                React.createElement("div", { style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } },
+                    React.createElement(ST, { color: C.red }, "Report Damage"),
+                    React.createElement(Inp, { label: "Damage Amount (K)", type: "number", value: damageAmt, onChange: e => setDamageAmt(e.target.value), placeholder: "0.00" }),
+                    React.createElement(Inp, { label: "Description of Damage", value: damageNote, onChange: e => setDamageNote(e.target.value), placeholder: "What happened?" }),
+                    React.createElement("div", { style: { display: "flex", gap: 8 } },
+                        React.createElement(Btn, { sm: true, color: C.orange, onClick: () => reportDamage(p, "sender"), style: { flex: 1 } }, "Submit as Sender Office"),
+                        React.createElement(Btn, { sm: true, color: C.purple, onClick: () => reportDamage(p, "receiver"), style: { flex: 1 } }, "Submit as Receiver Office"))),
                 React.createElement("div", { style: { marginTop: 16, display: "flex", flexDirection: "column", gap: 10 } },
                     p.status === "Booked" && React.createElement(Btn, { color: C.amber, onClick: () => advance(p, "In Transit") }, "\uD83D\uDE9A Mark In Transit"),
-                    p.status === "In Transit" && React.createElement(Btn, { color: C.teal, onClick: () => advance(p, "Arrived") }, "\uD83D\uDCCD Mark Arrived"),
+                    p.status === "In Transit" && React.createElement(Btn, { color: C.teal, onClick: () => advance(p, "Arrived") }, "\uD83D\uDCCD Mark Delivered"),
                     p.status === "Arrived" && React.createElement("a", { href: smsLink(p.receiver_phone, arrivalMsg), style: { textDecoration: "none" } },
                         React.createElement(Btn, { full: true, color: C.blue }, "\uD83D\uDCF1 Notify Receiver via SMS")),
                     p.status === "Arrived" && React.createElement("div", { style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12 } },
                         React.createElement(Inp, { label: "Collector's NRC (verify before handing over)", value: collectNrc, onChange: e => setCollectNrc(e.target.value.toUpperCase()), placeholder: "123456/78/1" }),
-                        React.createElement(Btn, { full: true, color: C.green, onClick: () => advance(p, "Collected") }, "\u2705 Mark Collected")),
+                        React.createElement(Btn, { full: true, color: C.green, onClick: () => advance(p, "Collected") }, "\u2705 Mark Received")),
                     p.status === "Collected" && React.createElement(Alrt, { type: "success" },
                         "\u2705 Collected on ",
                         new Date(p.collected_date).toLocaleString())))));
@@ -2591,27 +2724,29 @@ function ParcelList({ user }) {
                             p.sender_name,
                             " \u2192 ",
                             p.receiver_name)),
-                    React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" } }, p.status))))));
+                    React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" } }, statusLabel(p.status)))))));
 }
 // ── TRANSPORT APP (separate module) ───────────────────────────────────────────
 function TransportApp({ user, onLogout, onSwitch }) {
-    const [tab, setTab] = useState("new");
+    const [tab, setTab] = useState("dash");
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
         React.createElement("div", { style: { background: C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
-            "\uD83D\uDCE6 TRANSPORT SYSTEM \u2014 ",
+            "\uD83D\uDCE6 PTD \u2014 PALIAN TRANSPORT & DELIVERY \u2014 ",
             user.name),
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200 } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     React.createElement(PalianLogo, { size: 34 }),
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff" } }, "PALIAN TRANSPORT")),
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff" } }, "PTD")),
                 React.createElement("div", { style: { display: "flex", gap: 10 } },
                     React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Switch"),
                     React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Logout")))),
-        React.createElement("div", { style: { background: C.navy, display: "flex", borderBottom: `3px solid ${C.orange}` } }, [["new", "➕ New Parcel"], ["all", "📦 All Parcels"]].map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setTab(id), style: { flex: 1, padding: "11px 8px", background: "none", border: "none", color: tab === id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: tab === id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3 } }, lb)))),
+        React.createElement("div", { style: { background: C.navy, display: "flex", borderBottom: `3px solid ${C.orange}`, overflowX: "auto" } }, [["dash", "🏠 Dashboard"], ["new", "➕ New"], ["all", "📦 All"], ...(isHO(user.role) ? [["prices", "🔑 Prices"]] : [])].map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setTab(id), style: { flex: 1, padding: "11px 8px", background: "none", border: "none", color: tab === id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: tab === id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap" } }, lb)))),
         React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto" } },
+            tab === "dash" && React.createElement(PTDDashboard, { user: user }),
             tab === "new" && React.createElement(NewParcelForm, { user: user, onBooked: () => { } }),
-            tab === "all" && React.createElement(ParcelList, { user: user }))));
+            tab === "all" && React.createElement(ParcelList, { user: user }),
+            tab === "prices" && isHO(user.role) && React.createElement(RoutePrices, { user: user }))));
 }
 function DailyReports({ db, setDb, user }) {
     const isHORole = isHO(user.role);
@@ -2742,6 +2877,206 @@ function DeletionRequests({ db, setDb }) {
                 React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
                     React.createElement(Btn, { color: C.red, sm: true, onClick: () => approve(c), style: { flex: 1 } }, "\uD83D\uDDD1\uFE0F Approve & Delete"),
                     React.createElement(Btn, { color: C.green, sm: true, onClick: () => reject(c), style: { flex: 1 } }, "\u274C Reject Request")))))));
+}
+
+function PTDDashboard({ user }) {
+    const isHORole = isHO(user.role);
+    const [parcels, setParcels] = useState([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => { loadParcels().then(p => { setParcels(p); setLoading(false); }); }, []);
+    const mine = isHORole ? parcels : parcels.filter(p => p.origin_branch === user.branch || p.dest_branch === user.branch);
+    const pendingIncoming = mine.filter(p => ["Sent", "In Transit"].includes(p.status) && (isHORole ? true : p.dest_branch === user.branch));
+    const pendingOutgoing = mine.filter(p => ["Sent", "In Transit"].includes(p.status) && (isHORole ? true : p.origin_branch === user.branch));
+    const totalDelivery = mine.reduce((s, p) => s + (p.price || 0) + (p.home_delivery_fee || 0), 0);
+    const totalDamage = mine.reduce((s, p) => s + (p.damage_amount || 0), 0);
+    const totalParcels = mine.length;
+    const collected = mine.filter(p => p.status === "Collected").length;
+    if (loading)
+        return React.createElement(Card, { style: { textAlign: "center", padding: 32, color: C.muted } }, "Loading...");
+    return (React.createElement("div", null,
+        React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 18, marginBottom: 14 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, isHORole ? "📦 PTD — All Towns" : `📦 PTD — ${user.branch}`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "DELIVERY AMOUNT"),
+                    React.createElement("div", { style: { fontSize: 14, fontWeight: 900, color: C.gold } }, fmt(totalDelivery))),
+                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "DAMAGE AMOUNT"),
+                    React.createElement("div", { style: { fontSize: 14, fontWeight: 900, color: totalDamage > 0 ? "#ff6b6b" : "#A5D6A7" } }, fmt(totalDamage))))),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } },
+            React.createElement(StatCard, { label: "Total Parcels", value: totalParcels, color: C.navy, icon: "\uD83D\uDCE6" }),
+            React.createElement(StatCard, { label: "Received", value: collected, color: C.green, icon: "\u2705" }),
+            React.createElement(StatCard, { label: "Pending", value: pendingIncoming.length + pendingOutgoing.length, color: C.orange, icon: "\u23F3" })),
+        pendingIncoming.length > 0 && React.createElement(Card, { style: { borderLeft: `4px solid ${C.teal}` } },
+            React.createElement(ST, { color: C.teal },
+                "\uD83D\uDCE5 Pending Parcel \u2014 Arriving ",
+                isHORole ? "(all towns)" : `at ${user.branch}`,
+                " (",
+                pendingIncoming.length,
+                ")"),
+            pendingIncoming.map(p => (React.createElement("div", { key: p.tracking_no, style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy } }, p.tracking_no),
+                    React.createElement("div", { style: { fontSize: 11, color: C.muted } },
+                        p.origin_branch,
+                        " \u2192 ",
+                        p.dest_branch)),
+                React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 700 } }, statusLabel(p.status)))))),
+        pendingOutgoing.length > 0 && React.createElement(Card, { style: { borderLeft: `4px solid ${C.amber}` } },
+            React.createElement(ST, { color: C.amber },
+                "\uD83D\uDCE4 Pending Delivery \u2014 Sent from ",
+                isHORole ? "(all towns)" : user.branch,
+                " (",
+                pendingOutgoing.length,
+                ")"),
+            pendingOutgoing.map(p => (React.createElement("div", { key: p.tracking_no, style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy } }, p.tracking_no),
+                    React.createElement("div", { style: { fontSize: 11, color: C.muted } },
+                        p.origin_branch,
+                        " \u2192 ",
+                        p.dest_branch)),
+                React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 700 } }, statusLabel(p.status)))))),
+        pendingIncoming.length === 0 && pendingOutgoing.length === 0 && React.createElement(Alrt, { type: "success" }, "\u2705 No pending parcels right now.")));
+}
+function RoutePrices({ user }) {
+    const [prices, setPrices] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [originProvince, setOriginProvince] = useState("");
+    const [originTown, setOriginTown] = useState("");
+    const [destProvince, setDestProvince] = useState("");
+    const [destTown, setDestTown] = useState("");
+    const [serviceType, setServiceType] = useState("Parcel");
+    const [price, setPrice] = useState("");
+    const [hdFee, setHdFee] = useState("");
+    function refresh() { setLoading(true); loadRoutePrices().then(p => { setPrices(p); setLoading(false); }); }
+    useEffect(() => { refresh(); }, []);
+    async function save() {
+        if (!originTown || !destTown || !price) {
+            alert("Select origin, destination, and enter a price.");
+            return;
+        }
+        await saveRoutePrice({ origin_town: originTown, dest_town: destTown, service_type: serviceType, price: parseFloat(price) || 0, home_delivery_fee: parseFloat(hdFee) || 0, updated_by: user.name, updated_at: new Date().toISOString() });
+        setPrice("");
+        setHdFee("");
+        refresh();
+        alert("✅ Price saved — applies to all towns immediately.");
+    }
+    return (React.createElement("div", null,
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Set Route Price (Admin/HO only)"),
+            React.createElement(Alrt, { type: "info" }, "Prices set here apply everywhere \u2014 branch staff cannot edit them, only select a route and the price fills in automatically."),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "4px 0 8px" } }, "Origin"),
+            React.createElement(ProvinceTownSelect, { required: true, province: originProvince, town: originTown, onProvince: setOriginProvince, onTown: setOriginTown }),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "4px 0 8px" } }, "Destination"),
+            React.createElement(ProvinceTownSelect, { required: true, province: destProvince, town: destTown, onProvince: setDestProvince, onTown: setDestTown }),
+            React.createElement(Sel, { label: "Service Type", value: serviceType, onChange: e => setServiceType(e.target.value) },
+                React.createElement("option", null, "Parcel"),
+                React.createElement("option", null, "Shifting")),
+            React.createElement(Inp, { label: "Price (K)", type: "number", value: price, onChange: e => setPrice(e.target.value), placeholder: "0.00" }),
+            React.createElement(Inp, { label: "Home Delivery Add-on Fee (K)", type: "number", value: hdFee, onChange: e => setHdFee(e.target.value), placeholder: "0.00" }),
+            React.createElement(Btn, { full: true, color: C.purple, onClick: save }, "\uD83D\uDCBE Save Route Price")),
+        React.createElement(Card, null,
+            React.createElement(ST, null,
+                "All Route Prices (",
+                prices.length,
+                ")"),
+            loading ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "Loading...")
+                : prices.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "No routes priced yet.")
+                    : prices.map(p => (React.createElement("div", { key: p.id, style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` } },
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy } },
+                                p.origin_town,
+                                " \u2192 ",
+                                p.dest_town),
+                            React.createElement("div", { style: { fontSize: 11, color: C.muted } },
+                                p.service_type,
+                                p.home_delivery_fee > 0 ? ` · Home delivery +${fmt(p.home_delivery_fee)}` : "")),
+                        React.createElement("div", { style: { fontWeight: 800, color: C.green } }, fmt(p.price))))))));
+}
+
+function FinanceTracker({ db, user }) {
+    const isAdmin = user.role === "admin";
+    const [budget, setBudget] = useState(0);
+    const [budgetInput, setBudgetInput] = useState("");
+    const [statutory, setStatutory] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [newBodyName, setNewBodyName] = useState("");
+    const [edits, setEdits] = useState({});
+    const allocated = db.staff.filter(s => s.active).reduce((s, x) => s + (x.salary || 0), 0);
+    const remaining = budget - allocated;
+    function refresh() {
+        setLoading(true);
+        Promise.all([loadPayrollBudget(), loadStatutory()]).then(([b, s]) => { setBudget(b); setStatutory(s); setLoading(false); });
+    }
+    useEffect(() => { refresh(); }, []);
+    async function saveBudget() {
+        const amt = parseFloat(budgetInput);
+        if (!amt && amt !== 0) {
+            alert("Enter an amount.");
+            return;
+        }
+        await savePayrollBudget(amt, user);
+        setBudgetInput("");
+        refresh();
+        alert("✅ Payroll budget updated.");
+    }
+    async function saveObligation(o) {
+        const e = edits[o.id] || {};
+        await saveStatutory({ ...o, amount_due: e.due !== undefined ? parseFloat(e.due) || 0 : o.amount_due, amount_paid: e.paid !== undefined ? parseFloat(e.paid) || 0 : o.amount_paid, notes: e.notes !== undefined ? e.notes : o.notes });
+        setEdits(x => ({ ...x, [o.id]: undefined }));
+        refresh();
+    }
+    async function addBody() {
+        if (!newBodyName.trim()) {
+            alert("Enter a name.");
+            return;
+        }
+        await addStatutory(newBodyName.trim(), user);
+        setNewBodyName("");
+        refresh();
+    }
+    if (loading)
+        return React.createElement(Card, { style: { textAlign: "center", padding: 32, color: C.muted } }, "Loading...");
+    return (React.createElement("div", null,
+        React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 18, marginBottom: 14 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, "\uD83D\uDCB0 Payroll Budget"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
+                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "TOTAL BUDGET"),
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 900, color: C.gold } }, fmt(budget))),
+                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "ALLOCATED"),
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 900 } }, fmt(allocated))),
+                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "REMAINING"),
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 900, color: remaining >= 0 ? "#A5D6A7" : "#ff6b6b" } }, fmt(remaining))))),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "Set Payroll Budget"),
+            React.createElement(Alrt, { type: "info" }, "\"Allocated\" is automatically the sum of all active staff salaries \u2014 no need to enter it manually."),
+            React.createElement(Inp, { label: "Total Payroll Budget (K)", type: "number", value: budgetInput, onChange: e => setBudgetInput(e.target.value), placeholder: String(budget) }),
+            React.createElement(Btn, { full: true, color: C.navy, onClick: saveBudget }, "\uD83D\uDCBE Save Budget")),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "Statutory & Regulatory Obligations"),
+            statutory.map(o => {
+                const e = edits[o.id] || {};
+                const due = e.due !== undefined ? e.due : o.amount_due;
+                const paid = e.paid !== undefined ? e.paid : o.amount_paid;
+                const notes = e.notes !== undefined ? e.notes : (o.notes || "");
+                const outstanding = (parseFloat(due) || 0) - (parseFloat(paid) || 0);
+                return (React.createElement("div", { key: o.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } },
+                    React.createElement("div", { style: { fontWeight: 800, color: C.navy, marginBottom: 8 } }, o.name),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+                        React.createElement(Inp, { label: "Amount Due (K)", type: "number", value: due, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], due: ev.target.value } })) }),
+                        React.createElement(Inp, { label: "Amount Paid (K)", type: "number", value: paid, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], paid: ev.target.value } })) })),
+                    React.createElement(Inp, { label: "Notes", value: notes, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], notes: ev.target.value } })), placeholder: "Reference number, deadline, etc." }),
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 } },
+                        React.createElement("div", { style: { fontSize: 12, color: outstanding > 0 ? C.red : C.green, fontWeight: 700 } }, outstanding > 0 ? `Outstanding: ${fmt(outstanding)}` : "✅ Fully Paid"),
+                        React.createElement(Btn, { sm: true, color: C.teal, onClick: () => saveObligation(o) }, "\uD83D\uDCBE Save"))));
+            }),
+            isAdmin && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                React.createElement("input", { value: newBodyName, onChange: e => setNewBodyName(e.target.value), placeholder: "Add another body (e.g. NAPSA)", style: { flex: 1, ...iSt } }),
+                React.createElement(Btn, { color: C.purple, onClick: addBody }, "\u2795 Add")))));
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
