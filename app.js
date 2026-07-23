@@ -876,6 +876,77 @@ function BackupRestore({ db, setDb }) {
                     " \u2014 save one for each week so you can go back in time.")))));
 }
 // ── PAYSLIP GENERATOR COMPONENT ───────────────────────────────────────────────
+/* ── HR LEDGER THEME (scoped to HR module only) ──────────────────────────── */
+const HRT = {
+    navy950: "#071a30", navy800: "#0e2c4d", navy700: "#153a63",
+    gold500: "#c89b3c", garnet700: "#7a1f2b",
+    parchment50: "#f7f2e7", parchment100: "#efe7d3",
+    ink900: "#1c1f26", ink600: "#4d5360",
+    green700: "#2f6b4f", red700: "#8a2b2b", line: "#d8cdb0",
+};
+const HRF = {
+    display: `'Spectral', Georgia, serif`,
+    body: `'Inter', system-ui, sans-serif`,
+    mono: `'IBM Plex Mono', ui-monospace, monospace`,
+};
+function HRHeading({ eyebrow, title }) {
+    return (React.createElement("div", { style: { marginBottom: 16 } },
+        React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: HRT.gold500 } }, eyebrow),
+        React.createElement("div", { style: { fontFamily: HRF.display, fontSize: 21, fontWeight: 600, color: HRT.ink900, marginTop: 2 } }, title)));
+}
+function HRStatCard({ label, value, sub, accent }) {
+    return (React.createElement("div", { style: { background: HRT.navy800, borderRadius: 10, padding: "14px 14px", borderTop: `3px solid ${accent || HRT.gold500}`, minWidth: 0 } },
+        React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 9, color: "#9fb0c6", textTransform: "uppercase", letterSpacing: "0.06em" } }, label),
+        React.createElement("div", { style: { fontFamily: HRF.display, fontSize: 24, fontWeight: 600, color: "#fff", marginTop: 4 } }, value),
+        sub && React.createElement("div", { style: { fontSize: 11, color: "#9fb0c6", marginTop: 2 } }, sub)));
+}
+function HRPanel({ title, children, style }) {
+    return (React.createElement("div", { style: { background: "#fff", border: `1px solid ${HRT.line}`, borderRadius: 10, padding: 16, marginBottom: 14, ...style } },
+        title && React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 15, color: HRT.ink900, marginBottom: 10 } }, title),
+        children));
+}
+function HRBtn({ children, onClick, bg, sm, full, disabled, style }) {
+    return (React.createElement("button", { onClick: onClick, disabled: disabled, style: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: disabled ? "#bbb" : (bg || HRT.navy800), color: "#fff", border: "none", borderRadius: 6, padding: sm ? "7px 12px" : "10px 16px", fontFamily: HRF.body, fontSize: sm ? 12 : 13, fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", width: full ? "100%" : undefined, ...style } }, children));
+}
+function HRGBtn({ children, onClick, style }) {
+    return (React.createElement("button", { onClick: onClick, style: { background: "none", border: `1px solid ${HRT.line}`, borderRadius: 6, padding: "9px 14px", fontFamily: HRF.body, fontWeight: 600, fontSize: 12, cursor: "pointer", color: HRT.ink900, ...style } }, children));
+}
+const hrInpStyle = { width: "100%", padding: "9px 10px", border: `1px solid ${HRT.line}`, borderRadius: 6, fontFamily: HRF.body, fontSize: 13, boxSizing: "border-box", background: HRT.parchment50 };
+function HRInp({ label, req, note, ...p }) {
+    return (React.createElement("div", { style: { marginBottom: 10 } },
+        label && React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 10, color: HRT.ink600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" } },
+            label,
+            req && React.createElement("span", { style: { color: HRT.garnet700 } }, " *")),
+        React.createElement("input", { style: hrInpStyle, ...p }),
+        note && React.createElement("div", { style: { fontSize: 10, color: HRT.ink600, marginTop: 3 } }, note)));
+}
+function HRSel({ label, req, children, ...p }) {
+    return (React.createElement("div", { style: { marginBottom: 10 } },
+        label && React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 10, color: HRT.ink600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" } },
+            label,
+            req && React.createElement("span", { style: { color: HRT.garnet700 } }, " *")),
+        React.createElement("select", { style: hrInpStyle, ...p }, children)));
+}
+function HRBadge({ label, tone }) {
+    const toneMap = { approved: { c: HRT.green700 }, pending: { c: HRT.gold500 }, action: { c: HRT.garnet700 } };
+    const c = (toneMap[tone] || toneMap.pending).c;
+    return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 4, fontFamily: HRF.mono, fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: c, border: `1.5px solid ${c}`, borderRadius: 3, padding: "2px 7px", background: "rgba(255,255,255,0.6)" } }, label));
+}
+function HRIR({ label, value, bold, mono }) {
+    return (React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${HRT.parchment100}`, fontSize: 13 } },
+        React.createElement("span", { style: { color: HRT.ink600 } }, label),
+        React.createElement("span", { style: { fontFamily: mono ? HRF.mono : HRF.body, fontWeight: bold ? 700 : 500, color: HRT.ink900 } }, value)));
+}
+function HRRule() { return React.createElement("div", { style: { height: 1, background: HRT.line, margin: "2px 0" } }); }
+function HRAlrt({ type, children }) {
+    const m = { info: { bg: "#eaf1f7", b: HRT.navy700, c: HRT.navy800 }, warn: { bg: "#faf3e3", b: HRT.gold500, c: "#6b5220" }, error: { bg: "#f7e9e9", b: HRT.garnet700, c: HRT.garnet700 }, success: { bg: "#e9f2ec", b: HRT.green700, c: HRT.green700 } };
+    const s = m[type || "info"];
+    return (React.createElement("div", { style: { background: s.bg, border: `1px solid ${s.b}`, color: s.c, borderRadius: 6, padding: "10px 12px", fontSize: 12, fontFamily: HRF.body, marginBottom: 10 } }, children));
+}
+function hrTabBtn(active, onClick, label) {
+    return (React.createElement("button", { onClick: onClick, style: { padding: "7px 11px", borderRadius: 6, border: `1px solid ${active ? HRT.gold500 : HRT.line}`, background: active ? HRT.navy800 : "#fff", color: active ? "#fff" : HRT.ink900, fontFamily: HRF.body, fontWeight: 600, fontSize: 11, cursor: "pointer" } }, label));
+}
+/* ── PAYSLIP GENERATOR (ledger style) ────────────────────────────────────── */
 function PayslipGenerator({ db }) {
     const [sel, setSel] = useState("");
     const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -903,147 +974,322 @@ function PayslipGenerator({ db }) {
         alert("Select a staff member.");
         return;
     } downloadPayslipPDF(staff, { month: parseInt(month), year: parseInt(year), houseAllowance: hN, transport: tN, other: oN }); }
-    return (React.createElement(Card, null,
-        React.createElement(ST, { color: C.gold }, "\uD83D\uDCC4 Generate Payslip"),
-        React.createElement(Alrt, { type: "info" }, "Generates an official payslip in Palian format \u2014 opens for printing/saving as PDF."),
-        React.createElement(Sel, { label: "Staff Member", value: sel, onChange: e => setSel(e.target.value) },
+    return (React.createElement(HRPanel, { title: "Generate Payslip" },
+        React.createElement(HRAlrt, { type: "info" }, "Ledger-format payslip \u2014 opens for printing, or downloads directly as a PDF."),
+        React.createElement(HRSel, { label: "Staff Member", value: sel, onChange: e => setSel(e.target.value) },
             React.createElement("option", { value: "" }, "-- Select Staff --"),
             db.staff.filter(s => s.active).map(s => React.createElement("option", { key: s.id, value: s.id },
                 s.name,
                 " \u2014 ",
                 s.roleLabel || s.role))),
-        staff && React.createElement("div", { style: { background: "#E3F2FD", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12 } },
-            React.createElement(IR, { label: "Basic Salary", value: fmt(basic) }),
-            React.createElement(IR, { label: "Branch", value: staff.branch || "—" }),
-            React.createElement(IR, { label: "Bank", value: staff.bank || "Not set — update in HR Staff record" })),
+        staff && React.createElement("div", { style: { background: HRT.parchment100, borderRadius: 6, padding: 10, marginBottom: 10 } },
+            React.createElement(HRIR, { label: "Basic Salary", value: fmt(basic), mono: true }),
+            React.createElement(HRIR, { label: "Branch", value: staff.branch || "—" }),
+            React.createElement(HRIR, { label: "Bank", value: staff.bank || "Not set — update in HR" })),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
-            React.createElement(Sel, { label: "Pay Month", value: month, onChange: e => setMonth(e.target.value) }, months.map((m, i) => React.createElement("option", { key: i + 1, value: i + 1 }, m))),
-            React.createElement(Inp, { label: "Year", type: "number", value: year, onChange: e => setYear(e.target.value) }),
-            React.createElement(Inp, { label: "House Allowance (K)", type: "number", value: house, onChange: e => setHouse(e.target.value), placeholder: "0.00" }),
-            React.createElement(Inp, { label: "Transport Allowance (K)", type: "number", value: transport, onChange: e => setTransport(e.target.value), placeholder: "0.00" }),
-            React.createElement(Inp, { label: "Other Income (K)", type: "number", value: other, onChange: e => setOther(e.target.value), placeholder: "0.00" }),
-            React.createElement(Inp, { label: "Leave Days Taken", type: "number", value: leave, onChange: e => setLeave(e.target.value), placeholder: "0" }),
-            React.createElement(Inp, { label: "Xmas Bonus (K)", type: "number", value: xmas, onChange: e => setXmas(e.target.value), placeholder: "0.00" })),
-        staff && total > 0 && React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 12, padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, textAlign: "center", marginBottom: 14 } }, [["Total Income", fmt(total), "#fff"], ["NAPSA 5%", fmt(napsa), "#FFB300"], ["PAYE Est.", fmt(paye), "#FF8A80"], ["Net Pay", fmt(net), "#A5D6A7"]].map(([l, v, c]) => (React.createElement("div", { key: l },
-            React.createElement("div", { style: { fontSize: 8, color: "rgba(255,255,255,0.6)", fontWeight: 700, marginBottom: 3 } }, l),
-            React.createElement("div", { style: { fontSize: 11, fontWeight: 800, color: c } }, v))))),
+            React.createElement(HRSel, { label: "Pay Month", value: month, onChange: e => setMonth(e.target.value) }, months.map((m, i) => React.createElement("option", { key: i + 1, value: i + 1 }, m))),
+            React.createElement(HRInp, { label: "Year", type: "number", value: year, onChange: e => setYear(e.target.value) }),
+            React.createElement(HRInp, { label: "House Allowance (K)", type: "number", value: house, onChange: e => setHouse(e.target.value), placeholder: "0.00" }),
+            React.createElement(HRInp, { label: "Transport Allowance (K)", type: "number", value: transport, onChange: e => setTransport(e.target.value), placeholder: "0.00" }),
+            React.createElement(HRInp, { label: "Other Income (K)", type: "number", value: other, onChange: e => setOther(e.target.value), placeholder: "0.00" }),
+            React.createElement(HRInp, { label: "Leave Days Taken", type: "number", value: leave, onChange: e => setLeave(e.target.value), placeholder: "0" }),
+            React.createElement(HRInp, { label: "Xmas Bonus (K)", type: "number", value: xmas, onChange: e => setXmas(e.target.value), placeholder: "0.00" })),
+        staff && total > 0 && React.createElement("div", { style: { background: HRT.navy950, borderRadius: 8, padding: 12, marginBottom: 12 } },
+            React.createElement(HRIR, { label: "Total Income", value: fmt(total), mono: true }),
+            React.createElement(HRIR, { label: "NAPSA 5%", value: fmt(napsa), mono: true }),
+            React.createElement(HRIR, { label: "PAYE (Est.)", value: fmt(paye), mono: true }),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", paddingTop: 8, marginTop: 4, borderTop: `1px solid ${HRT.navy700}` } },
+                React.createElement("span", { style: { color: HRT.gold500, fontFamily: HRF.mono, fontSize: 11, textTransform: "uppercase" } }, "Net Pay"),
+                React.createElement("span", { style: { color: "#fff", fontFamily: HRF.display, fontWeight: 700, fontSize: 16 } }, fmt(net)))),
         React.createElement("div", { style: { display: "flex", gap: 8 } },
-            React.createElement(Btn, { full: true, color: C.teal, onClick: generate }, "\uD83D\uDDA8\uFE0F Print"),
-            React.createElement(Btn, { full: true, color: C.blue, onClick: generateDownload }, "\u2B07\uFE0F Download PDF"))));
+            React.createElement(HRBtn, { full: true, onClick: generate, bg: HRT.navy700 }, "Print"),
+            React.createElement(HRBtn, { full: true, onClick: generateDownload, bg: HRT.gold500 }, "Download PDF"))));
 }
-// ── LOGIN ─────────────────────────────────────────────────────────────────────
-const HERO_PHOTO = "data:image/jpeg;base64," + [
-    "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"
-].join("");
-const FOUNDER_SKETCH = "data:image/jpeg;base64," + [
-    "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",
-    "IFCl1eQf/9k="
-].join("");
+/* ── HR SYSTEM (ledger style) ─────────────────────────────────────────────── */
+function HRSystem({ db, setDb, user }) {
+    const isAccountsOnly = user.role === "accounts";
+    const [tab, setTab] = useState(isAccountsOnly ? "payslips" : "dash");
+    const [ns, setNs] = useState({ name: "", role: "consultant", customRole: "", pin: "", dept: "", salary: "", startDate: "", province: "", town: "", nrc: "", bank: "", accountNo: "", grade: "", phone: "", email: "", tpin: "" });
+    const [nsPhoto, setNsPhoto] = useState(null);
+    const [editId, setEditId] = useState(null);
+    const [ef, setEf] = useState({ name: "", pin: "", province: "", town: "", nrc: "", bank: "", accountNo: "", grade: "", phone: "", email: "", tpin: "" });
+    const [efPhoto, setEfPhoto] = useState(null);
+    const isHQR = r => HO_ROLES.includes(r);
+    async function addStaff() {
+        if (!ns.name || !ns.pin) {
+            alert("Enter name and PIN.");
+            return;
+        }
+        if (ns.role === "other" && !ns.customRole) {
+            alert("Specify position.");
+            return;
+        }
+        const needsBranch = !isHQR(ns.role);
+        if (needsBranch && !ns.town) {
+            alert("Select Province and Town.");
+            return;
+        }
+        if (db.staff.find(s => s.name.trim().toLowerCase() === ns.name.trim().toLowerCase())) {
+            alert("Name already exists.");
+            return;
+        }
+        const roleLabel = ns.role === "other" ? ns.customRole.trim() : (ns.role === "manager" ? "Branch Manager" : ns.role.charAt(0).toUpperCase() + ns.role.slice(1));
+        const sysRole = ["consultant", "officer", "manager", "hr", "accounts", "ceo", "admin", "director", "strategic"].includes(ns.role) ? ns.role : "viewer";
+        const branch = needsBranch ? ns.town : "Head Office";
+        const province = needsBranch ? ns.province : "Head Office";
+        const pinHash = await hashPin(ns.pin);
+        const staffId = `STF-${pad(db.staff.length + 1)}`;
+        const photoUrl = nsPhoto ? await uploadParcelPhoto(nsPhoto, `staff-${staffId}`) : "";
+        const nd = { ...db, staff: [...db.staff, { id: staffId, name: ns.name.trim(), role: sysRole, roleLabel, pinHash, dept: ns.dept, salary: parseFloat(ns.salary) || 0, startDate: ns.startDate, branch, province, active: true, nrc: ns.nrc.trim(), bank: ns.bank.trim(), accountNo: ns.accountNo.trim(), grade: ns.grade.trim(), phone: ns.phone.trim(), email: ns.email.trim(), tpin: ns.tpin.trim(), photoUrl: photoUrl || "" }] };
+        saveDB(nd);
+        setDb(nd);
+        setNs({ name: "", role: "consultant", customRole: "", pin: "", dept: "", salary: "", startDate: "", province: "", town: "", nrc: "", bank: "", accountNo: "", grade: "", phone: "", email: "", tpin: "" });
+        setNsPhoto(null);
+        alert(`Entry recorded — ${roleLabel} added.`);
+    }
+    function togStaff(id) { const nd = { ...db, staff: db.staff.map(s => s.id === id ? { ...s, active: !s.active } : s) }; saveDB(nd); setDb(nd); }
+    function remStaff(id) { if (!window.confirm("Remove this entry?"))
+        return; const nd = { ...db, staff: db.staff.filter(s => s.id !== id) }; saveDB(nd); setDb(nd); }
+    function startEdit(s) { setEditId(s.id); setEf({ name: s.name, pin: "", province: s.province || "", town: isHQR(s.role) ? "" : s.branch, nrc: s.nrc || "", bank: s.bank || "", accountNo: s.accountNo || "", grade: s.grade || "", phone: s.phone || "", email: s.email || "", tpin: s.tpin || "" }); setEfPhoto(s.photoUrl || null); }
+    async function saveEdit(s) {
+        if (!ef.name) {
+            alert("Name required.");
+            return;
+        }
+        const needsBranch = !isHQR(s.role);
+        const newPinHash = ef.pin.trim() ? await hashPin(ef.pin.trim()) : s.pinHash;
+        const photoChanged = efPhoto && efPhoto.startsWith("data:");
+        const photoUrl = photoChanged ? (await uploadParcelPhoto(efPhoto, `staff-${s.id}`)) || s.photoUrl : (efPhoto || "");
+        const nd = { ...db, staff: db.staff.map(x => x.id === s.id ? { ...x, name: ef.name.trim(), pinHash: newPinHash, branch: needsBranch ? ef.town : s.branch, province: needsBranch ? ef.province : s.province, nrc: ef.nrc, bank: ef.bank, accountNo: ef.accountNo, grade: ef.grade, phone: ef.phone, email: ef.email, tpin: ef.tpin, photoUrl } : x) };
+        saveDB(nd);
+        setDb(nd);
+        setEditId(null);
+        alert("Entry updated.");
+    }
+    function approveLeave(id, status) { const nd = { ...db, leaveRequests: db.leaveRequests.map(r => r.id === id ? { ...r, status, approvedBy: user.name } : r) }; saveDB(nd); setDb(nd); }
+    const activeStaff = db.staff.filter(s => s.active).length;
+    const inactiveStaff = db.staff.filter(s => !s.active).length;
+    const pendingLeaveCt = (db.leaveRequests || []).filter(r => r.status === "Pending").length;
+    const branchCt = new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office").map(s => s.branch)).size;
+    const deptCounts = {};
+    db.staff.filter(s => s.active).forEach(s => { const d = s.dept || s.roleLabel || s.role; deptCounts[d] = (deptCounts[d] || 0) + 1; });
+    const maxDept = Math.max(1, ...Object.values(deptCounts));
+    const tabDefs = isAccountsOnly
+        ? [["payslips", "Payslips"], ["payroll", "Payroll"], ["finance", "Finance"]]
+        : [["dash", "Dashboard"], ["staff", "Staff"], ["payslips", "Payslips"], ["leave", "Leave"], ["payroll", "Payroll"], ["finance", "Finance"], ["org", "Org"], ["audit", "Audit"]];
+    return (React.createElement("div", { style: { fontFamily: HRF.body } },
+        React.createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" }),
+        React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" } }, tabDefs.map(([id, lb]) => hrTabBtn(tab === id, () => setTab(id), lb))),
+        tab === "dash" && (React.createElement("div", null,
+            React.createElement(HRHeading, { eyebrow: "Register \u2014 Overview", title: "HR Dashboard" }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10, marginBottom: 16 } },
+                React.createElement(HRStatCard, { label: "Active Staff", value: activeStaff, sub: `${db.staff.length} total on register` }),
+                React.createElement(HRStatCard, { label: "Inactive", value: inactiveStaff, accent: HRT.garnet700 }),
+                React.createElement(HRStatCard, { label: "Leave Pending", value: pendingLeaveCt, accent: HRT.gold500 }),
+                React.createElement(HRStatCard, { label: "Branches", value: branchCt, accent: HRT.navy700 })),
+            React.createElement(HRPanel, { title: "Staff by Department / Role" }, Object.entries(deptCounts).map(([d, c]) => (React.createElement("div", { key: d, style: { marginBottom: 8 } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 } },
+                    React.createElement("span", { style: { color: HRT.ink600 } }, d),
+                    React.createElement("span", { style: { fontFamily: HRF.mono, color: HRT.ink900 } }, c)),
+                React.createElement("div", { style: { background: HRT.parchment100, borderRadius: 4, height: 8, overflow: "hidden" } },
+                    React.createElement("div", { style: { background: HRT.navy700, height: "100%", width: `${(c / maxDept * 100)}%` } })))))))),
+        tab === "staff" && (React.createElement("div", null,
+            React.createElement(HRHeading, { eyebrow: "Register \u2014 Personnel", title: "Employee Directory" }),
+            React.createElement(HRPanel, { title: "New Ledger Entry" },
+                React.createElement(HRInp, { label: "Full Name", req: true, value: ns.name, onChange: e => setNs(f => ({ ...f, name: e.target.value })) }),
+                React.createElement(HRSel, { label: "Role", req: true, value: ns.role, onChange: e => setNs(f => ({ ...f, role: e.target.value, customRole: "", province: "", town: "" })) },
+                    React.createElement("option", { value: "consultant" }, "Loan Consultant (branch)"),
+                    React.createElement("option", { value: "officer" }, "Loan Officer (branch)"),
+                    React.createElement("option", { value: "manager" }, "Branch Manager (branch)"),
+                    React.createElement("option", { value: "hr" }, "HR (Head Office)"),
+                    React.createElement("option", { value: "accounts" }, "Accountant (Head Office)"),
+                    React.createElement("option", { value: "ceo" }, "CEO (Head Office)"),
+                    React.createElement("option", { value: "admin" }, "Admin (Head Office)"),
+                    React.createElement("option", { value: "director" }, "Director (Head Office)"),
+                    React.createElement("option", { value: "strategic" }, "Strategic (Head Office)"),
+                    React.createElement("option", { value: "other" }, "Other (specify)")),
+                ns.role === "other" && React.createElement(HRInp, { label: "Specify Position", req: true, value: ns.customRole, onChange: e => setNs(f => ({ ...f, customRole: e.target.value })) }),
+                !isHQR(ns.role) && React.createElement(ProvinceTownSelect, { required: true, province: ns.province, town: ns.town, onProvince: p => setNs(f => ({ ...f, province: p, town: "" })), onTown: t => setNs(f => ({ ...f, town: t })) }),
+                isHQR(ns.role) && React.createElement(HRAlrt, { type: "info" }, "Head Office role \u2014 access to all 10 provinces."),
+                React.createElement(PhotoUpload, { label: "Passport-Size Photo", value: nsPhoto, onChange: setNsPhoto }),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(HRInp, { label: "PIN", type: "password", req: true, value: ns.pin, onChange: e => setNs(f => ({ ...f, pin: e.target.value })), placeholder: "4\u20136 digits" }),
+                    React.createElement(HRInp, { label: "NRC No.", value: ns.nrc, onChange: e => setNs(f => ({ ...f, nrc: e.target.value })), placeholder: "123456/78/1" }),
+                    React.createElement(HRInp, { label: "TPIN No.", value: ns.tpin, onChange: e => setNs(f => ({ ...f, tpin: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Phone", value: ns.phone, onChange: e => setNs(f => ({ ...f, phone: e.target.value })), placeholder: "0977000000" }),
+                    React.createElement(HRInp, { label: "Email", type: "email", value: ns.email, onChange: e => setNs(f => ({ ...f, email: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Department", value: ns.dept, onChange: e => setNs(f => ({ ...f, dept: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Grade / Pay Point", value: ns.grade, onChange: e => setNs(f => ({ ...f, grade: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Basic Salary (K)", type: "number", value: ns.salary, onChange: e => setNs(f => ({ ...f, salary: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Start Date", type: "date", value: ns.startDate, onChange: e => setNs(f => ({ ...f, startDate: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Bank Name", value: ns.bank, onChange: e => setNs(f => ({ ...f, bank: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Account No.", value: ns.accountNo, onChange: e => setNs(f => ({ ...f, accountNo: e.target.value })) })),
+                React.createElement(HRBtn, { full: true, bg: HRT.gold500, onClick: addStaff }, "Save Entry")),
+            React.createElement(HRPanel, { title: `Ledger (${db.staff.length} entries)` }, db.staff.map((s, idx) => (React.createElement("div", { key: s.id },
+                editId === s.id ? (React.createElement("div", { style: { padding: "10px 0" } },
+                    React.createElement(PhotoUpload, { label: "Passport-Size Photo", value: efPhoto, onChange: setEfPhoto, small: true }),
+                    React.createElement(HRInp, { label: "Full Name", req: true, value: ef.name, onChange: e => setEf(f => ({ ...f, name: e.target.value })) }),
+                    React.createElement(HRInp, { label: "New PIN (leave blank to keep current)", type: "password", value: ef.pin, onChange: e => setEf(f => ({ ...f, pin: e.target.value })) }),
+                    React.createElement(HRInp, { label: "NRC No.", value: ef.nrc, onChange: e => setEf(f => ({ ...f, nrc: e.target.value })) }),
+                    React.createElement(HRInp, { label: "TPIN No.", value: ef.tpin, onChange: e => setEf(f => ({ ...f, tpin: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Phone", value: ef.phone, onChange: e => setEf(f => ({ ...f, phone: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Email", type: "email", value: ef.email, onChange: e => setEf(f => ({ ...f, email: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Bank Name", value: ef.bank, onChange: e => setEf(f => ({ ...f, bank: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Account No.", value: ef.accountNo, onChange: e => setEf(f => ({ ...f, accountNo: e.target.value })) }),
+                    React.createElement(HRInp, { label: "Grade", value: ef.grade, onChange: e => setEf(f => ({ ...f, grade: e.target.value })) }),
+                    !isHQR(s.role) && React.createElement(ProvinceTownSelect, { required: true, province: ef.province, town: ef.town, onProvince: p => setEf(f => ({ ...f, province: p, town: "" })), onTown: t => setEf(f => ({ ...f, town: t })) }),
+                    React.createElement("div", { style: { display: "flex", gap: 8 } },
+                        React.createElement(HRBtn, { sm: true, bg: HRT.green700, onClick: () => saveEdit(s) }, "Save"),
+                        React.createElement(HRGBtn, { onClick: () => setEditId(null) }, "Cancel")))) : (React.createElement("div", null,
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "70px 1fr auto", padding: "10px 0", alignItems: "center", gap: 8 } },
+                        React.createElement("span", { style: { fontFamily: HRF.mono, fontSize: 11, color: HRT.ink600 } }, s.id),
+                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                            s.photoUrl && React.createElement("img", { src: s.photoUrl, alt: "", style: { width: 32, height: 32, borderRadius: "50%", objectFit: "cover" } }),
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 14, color: HRT.ink900 } }, s.name),
+                                React.createElement("div", { style: { fontSize: 11, color: HRT.ink600 } },
+                                    s.roleLabel || s.role,
+                                    s.dept ? " · " + s.dept : "",
+                                    " \u00B7 ",
+                                    s.branch || "—"),
+                                (s.phone || s.email) && React.createElement("div", { style: { fontSize: 10, color: HRT.ink600 } }, [s.phone, s.email].filter(Boolean).join(" · ")),
+                                s.salary > 0 && React.createElement("div", { style: { fontSize: 11, color: HRT.green700, fontFamily: HRF.mono } },
+                                    fmt(s.salary),
+                                    "/mo"))),
+                        React.createElement(HRBadge, { label: s.active ? "Active" : "Inactive", tone: s.active ? "approved" : "action" })),
+                    React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", paddingBottom: 10 } },
+                        React.createElement(HRGBtn, { onClick: () => startEdit(s) }, "Edit"),
+                        React.createElement(HRGBtn, { onClick: () => togStaff(s.id) }, s.active ? "Deactivate" : "Activate"),
+                        s.salary > 0 && React.createElement(HRGBtn, { onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "Payslip"),
+                        s.id !== "hr001" && React.createElement(HRGBtn, { onClick: () => remStaff(s.id), style: { color: HRT.garnet700, borderColor: HRT.garnet700 } }, "Remove")))),
+                React.createElement(HRRule, null))))))),
+        tab === "payslips" && React.createElement(PayslipGenerator, { db: db }),
+        tab === "leave" && (React.createElement("div", null,
+            React.createElement(HRHeading, { eyebrow: "Register \u2014 Leave", title: "Leave Management" }),
+            React.createElement(HRPanel, null, (db.leaveRequests || []).length === 0 ? React.createElement(HRAlrt, { type: "info" }, "No leave requests on the ledger.") : (db.leaveRequests || []).slice().reverse().map(r => (React.createElement("div", { key: r.id, style: { padding: "10px 0" } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 10, color: HRT.ink600 } }, r.id),
+                        React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 14 } },
+                            r.staffName,
+                            " \u2014 ",
+                            r.type),
+                        React.createElement("div", { style: { fontSize: 11, color: HRT.ink600 } },
+                            r.from,
+                            " \u2192 ",
+                            r.to)),
+                    React.createElement(HRBadge, { label: r.status, tone: r.status === "Approved" ? "approved" : r.status === "Rejected" ? "action" : "pending" })),
+                React.createElement("div", { style: { fontSize: 12, color: HRT.ink600, marginTop: 6 } },
+                    "Reason: ",
+                    r.reason),
+                r.status === "Pending" && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 8 } },
+                    React.createElement(HRBtn, { sm: true, bg: HRT.green700, onClick: () => approveLeave(r.id, "Approved") }, "Approve"),
+                    React.createElement(HRBtn, { sm: true, bg: HRT.garnet700, onClick: () => approveLeave(r.id, "Rejected") }, "Reject")),
+                React.createElement(HRRule, null))))))),
+        tab === "payroll" && (React.createElement("div", null,
+            React.createElement(HRHeading, { eyebrow: "Register \u2014 Payroll", title: "Payroll Summary" }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 } },
+                React.createElement(HRStatCard, { label: "Active Staff", value: db.staff.filter(s => s.active).length }),
+                React.createElement(HRStatCard, { label: "Monthly Payroll", value: fmt(db.staff.filter(s => s.active && s.salary).reduce((s, x) => s + x.salary, 0)), accent: HRT.green700 })),
+            React.createElement(HRPanel, null, db.staff.filter(s => s.salary > 0).map(s => (React.createElement("div", { key: s.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 13 } }, s.name),
+                    React.createElement("div", { style: { fontSize: 11, color: HRT.ink600 } },
+                        s.roleLabel || s.role,
+                        " \u00B7 ",
+                        s.branch || "—")),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement("div", { style: { fontFamily: HRF.mono, fontWeight: 700, color: HRT.green700, fontSize: 13 } }, fmt(s.salary)),
+                    React.createElement(HRGBtn, { onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "Slip"),
+                    React.createElement(HRGBtn, { onClick: () => downloadPayslipPDF(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "PDF")))))))),
+        tab === "finance" && React.createElement(FinanceTracker, { db: db, user: user }),
+        tab === "org" && (React.createElement("div", null,
+            React.createElement(HRHeading, { eyebrow: "Register \u2014 Structure", title: "Organisation Chart" }),
+            ["ceo", "admin", "director", "strategic", "hr", "accounts", "manager", "officer", "consultant"].map(role => {
+                const members = db.staff.filter(s => s.role === role && s.active);
+                if (!members.length)
+                    return null;
+                return (React.createElement(HRPanel, { key: role, title: `${role === "ceo" ? "CEO" : role.charAt(0).toUpperCase() + role.slice(1)} (${members.length})` }, members.map(s => (React.createElement("div", { key: s.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
+                    React.createElement("div", { style: { width: 30, height: 30, borderRadius: "50%", background: HRT.navy700, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: HRF.display, fontSize: 13, flexShrink: 0 } }, s.name.charAt(0)),
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 13 } }, s.name),
+                        React.createElement("div", { style: { fontSize: 11, color: HRT.ink600 } },
+                            s.roleLabel || s.role,
+                            " \u00B7 ",
+                            s.branch || "—")))))));
+            }))),
+        tab === "audit" && (React.createElement("div", null,
+            React.createElement(HRHeading, { eyebrow: "Register \u2014 Security", title: "Login Audit" }),
+            React.createElement(HRPanel, null, (db.loginLogs || []).length === 0 ? React.createElement(HRAlrt, { type: "info" }, "No records yet.") : (db.loginLogs || []).slice().reverse().slice(0, 50).map((log, i) => (React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 13 } }, log.name),
+                    React.createElement("div", { style: { fontSize: 11, color: HRT.ink600 } },
+                        log.roleLabel || log.role,
+                        " \u00B7 ",
+                        log.branch || "—"),
+                    React.createElement("div", { style: { fontSize: 11, color: HRT.ink600 } },
+                        log.date,
+                        " at ",
+                        log.time)),
+                React.createElement(HRBadge, { label: "Logged In", tone: "approved" })))))))));
+}
+/* ── FINANCE TRACKER (ledger style) ──────────────────────────────────────── */
+function FinanceTracker({ db, user }) {
+    const isAdmin = user.role === "admin";
+    const [budget, setBudget] = useState(0);
+    const [budgetInput, setBudgetInput] = useState("");
+    const [statutory, setStatutory] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [newBodyName, setNewBodyName] = useState("");
+    const [edits, setEdits] = useState({});
+    const allocated = db.staff.filter(s => s.active).reduce((s, x) => s + (x.salary || 0), 0);
+    const remaining = budget - allocated;
+    function refresh() { setLoading(true); Promise.all([loadPayrollBudget(), loadStatutory()]).then(([b, s]) => { setBudget(b); setStatutory(s); setLoading(false); }); }
+    useEffect(() => { refresh(); }, []);
+    async function saveBudget() { const amt = parseFloat(budgetInput); if (!amt && amt !== 0) {
+        alert("Enter an amount.");
+        return;
+    } await savePayrollBudget(amt, user); setBudgetInput(""); refresh(); alert("Budget entry recorded."); }
+    async function saveObligation(o) { const e = edits[o.id] || {}; await saveStatutory({ ...o, amount_due: e.due !== undefined ? parseFloat(e.due) || 0 : o.amount_due, amount_paid: e.paid !== undefined ? parseFloat(e.paid) || 0 : o.amount_paid, notes: e.notes !== undefined ? e.notes : o.notes }); setEdits(x => ({ ...x, [o.id]: undefined })); refresh(); }
+    async function addBody() { if (!newBodyName.trim()) {
+        alert("Enter a name.");
+        return;
+    } await addStatutory(newBodyName.trim(), user); setNewBodyName(""); refresh(); }
+    if (loading)
+        return React.createElement(HRPanel, null,
+            React.createElement("div", { style: { textAlign: "center", color: HRT.ink600, padding: 20, fontFamily: HRF.body } }, "Loading ledger..."));
+    return (React.createElement("div", null,
+        React.createElement(HRHeading, { eyebrow: "Register \u2014 Finance", title: "Payroll Budget & Statutory Obligations" }),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 } },
+            React.createElement(HRStatCard, { label: "Total Budget", value: fmt(budget) }),
+            React.createElement(HRStatCard, { label: "Allocated", value: fmt(allocated), accent: HRT.navy700 }),
+            React.createElement(HRStatCard, { label: "Remaining", value: fmt(remaining), accent: remaining >= 0 ? HRT.green700 : HRT.garnet700 })),
+        React.createElement(HRPanel, { title: "Set Payroll Budget" },
+            React.createElement(HRAlrt, { type: "info" }, "\"Allocated\" is the sum of all active staff salaries \u2014 calculated automatically."),
+            React.createElement(HRInp, { label: "Total Payroll Budget (K)", type: "number", value: budgetInput, onChange: e => setBudgetInput(e.target.value), placeholder: String(budget) }),
+            React.createElement(HRBtn, { full: true, bg: HRT.navy800, onClick: saveBudget }, "Save Budget")),
+        React.createElement(HRPanel, { title: "Statutory & Regulatory Obligations" },
+            statutory.map(o => {
+                const e = edits[o.id] || {};
+                const due = e.due !== undefined ? e.due : o.amount_due;
+                const paid = e.paid !== undefined ? e.paid : o.amount_paid;
+                const notes = e.notes !== undefined ? e.notes : (o.notes || "");
+                const outstanding = (parseFloat(due) || 0) - (parseFloat(paid) || 0);
+                return (React.createElement("div", { key: o.id, style: { padding: "10px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
+                    React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 14, color: HRT.ink900, marginBottom: 6 } }, o.name),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(HRInp, { label: "Amount Due (K)", type: "number", value: due, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], due: ev.target.value } })) }),
+                        React.createElement(HRInp, { label: "Amount Paid (K)", type: "number", value: paid, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], paid: ev.target.value } })) })),
+                    React.createElement(HRInp, { label: "Notes", value: notes, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], notes: ev.target.value } })), placeholder: "Reference number, deadline, etc." }),
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement(HRBadge, { label: outstanding > 0 ? `Outstanding ${fmt(outstanding)}` : "Fully Paid", tone: outstanding > 0 ? "action" : "approved" }),
+                        React.createElement(HRBtn, { sm: true, bg: HRT.navy700, onClick: () => saveObligation(o) }, "Save"))));
+            }),
+            isAdmin && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                React.createElement("input", { value: newBodyName, onChange: e => setNewBodyName(e.target.value), placeholder: "Add another body (e.g. NAPSA)", style: { flex: 1, ...hrInpStyle } }),
+                React.createElement(HRBtn, { bg: HRT.gold500, onClick: addBody }, "Add")))));
+}
+
 function Login({ db, onLogin }) {
     const [name, setName] = useState("");
     const [pin, setPin] = useState("");
@@ -1918,227 +2164,6 @@ function AllLoans({ db, user, onReport }) {
             })));
 }
 // ── HR SYSTEM ─────────────────────────────────────────────────────────────────
-function HRSystem({ db, setDb, user }) {
-    const isAccountsOnly = user.role === "accounts";
-    const [tab, setTab] = useState(isAccountsOnly ? "payslips" : "staff");
-    const [ns, setNs] = useState({ name: "", role: "consultant", customRole: "", pin: "", dept: "", salary: "", startDate: "", province: "", town: "", nrc: "", bank: "", accountNo: "", grade: "", phone: "", email: "", tpin: "" });
-    const [nsPhoto, setNsPhoto] = useState(null);
-    const [editId, setEditId] = useState(null);
-    const [ef, setEf] = useState({ name: "", pin: "", province: "", town: "", nrc: "", bank: "", accountNo: "", grade: "", phone: "", email: "", tpin: "" });
-    const [efPhoto, setEfPhoto] = useState(null);
-    const isHQR = r => HO_ROLES.includes(r);
-    async function addStaff() {
-        if (!ns.name || !ns.pin) {
-            alert("Enter name and PIN.");
-            return;
-        }
-        if (ns.role === "other" && !ns.customRole) {
-            alert("Specify position.");
-            return;
-        }
-        const needsBranch = !isHQR(ns.role);
-        if (needsBranch && !ns.town) {
-            alert("Select Province and Town.");
-            return;
-        }
-        if (db.staff.find(s => s.name.trim().toLowerCase() === ns.name.trim().toLowerCase())) {
-            alert("Name already exists.");
-            return;
-        }
-        const roleLabel = ns.role === "other" ? ns.customRole.trim() : (ns.role === "manager" ? "Branch Manager" : ns.role.charAt(0).toUpperCase() + ns.role.slice(1));
-        const sysRole = ["consultant", "officer", "manager", "hr", "accounts", "ceo", "admin", "director", "strategic"].includes(ns.role) ? ns.role : "viewer";
-        const branch = needsBranch ? ns.town : "Head Office";
-        const province = needsBranch ? ns.province : "Head Office";
-        const pinHash = await hashPin(ns.pin);
-        const staffId = `STF-${pad(db.staff.length + 1)}`;
-        const photoUrl = nsPhoto ? await uploadParcelPhoto(nsPhoto, `staff-${staffId}`) : "";
-        const nd = { ...db, staff: [...db.staff, { id: staffId, name: ns.name.trim(), role: sysRole, roleLabel, pinHash, dept: ns.dept, salary: parseFloat(ns.salary) || 0, startDate: ns.startDate, branch, province, active: true, nrc: ns.nrc.trim(), bank: ns.bank.trim(), accountNo: ns.accountNo.trim(), grade: ns.grade.trim(), phone: ns.phone.trim(), email: ns.email.trim(), tpin: ns.tpin.trim(), photoUrl: photoUrl || "" }] };
-        saveDB(nd);
-        setDb(nd);
-        setNs({ name: "", role: "consultant", customRole: "", pin: "", dept: "", salary: "", startDate: "", province: "", town: "", nrc: "", bank: "", accountNo: "", grade: "", phone: "", email: "", tpin: "" });
-        setNsPhoto(null);
-        alert(`✅ ${roleLabel} added.`);
-    }
-    function togStaff(id) { const nd = { ...db, staff: db.staff.map(s => s.id === id ? { ...s, active: !s.active } : s) }; saveDB(nd); setDb(nd); }
-    function remStaff(id) { if (!window.confirm("Remove?"))
-        return; const nd = { ...db, staff: db.staff.filter(s => s.id !== id) }; saveDB(nd); setDb(nd); }
-    function startEdit(s) { setEditId(s.id); setEf({ name: s.name, pin: "", province: s.province || "", town: isHQR(s.role) ? "" : s.branch, nrc: s.nrc || "", bank: s.bank || "", accountNo: s.accountNo || "", grade: s.grade || "", phone: s.phone || "", email: s.email || "", tpin: s.tpin || "" }); setEfPhoto(s.photoUrl || null); }
-    async function saveEdit(s) {
-        if (!ef.name) {
-            alert("Name required.");
-            return;
-        }
-        const needsBranch = !isHQR(s.role);
-        const newPinHash = ef.pin.trim() ? await hashPin(ef.pin.trim()) : s.pinHash;
-        const photoChanged = efPhoto && efPhoto.startsWith("data:");
-        const photoUrl = photoChanged ? (await uploadParcelPhoto(efPhoto, `staff-${s.id}`)) || s.photoUrl : (efPhoto || "");
-        const nd = { ...db, staff: db.staff.map(x => x.id === s.id ? { ...x, name: ef.name.trim(), pinHash: newPinHash, branch: needsBranch ? ef.town : s.branch, province: needsBranch ? ef.province : s.province, nrc: ef.nrc, bank: ef.bank, accountNo: ef.accountNo, grade: ef.grade, phone: ef.phone, email: ef.email, tpin: ef.tpin, photoUrl } : x) };
-        saveDB(nd);
-        setDb(nd);
-        setEditId(null);
-        alert("✅ Updated.");
-    }
-    function approveLeave(id, status) { const nd = { ...db, leaveRequests: db.leaveRequests.map(r => r.id === id ? { ...r, status, approvedBy: user.name } : r) }; saveDB(nd); setDb(nd); }
-    return (React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" } }, (isAccountsOnly ? [["payslips", "💰 Payslips"], ["payroll", "📊 Payroll"], ["finance", "🏛️ Finance"]] : [["staff", "👥 Staff"], ["payslips", "💰 Payslips"], ["leave", "🏖️ Leave"], ["payroll", "📊 Payroll"], ["finance", "🏛️ Finance"], ["org", "🏢 Org"], ["audit", "🔐 Audit"]]).map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setTab(id), style: { padding: "7px 11px", borderRadius: 8, border: `1.5px solid ${tab === id ? C.navy : C.border}`, background: tab === id ? C.navy : "white", color: tab === id ? "white" : "#333", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, lb)))),
-        tab === "payslips" && React.createElement(PayslipGenerator, { db: db }),
-        tab === "staff" && (React.createElement("div", null,
-            React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 16, marginBottom: 14 } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10 } },
-                    React.createElement(PalianLogo, { size: 30 }),
-                    React.createElement("div", { style: { fontSize: 16, fontWeight: 800 } }, "HR Dashboard")),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 } }, [["Total", db.staff.length, "#fff"], ["Active", db.staff.filter(s => s.active).length, "#B9F6CA"], ["Inactive", db.staff.filter(s => !s.active).length, "#FF8A80"]].map(([l, v, c]) => React.createElement("div", { key: l, style: { background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: 8, textAlign: "center" } },
-                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: c } }, v),
-                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, l))))),
-            React.createElement(Card, null,
-                React.createElement(ST, null, "\u2795 Add Staff"),
-                React.createElement(Inp, { label: "Full Name", req: true, value: ns.name, onChange: e => setNs(f => ({ ...f, name: e.target.value })) }),
-                React.createElement(Sel, { label: "Role", req: true, value: ns.role, onChange: e => setNs(f => ({ ...f, role: e.target.value, customRole: "", province: "", town: "" })) },
-                    React.createElement("option", { value: "consultant" }, "Loan Consultant (branch)"),
-                    React.createElement("option", { value: "officer" }, "Loan Officer (branch)"),
-                    React.createElement("option", { value: "manager" }, "Branch Manager (branch)"),
-                    React.createElement("option", { value: "hr" }, "HR (Head Office)"),
-                    React.createElement("option", { value: "accounts" }, "Accountant (Head Office)"),
-                    React.createElement("option", { value: "ceo" }, "CEO (Head Office)"),
-                    React.createElement("option", { value: "admin" }, "Admin (Head Office)"),
-                    React.createElement("option", { value: "director" }, "Director (Head Office)"),
-                    React.createElement("option", { value: "strategic" }, "Strategic (Head Office)"),
-                    React.createElement("option", { value: "other" }, "Other (specify)")),
-                ns.role === "other" && React.createElement(Inp, { label: "Specify Position", req: true, value: ns.customRole, onChange: e => setNs(f => ({ ...f, customRole: e.target.value })) }),
-                !isHQR(ns.role) && React.createElement(ProvinceTownSelect, { required: true, province: ns.province, town: ns.town, onProvince: p => setNs(f => ({ ...f, province: p, town: "" })), onTown: t => setNs(f => ({ ...f, town: t })) }),
-                isHQR(ns.role) && React.createElement(Alrt, { type: "info" }, "Head Office role \u2014 access to all 10 provinces."),
-                React.createElement(PhotoUpload, { label: "Passport-Size Photo", value: nsPhoto, onChange: setNsPhoto }),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
-                    React.createElement(Inp, { label: "PIN", type: "password", req: true, value: ns.pin, onChange: e => setNs(f => ({ ...f, pin: e.target.value })), placeholder: "4\u20136 digits" }),
-                    React.createElement(Inp, { label: "NRC No.", value: ns.nrc, onChange: e => setNs(f => ({ ...f, nrc: e.target.value })), placeholder: "123456/78/1" }),
-                    React.createElement(Inp, { label: "TPIN No.", value: ns.tpin, onChange: e => setNs(f => ({ ...f, tpin: e.target.value })) }),
-                    React.createElement(Inp, { label: "Phone", value: ns.phone, onChange: e => setNs(f => ({ ...f, phone: e.target.value })), placeholder: "0977000000" }),
-                    React.createElement(Inp, { label: "Email", type: "email", value: ns.email, onChange: e => setNs(f => ({ ...f, email: e.target.value })) }),
-                    React.createElement(Inp, { label: "Department", value: ns.dept, onChange: e => setNs(f => ({ ...f, dept: e.target.value })), placeholder: "e.g. Loans" }),
-                    React.createElement(Inp, { label: "Grade / Pay Point", value: ns.grade, onChange: e => setNs(f => ({ ...f, grade: e.target.value })), placeholder: "e.g. NP" }),
-                    React.createElement(Inp, { label: "Basic Salary (K)", type: "number", value: ns.salary, onChange: e => setNs(f => ({ ...f, salary: e.target.value })), placeholder: "0.00" }),
-                    React.createElement(Inp, { label: "Start Date", type: "date", value: ns.startDate, onChange: e => setNs(f => ({ ...f, startDate: e.target.value })) }),
-                    React.createElement(Inp, { label: "Bank Name", value: ns.bank, onChange: e => setNs(f => ({ ...f, bank: e.target.value })), placeholder: "e.g. Zanaco" }),
-                    React.createElement(Inp, { label: "Account No.", value: ns.accountNo, onChange: e => setNs(f => ({ ...f, accountNo: e.target.value })) })),
-                React.createElement(Btn, { color: C.green, onClick: addStaff, full: true }, "\u2795 Add Staff Member")),
-            React.createElement(Card, null,
-                React.createElement(ST, null,
-                    "All Staff (",
-                    db.staff.length,
-                    ")"),
-                db.staff.map(s => (React.createElement("div", { key: s.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } }, editId === s.id ? (React.createElement("div", null,
-                    React.createElement(PhotoUpload, { label: "Passport-Size Photo", value: efPhoto, onChange: setEfPhoto, small: true }),
-                    React.createElement(Inp, { label: "Full Name", req: true, value: ef.name, onChange: e => setEf(f => ({ ...f, name: e.target.value })) }),
-                    React.createElement(Inp, { label: "New PIN (leave blank to keep current)", type: "password", value: ef.pin, onChange: e => setEf(f => ({ ...f, pin: e.target.value })), placeholder: "Leave blank to keep current PIN" }),
-                    React.createElement(Inp, { label: "NRC No.", value: ef.nrc, onChange: e => setEf(f => ({ ...f, nrc: e.target.value })) }),
-                    React.createElement(Inp, { label: "TPIN No.", value: ef.tpin, onChange: e => setEf(f => ({ ...f, tpin: e.target.value })) }),
-                    React.createElement(Inp, { label: "Phone", value: ef.phone, onChange: e => setEf(f => ({ ...f, phone: e.target.value })) }),
-                    React.createElement(Inp, { label: "Email", type: "email", value: ef.email, onChange: e => setEf(f => ({ ...f, email: e.target.value })) }),
-                    React.createElement(Inp, { label: "Bank Name", value: ef.bank, onChange: e => setEf(f => ({ ...f, bank: e.target.value })) }),
-                    React.createElement(Inp, { label: "Account No.", value: ef.accountNo, onChange: e => setEf(f => ({ ...f, accountNo: e.target.value })) }),
-                    React.createElement(Inp, { label: "Grade", value: ef.grade, onChange: e => setEf(f => ({ ...f, grade: e.target.value })) }),
-                    !isHQR(s.role) && React.createElement(ProvinceTownSelect, { required: true, province: ef.province, town: ef.town, onProvince: p => setEf(f => ({ ...f, province: p, town: "" })), onTown: t => setEf(f => ({ ...f, town: t })) }),
-                    React.createElement("div", { style: { display: "flex", gap: 8 } },
-                        React.createElement(Btn, { sm: true, color: C.green, onClick: () => saveEdit(s) }, "\uD83D\uDCBE Save"),
-                        React.createElement(GBtn, { onClick: () => setEditId(null) }, "Cancel")))) : (React.createElement(React.Fragment, null,
-                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 } },
-                        React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start" } },
-                            s.photoUrl && React.createElement("img", { src: s.photoUrl, alt: "", style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 } }),
-                        React.createElement("div", null,
-                            React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: C.navy } }, s.name),
-                            React.createElement("div", { style: { fontSize: 11, color: C.muted } },
-                                s.roleLabel || s.role,
-                                s.dept ? " · " + s.dept : ""),
-                            React.createElement("div", { style: { fontSize: 11, color: C.blue, fontWeight: 600 } },
-                                "\uD83D\uDCCD ",
-                                s.branch || "—",
-                                s.province && s.province !== "Head Office" ? `, ${s.province}` : ""),
-                            (s.phone || s.email) && React.createElement("div", { style: { fontSize: 11, color: C.muted } }, [s.phone, s.email].filter(Boolean).join(" · ")),
-                            s.salary > 0 && React.createElement("div", { style: { fontSize: 11, color: C.green, fontWeight: 700 } },
-                                "Salary: ",
-                                fmt(s.salary),
-                                "/mo",
-                                s.bank ? " · " + s.bank : ""))),
-                        React.createElement("span", { style: { background: s.active ? C.green : C.red, color: "#fff", padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 700 } }, s.active ? "🟢" : "🔴")),
-                    React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" } },
-                        React.createElement(Btn, { sm: true, color: C.blue, onClick: () => startEdit(s) }, "\u270F\uFE0F Edit"),
-                        React.createElement(Btn, { sm: true, color: s.active ? C.orange : C.green, onClick: () => togStaff(s.id) }, s.active ? "Deactivate" : "Activate"),
-                        s.salary > 0 && React.createElement(Btn, { sm: true, color: C.teal, onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "\uD83D\uDCB0 Quick Payslip"),
-                        s.salary > 0 && React.createElement(Btn, { sm: true, color: C.blue, onClick: () => downloadPayslipPDF(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "\u2B07\uFE0F Download"),
-                        s.id !== "hr001" && React.createElement(Btn, { sm: true, color: C.red, onClick: () => remStaff(s.id) }, "Remove")))))))))),
-        tab === "leave" && (React.createElement(Card, null,
-            React.createElement(ST, { color: C.teal }, "\uD83C\uDFD6\uFE0F Leave Requests"),
-            (db.leaveRequests || []).length === 0 ? React.createElement(Alrt, { type: "info" }, "No leave requests.") : (db.leaveRequests || []).slice().reverse().map(r => (React.createElement("div", { key: r.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
-                    React.createElement("div", null,
-                        React.createElement("div", { style: { fontWeight: 700, color: C.navy } }, r.staffName),
-                        React.createElement("div", { style: { fontSize: 11, color: C.muted } },
-                            r.type,
-                            " \u00B7 ",
-                            r.from,
-                            " to ",
-                            r.to)),
-                    React.createElement("span", { style: { background: r.status === "Approved" ? C.green : r.status === "Rejected" ? C.red : C.gold, color: "#fff", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 } }, r.status)),
-                React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 8 } },
-                    "Reason: ",
-                    r.reason),
-                r.status === "Pending" && React.createElement("div", { style: { display: "flex", gap: 8 } },
-                    React.createElement(Btn, { sm: true, color: C.green, onClick: () => approveLeave(r.id, "Approved") }, "\u2705 Approve"),
-                    React.createElement(Btn, { sm: true, color: C.red, onClick: () => approveLeave(r.id, "Rejected") }, "\u274C Reject"))))))),
-        tab === "payroll" && (React.createElement(Card, null,
-            React.createElement(ST, { color: C.gold }, "\uD83D\uDCCA Payroll"),
-            React.createElement(IR, { label: "Active Staff", value: db.staff.filter(s => s.active).length }),
-            React.createElement(IR, { label: "Monthly Payroll", value: fmt(db.staff.filter(s => s.active && s.salary).reduce((s, x) => s + x.salary, 0)), bold: true }),
-            db.staff.filter(s => s.salary > 0).map(s => (React.createElement("div", { key: s.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` } },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, s.name),
-                    React.createElement("div", { style: { fontSize: 11, color: C.muted } },
-                        s.roleLabel || s.role,
-                        " \u00B7 ",
-                        s.branch || "—")),
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-                    React.createElement("div", { style: { fontWeight: 700, color: C.green } }, fmt(s.salary)),
-                    React.createElement(Btn, { sm: true, color: C.teal, onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "\uD83D\uDCB0 Slip"),
-                    React.createElement(Btn, { sm: true, color: C.blue, onClick: () => downloadPayslipPDF(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "\u2B07\uFE0F"))))))),
-        tab === "finance" && React.createElement(FinanceTracker, { db: db, user: user }),
-        tab === "org" && (React.createElement(Card, null,
-            React.createElement(ST, { color: C.purple }, "\uD83C\uDFE2 Organisation Chart"),
-            ["ceo", "admin", "director", "strategic", "hr", "accounts", "manager", "officer", "consultant"].map(role => {
-                const members = db.staff.filter(s => s.role === role && s.active);
-                if (!members.length)
-                    return null;
-                const rc = { ceo: C.purple, admin: "#B71C1C", director: "#AD1457", strategic: C.teal, manager: C.navy, hr: C.teal, accounts: C.green, officer: C.blue, consultant: C.orange };
-                return (React.createElement("div", { key: role, style: { marginBottom: 16 } },
-                    React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 } },
-                        role === "ceo" ? "CEO" : role.charAt(0).toUpperCase() + role.slice(1),
-                        " (",
-                        members.length,
-                        ")"),
-                    members.map(s => (React.createElement("div", { key: s.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: C.light, borderRadius: 8, marginBottom: 6, borderLeft: `4px solid ${rc[role] || C.muted}` } },
-                        React.createElement("div", { style: { width: 32, height: 32, borderRadius: 50, background: rc[role] || C.muted, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 800, flexShrink: 0 } }, s.name.charAt(0)),
-                        React.createElement("div", null,
-                            React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, s.name),
-                            React.createElement("div", { style: { fontSize: 11, color: C.muted } },
-                                s.roleLabel || s.role,
-                                " \u00B7 \uD83D\uDCCD",
-                                s.branch || "—")))))));
-            }))),
-        tab === "audit" && (React.createElement(Card, null,
-            React.createElement(ST, { color: C.red }, "\uD83D\uDD10 Login Audit"),
-            (db.loginLogs || []).length === 0 ? React.createElement("p", { style: { color: C.muted, fontSize: 13 } }, "No records yet.") : (db.loginLogs || []).slice().reverse().slice(0, 50).map((log, i) => (React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.border}` } },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy } }, log.name),
-                    React.createElement("div", { style: { fontSize: 11, color: C.muted } },
-                        log.roleLabel || log.role,
-                        " \u00B7 \uD83D\uDCCD ",
-                        log.branch || "—"),
-                    React.createElement("div", { style: { fontSize: 11, color: C.muted } },
-                        log.date,
-                        " at ",
-                        log.time)),
-                React.createElement("span", { style: { background: "#E8F5E9", color: C.green, padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700 } }, "\u2705"))))))));
-}
-// ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
 function Notifications({ db, user, onReport }) {
     const isHORole = isHO(user.role);
     const loans = isHORole ? db.loans : bL(db, user.branch);
@@ -2995,91 +3020,6 @@ function RoutePrices({ user }) {
                         React.createElement("div", { style: { fontWeight: 800, color: C.green } }, fmt(p.price))))))));
 }
 
-function FinanceTracker({ db, user }) {
-    const isAdmin = user.role === "admin";
-    const [budget, setBudget] = useState(0);
-    const [budgetInput, setBudgetInput] = useState("");
-    const [statutory, setStatutory] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [newBodyName, setNewBodyName] = useState("");
-    const [edits, setEdits] = useState({});
-    const allocated = db.staff.filter(s => s.active).reduce((s, x) => s + (x.salary || 0), 0);
-    const remaining = budget - allocated;
-    function refresh() {
-        setLoading(true);
-        Promise.all([loadPayrollBudget(), loadStatutory()]).then(([b, s]) => { setBudget(b); setStatutory(s); setLoading(false); });
-    }
-    useEffect(() => { refresh(); }, []);
-    async function saveBudget() {
-        const amt = parseFloat(budgetInput);
-        if (!amt && amt !== 0) {
-            alert("Enter an amount.");
-            return;
-        }
-        await savePayrollBudget(amt, user);
-        setBudgetInput("");
-        refresh();
-        alert("✅ Payroll budget updated.");
-    }
-    async function saveObligation(o) {
-        const e = edits[o.id] || {};
-        await saveStatutory({ ...o, amount_due: e.due !== undefined ? parseFloat(e.due) || 0 : o.amount_due, amount_paid: e.paid !== undefined ? parseFloat(e.paid) || 0 : o.amount_paid, notes: e.notes !== undefined ? e.notes : o.notes });
-        setEdits(x => ({ ...x, [o.id]: undefined }));
-        refresh();
-    }
-    async function addBody() {
-        if (!newBodyName.trim()) {
-            alert("Enter a name.");
-            return;
-        }
-        await addStatutory(newBodyName.trim(), user);
-        setNewBodyName("");
-        refresh();
-    }
-    if (loading)
-        return React.createElement(Card, { style: { textAlign: "center", padding: 32, color: C.muted } }, "Loading...");
-    return (React.createElement("div", null,
-        React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 18, marginBottom: 14 } },
-            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, "\uD83D\uDCB0 Payroll Budget"),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
-                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
-                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "TOTAL BUDGET"),
-                    React.createElement("div", { style: { fontSize: 13, fontWeight: 900, color: C.gold } }, fmt(budget))),
-                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
-                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "ALLOCATED"),
-                    React.createElement("div", { style: { fontSize: 13, fontWeight: 900 } }, fmt(allocated))),
-                React.createElement("div", { style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
-                    React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "REMAINING"),
-                    React.createElement("div", { style: { fontSize: 13, fontWeight: 900, color: remaining >= 0 ? "#A5D6A7" : "#ff6b6b" } }, fmt(remaining))))),
-        React.createElement(Card, null,
-            React.createElement(ST, null, "Set Payroll Budget"),
-            React.createElement(Alrt, { type: "info" }, "\"Allocated\" is automatically the sum of all active staff salaries \u2014 no need to enter it manually."),
-            React.createElement(Inp, { label: "Total Payroll Budget (K)", type: "number", value: budgetInput, onChange: e => setBudgetInput(e.target.value), placeholder: String(budget) }),
-            React.createElement(Btn, { full: true, color: C.navy, onClick: saveBudget }, "\uD83D\uDCBE Save Budget")),
-        React.createElement(Card, null,
-            React.createElement(ST, null, "Statutory & Regulatory Obligations"),
-            statutory.map(o => {
-                const e = edits[o.id] || {};
-                const due = e.due !== undefined ? e.due : o.amount_due;
-                const paid = e.paid !== undefined ? e.paid : o.amount_paid;
-                const notes = e.notes !== undefined ? e.notes : (o.notes || "");
-                const outstanding = (parseFloat(due) || 0) - (parseFloat(paid) || 0);
-                return (React.createElement("div", { key: o.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } },
-                    React.createElement("div", { style: { fontWeight: 800, color: C.navy, marginBottom: 8 } }, o.name),
-                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
-                        React.createElement(Inp, { label: "Amount Due (K)", type: "number", value: due, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], due: ev.target.value } })) }),
-                        React.createElement(Inp, { label: "Amount Paid (K)", type: "number", value: paid, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], paid: ev.target.value } })) })),
-                    React.createElement(Inp, { label: "Notes", value: notes, onChange: ev => setEdits(x => ({ ...x, [o.id]: { ...x[o.id], notes: ev.target.value } })), placeholder: "Reference number, deadline, etc." }),
-                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 } },
-                        React.createElement("div", { style: { fontSize: 12, color: outstanding > 0 ? C.red : C.green, fontWeight: 700 } }, outstanding > 0 ? `Outstanding: ${fmt(outstanding)}` : "✅ Fully Paid"),
-                        React.createElement(Btn, { sm: true, color: C.teal, onClick: () => saveObligation(o) }, "\uD83D\uDCBE Save"))));
-            }),
-            isAdmin && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
-                React.createElement("input", { value: newBodyName, onChange: e => setNewBodyName(e.target.value), placeholder: "Add another body (e.g. NAPSA)", style: { flex: 1, ...iSt } }),
-                React.createElement(Btn, { color: C.purple, onClick: addBody }, "\u2795 Add")))));
-}
-
-// ── MAIN APP ──────────────────────────────────────────────────────────────────
 function App() {
     const [db, setDb] = useState(() => MDB || defDB());
     const [dbLoaded, setDbLoaded] = useState(false);
