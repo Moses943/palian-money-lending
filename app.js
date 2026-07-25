@@ -160,7 +160,7 @@ function getSt(loan, pmts) {
 function getDOD(loan) { if (!loan.dueDate)
     return 0; const d = Math.floor((new Date() - new Date(loan.dueDate)) / 86400000); return d > 0 ? d : 0; }
 function getPen(loan, pmts) { const d = getDOD(loan), b = getBal(loan, pmts); if (!d || !b)
-    return 0; return d <= 3 ? b * 0.1 * d : b * 0.3; }
+    return 0; return b * 0.05 * Math.min(d, 7); }
 function getDI(loan, pmts) { if (getSt(loan, pmts) !== "Defaulted")
     return 0; const dod = getDOD(loan); if (dod < 30)
     return 0; return getBal(loan, pmts) * 0.05 * Math.max(1, Math.ceil((dod - 29) / 7)); }
