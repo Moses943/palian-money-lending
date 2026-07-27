@@ -16,7 +16,7 @@ function buildTI() { const i = {}; Object.entries(PROVINCES).forEach(([p, d]) =>
 const TI = buildTI();
 function gBI(town) { return TI[town] || { province: "—", provinceCode: "HO", townCode: "HOQ" }; }
 const HO_ROLES = ["admin", "ceo", "accounts", "hr", "director", "strategic"];
-const C = { navy: "#0F2D5C", blue: "#1565C0", orange: "#FF6F00", amber: "#FFB300", red: "#C62828", green: "#2E7D32", teal: "#00695C", purple: "#6A1B9A", gold: "#F9A825", muted: "#607D8B", light: "#F5F7FA", white: "#FFFFFF", border: "#E0E7EF", text: "#1A2744" };
+const C = { navy: "#0B4D33", blue: "#15803D", orange: "#F5B400", amber: "#FFC107", red: "#C62828", green: "#2E7D32", teal: "#0E6B4F", purple: "#6A1B9A", gold: "#D4A017", muted: "#607D8B", light: "#F5F7FA", white: "#FFFFFF", border: "#E0E7EF", text: "#14291F" };
 const SC = { Active: C.green, Overdue: C.orange, Defaulted: C.red, Cleared: C.blue, Pending: C.gold, Rejected: C.muted };
 // ── STORAGE (Supabase — shared live database across all branches) ────────────
 let MDB = null;
@@ -284,6 +284,11 @@ function Sel({ label, req, children, ...p }) { return React.createElement("div",
         label,
         req && React.createElement("span", { style: { color: C.red } }, " *")),
     React.createElement("select", { style: iSt, ...p }, children)); }
+function TrustBadge() { return React.createElement("div", { style: { background: "#EAF6EF", border: `1.5px solid ${C.teal}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 4 } },
+    React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDD12"),
+    React.createElement("div", null,
+        React.createElement("div", { style: { fontWeight: 800, fontSize: 12, color: C.teal } }, "Secure. Reliable. Local."),
+        React.createElement("div", { style: { fontSize: 10.5, color: C.muted } }, "Your data. Your money. Protected."))); }
 function StatCard({ label, value, color, icon, small }) { return React.createElement("div", { style: { background: C.white, borderRadius: 12, padding: "14px 10px", textAlign: "center", borderTop: `4px solid ${color || C.navy}`, boxShadow: "0 2px 8px rgba(15,45,92,0.08)" } },
     icon && React.createElement("div", { style: { fontSize: 20, marginBottom: 3 } }, icon),
     React.createElement("div", { style: { fontSize: small ? 11 : 20, fontWeight: 800, color: color || C.navy, lineHeight: 1.2 } }, value),
@@ -1425,6 +1430,7 @@ function Login({ db, onLogin }) {
 }
 // ── DASHBOARDS ────────────────────────────────────────────────────────────────
 function HODashboard({ db, user, onReport, onViewOverdue }) {
+    const [showBal, setShowBal] = useState(true);
     const { loans, payments, branchFunds, bankBalance } = db;
     const allPaid = payments.reduce((s, p) => s + p.amount, 0);
     const allDue = loans.reduce((s, l) => s + l.totalDue, 0);
@@ -1445,7 +1451,8 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                 user.roleLabel,
                 " \u00B7 ",
                 new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 } }, [["💰 BANK", fmt(bankBalance || 0), C.gold], ["📤 OUTSTANDING", fmt(allOut), "#FF8A80"], ["📥 COLLECTED", fmt(allPaid), "#A5D6A7"]].map(([l, v, c]) => (React.createElement("div", { key: l, style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center" } },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 } }, [["💰 BANK", showBal ? fmt(bankBalance || 0) : "•••••", C.gold], ["📤 OUTSTANDING", fmt(allOut), "#FF8A80"], ["📥 COLLECTED", fmt(allPaid), "#A5D6A7"]].map(([l, v, c], i) => (React.createElement("div", { key: l, style: { background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, textAlign: "center", position: "relative" } },
+                i === 0 && React.createElement("span", { onClick: () => setShowBal(!showBal), style: { position: "absolute", top: 6, right: 8, cursor: "pointer", fontSize: 11, opacity: 0.8 } }, showBal ? "\uD83D\uDC41\uFE0F" : "\uD83D\uDE48"),
                 React.createElement("div", { style: { fontSize: 9, opacity: 0.75, marginBottom: 3 } }, l),
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 900, color: c } }, v))))),
             React.createElement("div", { style: { background: healthOk ? "rgba(46,125,50,0.3)" : "rgba(198,40,40,0.3)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 } },
@@ -1475,7 +1482,8 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                     React.createElement("div", { style: { fontWeight: 800, color: C.red, fontSize: 14 } }, "\u26A0\uFE0F Overdue & Defaulted"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted, marginTop: 2 } },
                         countSt("Overdue"), " overdue \u00B7 ", countSt("Defaulted"), " defaulted \u2014 across all branches")),
-                React.createElement(Btn, { sm: true, color: C.red, onClick: onViewOverdue }, "View All \u2192"))))));
+                React.createElement(Btn, { sm: true, color: C.red, onClick: onViewOverdue }, "View All \u2192")))),
+        React.createElement(TrustBadge, null)));
 }
 function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
     const branch = user.branch;
@@ -1542,7 +1550,8 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
                 ", ",
                 info.province),
             React.createElement("div", { style: { color: C.muted, marginBottom: 20 } }, "No loans yet."),
-            React.createElement(Btn, { onClick: onNewLoan, color: C.blue }, "\u2795 Register First Loan"))));
+            React.createElement(Btn, { onClick: onNewLoan, color: C.blue }, "\u2795 Register First Loan")),
+        React.createElement(TrustBadge, null)));
 }
 function BranchConsultantSummary({ db, branch }) {
     const branchFund = (db.branchFunds || {})[branch] || 0;
@@ -3177,6 +3186,9 @@ function App() {
     const [tab, setTab] = useState("dashboard");
     const [prefNrc, setPrefNrc] = useState("");
     const [finReport, setFinReport] = useState(null); // {loan, client}
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 900);
+    useEffect(() => { const h = () => setIsWide(window.innerWidth >= 900); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
     useEffect(() => {
         (async () => {
             try {
@@ -3228,29 +3240,33 @@ function App() {
     const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
-    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
+    const statusText = hoRole ? "🌍 HEAD OFFICE — All 10 Provinces" : provRole ? `🌐 ${user.province} PROVINCE — All Branches` : `📍 ${user.branch}, ${info.province} · ${info.provinceCode}-${info.townCode}`;
+    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", display: "flex" } },
         React.createElement("style", null, `@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`),
         finReport && React.createElement(FinancialReportView, { loan: finReport.loan, client: finReport.client, db: db, onClose: () => setFinReport(null) }),
-        React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
-            hoRole ? "🌍 HEAD OFFICE — All 10 Provinces" : provRole ? `🌐 ${user.province} PROVINCE — All Branches` : `📍 ${user.branch}, ${info.province} · ${info.provinceCode}-${info.townCode}`,
-            " \u00A0\u00B7\u00A0 \uD83D\uDCBE Data auto-saved"),
-        React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(15,45,92,0.3)" } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        !isWide && sidebarOpen && React.createElement("div", { onClick: () => setSidebarOpen(false), style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 250 } }),
+        React.createElement("div", { style: { width: 230, flexShrink: 0, background: C.navy, display: "flex", flexDirection: "column", position: isWide ? "sticky" : "fixed", top: 0, left: isWide ? 0 : (sidebarOpen ? 0 : -240), height: "100vh", transition: "left 0.25s", zIndex: 300, boxShadow: isWide ? "none" : "4px 0 24px rgba(0,0,0,0.35)" } },
+            React.createElement("div", { style: { padding: "20px 16px", borderBottom: "1px solid rgba(255,255,255,0.12)" } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-                    React.createElement(PalianLogo, { size: 34 }),
+                    React.createElement(PalianLogo, { size: 36 }),
                     React.createElement("div", null,
-                        React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "PALIAN MONEY LENDING"),
-                        React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)" } }, hoRole ? "Head Office" : provRole ? `${user.province} Province` : `📍 ${user.branch}`))),
-                React.createElement("div", { style: { textAlign: "right" } },
-                    React.createElement("div", { style: { fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 700 } }, user.name),
-                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)" } }, user.roleLabel || user.role),
-                    React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
-                        React.createElement("button", { onClick: () => setModule(null), style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
-                        React.createElement("button", { onClick: handleLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))))),
-        React.createElement("div", { style: { background: C.navy, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.orange}` } }, allTabs.map(t => (React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", position: "relative", flexShrink: 0 } },
-            t.lb,
-            t.badge > 0 && React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 8, padding: "1px 4px", marginLeft: 2, fontWeight: 800 } }, t.badge))))),
-        React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto" } },
+                        React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "PALIAN"),
+                        React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)" } }, "Money Lending")))),
+            React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "10px 8px" } }, allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => { setTab(t.id); setSidebarOpen(false); }, style: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: tab === t.id ? "rgba(255,255,255,0.15)" : "none", border: "none", borderRadius: 8, color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: 12, cursor: "pointer", marginBottom: 3, textAlign: "left" } },
+                React.createElement("span", { style: { flex: 1 } }, t.lb),
+                t.badge > 0 && React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 9, padding: "1px 6px", fontWeight: 800 } }, t.badge)))),
+            React.createElement("div", { style: { padding: "12px 16px 14px", borderTop: "1px solid rgba(255,255,255,0.12)" } },
+                React.createElement("div", { style: { color: "#fff", fontSize: 11, fontWeight: 700 } }, user.name),
+                React.createElement("div", { style: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 10 } }, user.roleLabel || user.role),
+                React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 12 } },
+                    React.createElement("button", { onClick: () => setModule(null), style: { background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
+                    React.createElement("button", { onClick: handleLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout")),
+                React.createElement(TrustBadge, null))),
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", padding: "6px 10px", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 10 } },
+                !isWide && React.createElement("button", { onClick: () => setSidebarOpen(true), style: { background: "none", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 } }, "\u2630"),
+                React.createElement("div", { style: { flex: 1, textAlign: "center" } }, statusText, " \u00A0\u00B7\u00A0 \uD83D\uDCBE Data auto-saved")),
+            React.createElement("div", { style: { padding: 14, maxWidth: isWide ? 900 : 720, margin: "0 auto" } },
             tab === "dashboard" && (hoRole ? React.createElement(HODashboard, { db: db, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : provRole ? React.createElement(HODashboard, { db: { ...db, loans: scopeLoans(db, user), clients: scopeClients(db, user), payments: scopePayments(db, user), staff: db.staff.filter(s => s.province === user.province) }, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : React.createElement(BranchDashboard, { db: db, user: user, onNewLoan: () => newLoan(""), onReport: onReport, onViewOverdue: () => setTab("overdue") })),
             tab === "overdue" && React.createElement(OverdueTab, { db: db, user: user, onReport: onReport }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
@@ -3269,7 +3285,7 @@ function App() {
             tab === "funds" && React.createElement(AccountsFunds, { db: db, setDb: setDb, user: user }),
             tab === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
             tab === "deletions" && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
-            tab === "mgr-funds" && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }))));
+            tab === "mgr-funds" && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user })))));
 }
 // ── MOUNT ──────────────────────────────────────────────────────────────────
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
