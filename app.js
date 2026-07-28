@@ -2111,6 +2111,18 @@ function Payments({ db, setDb, user, onReport }) {
 function Clients({ db, setDb, onNewLoan, user, onReport }) {
     const isHORole = isHO(user.role);
     const canRequestDeletion = user.role === "manager" || isHORole;
+    const canEditClient = user.role === "manager" || user.role === "admin";
+    const [editingClient, setEditingClient] = useState(false);
+    const [cef, setCef] = useState(null);
+    function startClientEdit(c) { setCef({ name: c.name, nrc: c.nrc, sex: c.sex || "", dob: c.dob || "", phone: c.phone || "", email: c.email || "", address: c.address || "", company: c.company || "", bank: c.bank || "", accountNo: c.accountNo || "", bankCode: c.bankCode || "", tpin: c.tpin || "", nok_name: c.nok_name || "", nok_phone: c.nok_phone || "", nok_relationship: c.nok_relationship || "", nok_address: c.nok_address || "" }); setEditingClient(true); }
+    function saveClientEdit(c) {
+        if (!cef.name || !validNRC(cef.nrc.trim().toUpperCase())) { alert("Enter a valid name and NRC (format: 123456/78/1)."); return; }
+        const nd = { ...db, clients: db.clients.map(x => x.id === c.id ? { ...x, name: cef.name.trim(), nrc: cef.nrc.trim().toUpperCase(), sex: cef.sex, dob: cef.dob, phone: cef.phone.trim(), email: cef.email.trim(), address: cef.address.trim(), company: cef.company.trim(), bank: cef.bank.trim(), accountNo: cef.accountNo.trim(), bankCode: cef.bankCode.trim(), tpin: cef.tpin.trim(), nok_name: cef.nok_name.trim(), nok_phone: cef.nok_phone.trim(), nok_relationship: cef.nok_relationship.trim(), nok_address: cef.nok_address.trim() } : x) };
+        saveDB(nd);
+        setDb(nd);
+        setEditingClient(false);
+        alert("✅ Client details updated.");
+    }
     function requestDeletion(c) {
         const reason = window.prompt(`Why should ${c.name}'s record be deleted? (This will need Admin approval before anything is removed.)`);
         if (reason === null)
@@ -2129,7 +2141,44 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
         const cl = db.loans.filter(l => l.clientId === c.id);
         const out = cl.reduce((s, l) => s + getBal(l, db.payments), 0);
         return (React.createElement("div", null,
-            React.createElement(GBtn, { onClick: () => setSel(null), style: { marginBottom: 14 } }, "\u2190 All Clients"),
+            React.createElement(GBtn, { onClick: () => { setSel(null); setEditingClient(false); }, style: { marginBottom: 14 } }, "\u2190 All Clients"),
+            editingClient && cef ? (React.createElement(Card, null,
+                React.createElement(ST, { color: C.orange }, "\u270F\uFE0F Edit Client Details"),
+                React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Changing the NRC affects duplicate-client detection across branches \u2014 only correct genuine entry errors."),
+                React.createElement(Inp, { label: "Full Name", req: true, value: cef.name, onChange: e => setCef(f => ({ ...f, name: e.target.value })) }),
+                React.createElement(Inp, { label: "NRC Number", req: true, value: cef.nrc, onChange: e => setCef(f => ({ ...f, nrc: e.target.value.toUpperCase() })), placeholder: "123456/78/1" }),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Sel, { label: "Sex", value: cef.sex, onChange: e => setCef(f => ({ ...f, sex: e.target.value })) },
+                        React.createElement("option", { value: "" }, "--"),
+                        React.createElement("option", null, "Male"),
+                        React.createElement("option", null, "Female")),
+                    React.createElement(Inp, { label: "Date of Birth", type: "date", value: cef.dob, onChange: e => setCef(f => ({ ...f, dob: e.target.value })) })),
+                React.createElement(Inp, { label: "Phone", value: cef.phone, onChange: e => setCef(f => ({ ...f, phone: e.target.value })) }),
+                React.createElement(Inp, { label: "Email", type: "email", value: cef.email, onChange: e => setCef(f => ({ ...f, email: e.target.value })) }),
+                React.createElement(Inp, { label: "Physical Address", value: cef.address, onChange: e => setCef(f => ({ ...f, address: e.target.value })) }),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Inp, { label: "Employer", value: cef.company, onChange: e => setCef(f => ({ ...f, company: e.target.value })) }),
+                    React.createElement(Inp, { label: "Bank Name", value: cef.bank, onChange: e => setCef(f => ({ ...f, bank: e.target.value })) }),
+                    React.createElement(Inp, { label: "Account No.", value: cef.accountNo, onChange: e => setCef(f => ({ ...f, accountNo: e.target.value })) }),
+                    React.createElement(Inp, { label: "Bank Code", value: cef.bankCode, onChange: e => setCef(f => ({ ...f, bankCode: e.target.value })) }),
+                    React.createElement(Inp, { label: "TPIN No.", value: cef.tpin, onChange: e => setCef(f => ({ ...f, tpin: e.target.value })) })),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "8px 0 10px", borderLeft: `3px solid ${C.teal}`, paddingLeft: 8 } }, "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67 Next of Kin"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Inp, { label: "NOK Full Name", value: cef.nok_name, onChange: e => setCef(f => ({ ...f, nok_name: e.target.value })) }),
+                    React.createElement(Inp, { label: "NOK Phone", value: cef.nok_phone, onChange: e => setCef(f => ({ ...f, nok_phone: e.target.value })) }),
+                    React.createElement(Sel, { label: "Relationship", value: cef.nok_relationship, onChange: e => setCef(f => ({ ...f, nok_relationship: e.target.value })) },
+                        React.createElement("option", { value: "" }, "-- Select --"),
+                        React.createElement("option", null, "Spouse"),
+                        React.createElement("option", null, "Parent"),
+                        React.createElement("option", null, "Sibling"),
+                        React.createElement("option", null, "Child"),
+                        React.createElement("option", null, "Relative"),
+                        React.createElement("option", null, "Friend"),
+                        React.createElement("option", null, "Other")),
+                    React.createElement(Inp, { label: "NOK Address", value: cef.nok_address, onChange: e => setCef(f => ({ ...f, nok_address: e.target.value })) })),
+                React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 10 } },
+                    React.createElement(GBtn, { onClick: () => setEditingClient(false) }, "Cancel"),
+                    React.createElement(Btn, { style: { flex: 1 }, color: C.green, onClick: () => saveClientEdit(c) }, "\u2705 Save Changes")))) :
             React.createElement(Card, null,
                 React.createElement("div", { style: { display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 16 } },
                     c.passportPhoto ? React.createElement("img", { src: c.passportPhoto, alt: "", style: { width: 70, height: 70, borderRadius: 12, objectFit: "cover", border: `2px solid ${C.border}`, flexShrink: 0 } }) : React.createElement("div", { style: { width: 70, height: 70, borderRadius: 12, background: `linear-gradient(135deg,${C.navy},${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 } }, "\uD83D\uDC64"),
@@ -2140,6 +2189,7 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                             c.branch,
                             ", ",
                             c.province))),
+                canEditClient && React.createElement(Btn, { sm: true, color: C.orange, style: { marginBottom: 12 }, onClick: () => startClientEdit(c) }, "\u270F\uFE0F Edit Client Details"),
                 React.createElement(IR, { label: "NRC", value: c.nrc }),
                 React.createElement(IR, { label: "Phone", value: c.phone }),
                 React.createElement(IR, { label: "Address", value: c.address }),
@@ -3188,6 +3238,8 @@ function App() {
     const [finReport, setFinReport] = useState(null); // {loan, client}
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 900);
+    const [showSplash, setShowSplash] = useState(true);
+    useEffect(() => { const t = setTimeout(() => setShowSplash(false), 2200); return () => clearTimeout(t); }, []);
     useEffect(() => { const h = () => setIsWide(window.innerWidth >= 900); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
     useEffect(() => {
         (async () => {
@@ -3219,6 +3271,12 @@ function App() {
         setSessionLogId(null);
     }
     function onReport(loan, client) { setFinReport({ loan, client }); }
+    if (showSplash)
+        return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 18, color: "#fff" } },
+            React.createElement("style", null, `@keyframes popIn{0%{opacity:0;transform:scale(0.85) translateY(14px)}100%{opacity:1;transform:scale(1) translateY(0)}}@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}`),
+            React.createElement("div", { style: { animation: "popIn 0.7s ease-out" } }, React.createElement(PalianLogo, { size: 78 })),
+            React.createElement("div", { style: { fontWeight: 900, fontSize: 24, letterSpacing: 1, animation: "popIn 0.9s ease-out", background: "linear-gradient(90deg,#fff 0%,#fff 40%,#FFE9A8 50%,#fff 60%,#fff 100%)", backgroundSize: "400px 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", animationName: "popIn, shimmer", animationDuration: "0.9s, 2s", animationIterationCount: "1, infinite", animationTimingFunction: "ease-out, linear" } }, "Welcome to Palian"),
+            React.createElement("div", { style: { fontSize: 12, opacity: 0.75, animation: "popIn 1.1s ease-out" } }, "Microfinance \u00B7 All 10 Provinces of Zambia")));
     if (!dbLoaded)
         return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, color: "#fff" } },
             React.createElement(PalianLogo, { size: 60 }),
