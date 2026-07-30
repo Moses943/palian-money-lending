@@ -24,7 +24,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -39,13 +39,15 @@ function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.n
 function loanOut(l) { return { loan_no: l.loanNo, client_id: l.clientId, nrc: l.nrc, name: l.name, branch: l.branch, province: l.province, branch_code: l.branchCode, type: l.type, principal: l.principal, interest_rate: l.interestRate, interest: l.interest, total_due: l.totalDue, period: l.period, app_date: l.appDate || null, disburse_date: l.disburseDate || null, due_date: l.dueDate || null, consultant: l.consultant, consultant_id: l.consultantId, approval_status: l.approvalStatus, approved_by: l.approvedBy || null, approved_date: l.approvedDate || null, remarks: l.remarks, collateral: l.collateral || null, deduction: l.deduction || null, signed_loan_copy: l.signedLoanCopy || null }; }
 function paymentIn(r) { return { id: r.id, loanNo: r.loan_no, clientId: r.client_id, name: r.name, branch: r.branch, amount: r.amount, date: r.date, method: r.method, recordedBy: r.recorded_by, totalDue: r.total_due, newBalance: r.new_balance }; }
 function paymentOut(p) { return { id: p.id, loan_no: p.loanNo, client_id: p.clientId, name: p.name, branch: p.branch, amount: p.amount, date: p.date || null, method: p.method, recorded_by: p.recordedBy, total_due: p.totalDue, new_balance: p.newBalance }; }
+function paymentPlanIn(r) { return { id: r.id, loanNo: r.loan_no, requestedBy: r.requested_by, requestedByRole: r.requested_by_role, requestedDate: r.requested_date, proposedAmount: r.proposed_amount || 0, reason: r.reason || "", status: r.status, approvedBy: r.approved_by || "", approvedDate: r.approved_date || null }; }
+function paymentPlanOut(p) { return { id: p.id, loan_no: p.loanNo, requested_by: p.requestedBy, requested_by_role: p.requestedByRole, requested_date: p.requestedDate || null, proposed_amount: p.proposedAmount || 0, reason: p.reason || "", status: p.status, approved_by: p.approvedBy || null, approved_date: p.approvedDate || null }; }
 function leaveIn(r) { return { id: r.id, staffName: r.staff_name, branch: r.branch, type: r.type, from: r.from_date, to: r.to_date, reason: r.reason, status: r.status, submittedDate: r.submitted_date, approvedBy: r.approved_by, docUrl: r.doc_url || "" }; }
 function leaveOut(l) { return { id: l.id, staff_name: l.staffName, branch: l.branch, type: l.type, from_date: l.from || null, to_date: l.to || null, reason: l.reason, status: l.status, submitted_date: l.submittedDate || null, approved_by: l.approvedBy || null, doc_url: l.docUrl || null }; }
 function logIn(r) { return { name: r.name, role: r.role, roleLabel: r.role_label, branch: r.branch, province: r.province, date: r.logged_at ? new Date(r.logged_at).toLocaleDateString("en") : "", time: r.logged_at ? new Date(r.logged_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "" }; }
 function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultantName:r.consultant_name,branch:r.branch,province:r.province,reportDate:r.report_date,clientsSeen:r.clients_seen||0,loanAmount:r.loan_amount||0,notes:r.notes||"",status:r.status,approvedBy:r.approved_by,approvedDate:r.approved_date,submittedAt:r.submitted_at};}
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -56,6 +58,7 @@ async function loadDB() {
         sb.from("consultant_funds").select("*"),
         sb.from("bank_account").select("*").eq("id", 1).maybeSingle(),
         sb.from("daily_reports").select("*").order("report_date", { ascending: false }).limit(500),
+        sb.from("payment_plans").select("*").order("requested_date", { ascending: false }).limit(300),
     ]);
     return {
         staff: (staffR.data || []).map(staffIn),
@@ -69,6 +72,7 @@ async function loadDB() {
         consultantTargets: Object.fromEntries((cfR.data || []).map(r => [r.staff_id, r.target])),
         bankBalance: bankR.data?.balance || 0,
         dailyReports: (drR.data || []).map(dailyReportIn),
+        paymentPlans: (ppR.data || []).map(paymentPlanIn),
     };
 }
 async function saveDB(db) {
@@ -86,6 +90,8 @@ async function saveDB(db) {
             await sb.from("leave_requests").upsert(db.leaveRequests.map(leaveOut));
         if (db.dailyReports?.length)
             await sb.from("daily_reports").upsert(db.dailyReports.map(dailyReportOut));
+        if (db.paymentPlans?.length)
+            await sb.from("payment_plans").upsert(db.paymentPlans.map(paymentPlanOut));
         const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
         if (bfRows.length)
             await sb.from("branch_funds").upsert(bfRows);
@@ -141,13 +147,9 @@ function scopePayments(db, user) {
     return bP(db, user.branch);
 }
 function getBal(loan, pmts) { return Math.max(0, (loan.totalDue || 0) - pmts.filter(p => p.loanNo === loan.loanNo).reduce((s, p) => s + p.amount, 0)); }
-function getSt(loan, pmts) {
-    if (loan.approvalStatus === "Pending")
-        return "Pending";
-    if (loan.approvalStatus === "Rejected")
-        return "Rejected";
-    if (getBal(loan, pmts) <= 0)
-        return "Cleared";
+function getDOD(loan) { if (!loan.dueDate)
+    return 0; const d = Math.floor((new Date() - new Date(loan.dueDate)) / 86400000); return d > 0 ? d : 0; }
+function rawTimeStatus(loan) {
     if (!loan.dueDate)
         return "Active";
     const d = Math.floor((new Date() - new Date(loan.dueDate)) / 86400000);
@@ -157,16 +159,23 @@ function getSt(loan, pmts) {
         return "Overdue";
     return "Active";
 }
-function getDOD(loan) { if (!loan.dueDate)
-    return 0; const d = Math.floor((new Date() - new Date(loan.dueDate)) / 86400000); return d > 0 ? d : 0; }
 function getPen(loan, pmts) { const d = getDOD(loan), b = getBal(loan, pmts); if (!d || !b)
     return 0; return b * 0.05 * Math.min(d, 7); }
-function getDI(loan, pmts) { if (getSt(loan, pmts) !== "Defaulted")
+function getDI(loan, pmts) { if (rawTimeStatus(loan) !== "Defaulted")
     return 0; const dod = getDOD(loan); if (dod < 30)
     return 0; return getBal(loan, pmts) * 0.05 * Math.max(1, Math.ceil((dod - 29) / 7)); }
-function getTotalOwed(loan, pmts) { const st = getSt(loan, pmts), bal = getBal(loan, pmts); if (st === "Defaulted")
-    return bal + getDI(loan, pmts); if (st === "Overdue")
+function getTotalOwed(loan, pmts) { const bal = getBal(loan, pmts); const rst = rawTimeStatus(loan); if (rst === "Defaulted")
+    return bal + getDI(loan, pmts); if (rst === "Overdue")
     return bal + getPen(loan, pmts); return bal; }
+function getSt(loan, pmts) {
+    if (loan.approvalStatus === "Pending")
+        return "Pending";
+    if (loan.approvalStatus === "Rejected")
+        return "Rejected";
+    if (getTotalOwed(loan, pmts) <= 0.005)
+        return "Cleared";
+    return rawTimeStatus(loan);
+}
 function calcPAYE(t) { if (t <= 4800)
     return 0; let x = Math.min(t - 4800, 2100) * 0.25; if (t > 6900)
     x += Math.min(t - 6900, 1200) * 0.30; if (t > 8100)
@@ -1194,7 +1203,7 @@ function HRSystem({ db, setDb, user }) {
             alert("Name required.");
             return;
         }
-        const isAdmin = user.role === "admin";
+        const isAdmin = user.role === "admin" || user.role === "director";
         const newRole = (isAdmin && ef.role) ? ef.role : s.role;
         const roleChanged = newRole !== s.role;
         const newRoleLabel = roleChanged ? (newRole === "manager" ? "Branch Manager" : newRole.charAt(0).toUpperCase() + newRole.slice(1)) : s.roleLabel;
@@ -1222,7 +1231,7 @@ function HRSystem({ db, setDb, user }) {
     const maxDept = Math.max(1, ...Object.values(deptCounts));
     const tabDefs = isAccountsOnly
         ? [["payslips", "Payslips"], ["payroll", "Payroll"], ["finance", "Finance"]]
-        : [["dash", "Dashboard"], ["staff", "Staff"], ...(user.role === "admin" || user.role === "hr" ? [["grades", "Grades"]] : []), ["payslips", "Payslips"], ["leave", "Leave"], ["payroll", "Payroll"], ["finance", "Finance"], ["org", "Org"], ["audit", "Audit"]];
+        : [["dash", "Dashboard"], ["staff", "Staff"], ...(user.role === "admin" || user.role === "hr" || user.role === "director" ? [["grades", "Grades"]] : []), ["payslips", "Payslips"], ["leave", "Leave"], ["payroll", "Payroll"], ["finance", "Finance"], ["org", "Org"], ["audit", "Audit"]];
     return (React.createElement("div", { style: { fontFamily: HRF.body } },
         React.createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" }),
         React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" } }, tabDefs.map(([id, lb]) => hrTabBtn(tab === id, () => setTab(id), lb))),
@@ -1290,7 +1299,7 @@ function HRSystem({ db, setDb, user }) {
                     React.createElement(HRSel, { label: "Grade / Pay Point", value: ef.grade, onChange: e => { const g = grades.find(x => x.grade_name === e.target.value); setEf(f => ({ ...f, grade: e.target.value })); } },
                         React.createElement("option", { value: "" }, "-- Select Grade --"),
                         grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, `${g.grade_name} — ${fmt(g.amount)}`))),
-                    user.role === "admin" && React.createElement(HRSel, { label: "\uD83D\uDD11 Role / Rights (Admin only)", value: ef.role, onChange: e => setEf(f => ({ ...f, role: e.target.value })) },
+                    (user.role === "admin" || user.role === "director") && React.createElement(HRSel, { label: "\uD83D\uDD11 Role / Rights (Admin/Director only)", value: ef.role, onChange: e => setEf(f => ({ ...f, role: e.target.value })) },
                         React.createElement("option", { value: "consultant" }, "Loan Consultant"),
                         React.createElement("option", { value: "manager" }, "Branch Manager"),
                         React.createElement("option", { value: "provincial" }, "Provincial Manager"),
@@ -1329,7 +1338,7 @@ function HRSystem({ db, setDb, user }) {
                         s.salary > 0 && React.createElement(HRGBtn, { onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "Payslip"),
                         s.id !== "hr001" && React.createElement(HRGBtn, { onClick: () => remStaff(s.id), style: { color: HRT.garnet700, borderColor: HRT.garnet700 } }, "Remove")))),
                 React.createElement(HRRule, null))))))),
-        tab === "grades" && (user.role === "admin" || user.role === "hr") && React.createElement(GradesManager, { grades: grades, refreshGrades: refreshGrades }),
+        tab === "grades" && (user.role === "admin" || user.role === "hr" || user.role === "director") && React.createElement(GradesManager, { grades: grades, refreshGrades: refreshGrades }),
         tab === "payslips" && React.createElement(PayslipGenerator, { db: db }),
         tab === "leave" && (React.createElement("div", null,
             React.createElement(HRHeading, { eyebrow: "Register \u2014 Leave", title: "Leave Management" }),
@@ -1388,7 +1397,7 @@ function HRSystem({ db, setDb, user }) {
 }
 /* ── FINANCE TRACKER (ledger style) ──────────────────────────────────────── */
 function FinanceTracker({ db, user }) {
-    const isAdmin = user.role === "admin";
+    const isAdmin = user.role === "admin" || user.role === "director";
     const [budget, setBudget] = useState(0);
     const [budgetInput, setBudgetInput] = useState("");
     const [statutory, setStatutory] = useState([]);
@@ -1648,7 +1657,7 @@ function AccountsFunds({ db, setDb, user }) {
     const [dep, setDep] = useState({ amt: "", note: "", province: "", town: "" });
     const [bAmt, setBAmt] = useState("");
     const [setAmt, setSetAmt] = useState("");
-    const canEditBalance = user && (user.role === "admin" || user.role === "ceo");
+    const canEditBalance = user && (user.role === "admin" || user.role === "ceo" || user.role === "director");
     const { branchFunds, bankBalance } = db;
     function deposit() { const a = parseFloat(dep.amt); if (!a || !dep.town) {
         alert("Enter amount and select town.");
@@ -2009,6 +2018,54 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement(Btn, { color: C.green, style: { flex: 1 }, onClick: submit }, "\u2705 Submit Loan"))))));
 }
 // ── APPROVALS ─────────────────────────────────────────────────────────────────
+function PaymentPlans({ db, setDb, user }) {
+    const [loanNo, setLoanNo] = useState("");
+    const [proposedAmount, setProposedAmount] = useState("");
+    const [reason, setReason] = useState("");
+    const canApprove = user.role === "manager" || user.role === "admin" || user.role === "director" || isProvincial(user.role);
+    const isHORole = isHO(user.role);
+    const plans = isHORole || canApprove ? (db.paymentPlans || []) : (db.paymentPlans || []).filter(p => { const l = db.loans.find(x => x.loanNo === p.loanNo); return l && l.branch === user.branch; });
+    function submit() {
+        const l = db.loans.find(x => x.loanNo === loanNo.trim().toUpperCase());
+        if (!l) { alert("Loan not found. Check the loan number."); return; }
+        if (!reason.trim()) { alert("Enter a reason for the payment plan."); return; }
+        const row = { id: `PP-${pad((db.paymentPlans || []).length + 1)}`, loanNo: l.loanNo, requestedBy: user.name, requestedByRole: user.roleLabel || user.role, requestedDate: today(), proposedAmount: parseFloat(proposedAmount) || 0, reason: reason.trim(), status: "Pending", approvedBy: "", approvedDate: null };
+        const nd = { ...db, paymentPlans: [...(db.paymentPlans || []), row] };
+        saveDB(nd);
+        setDb(nd);
+        setLoanNo(""); setProposedAmount(""); setReason("");
+        alert("✅ Payment Plan request submitted for approval.");
+    }
+    function act(id, status) {
+        const nd = { ...db, paymentPlans: db.paymentPlans.map(p => p.id === id ? { ...p, status, approvedBy: user.name, approvedDate: today() } : p) };
+        saveDB(nd);
+        setDb(nd);
+    }
+    return (React.createElement("div", null,
+        React.createElement(Card, null,
+            React.createElement(ST, null, "\uD83D\uDCDD Request a Payment Plan"),
+            React.createElement(Alrt, { type: "info" }, "Use this when a client can't cover the full accrued penalty/interest right now. Once approved, reduced payments are allowed on that loan."),
+            React.createElement(Inp, { label: "Loan No.", req: true, value: loanNo, onChange: e => setLoanNo(e.target.value.toUpperCase()), placeholder: "LN-LSLS-0001" }),
+            React.createElement(Inp, { label: "Proposed Payment Amount (K)", type: "number", value: proposedAmount, onChange: e => setProposedAmount(e.target.value), placeholder: "0.00" }),
+            React.createElement(Inp, { label: "Reason", req: true, value: reason, onChange: e => setReason(e.target.value), placeholder: "Why does this client need a payment plan?" }),
+            React.createElement(Btn, { color: C.orange, full: true, onClick: submit }, "\uD83D\uDCE4 Submit Request")),
+        React.createElement(Card, null,
+            React.createElement(ST, null, `Payment Plan Requests (${plans.length})`),
+            !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch Manager, Provincial Manager, System Admin, or Director can approve payment plans."),
+            plans.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No payment plan requests yet.") :
+                plans.slice().reverse().map(p => (React.createElement("div", { key: p.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
+                        React.createElement("strong", { style: { color: C.navy } }, p.loanNo),
+                        React.createElement(Badge, { s: p.status === "Approved" ? "Cleared" : p.status === "Rejected" ? "Rejected" : "Pending" })),
+                    React.createElement(IR, { label: "Requested By", value: `${p.requestedBy} (${p.requestedByRole})` }),
+                    React.createElement(IR, { label: "Date", value: p.requestedDate }),
+                    p.proposedAmount > 0 && React.createElement(IR, { label: "Proposed Amount", value: fmt(p.proposedAmount) }),
+                    React.createElement(IR, { label: "Reason", value: p.reason }),
+                    p.status !== "Pending" && React.createElement(IR, { label: "Decided By", value: `${p.approvedBy} on ${p.approvedDate}` }),
+                    p.status === "Pending" && canApprove && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                        React.createElement(Btn, { sm: true, color: C.green, onClick: () => act(p.id, "Approved"), style: { flex: 1 } }, "\u2705 Approve"),
+                        React.createElement(Btn, { sm: true, color: C.red, onClick: () => act(p.id, "Rejected"), style: { flex: 1 } }, "\u274C Reject"))))))));
+}
 function Approvals({ db, setDb, user }) {
     const isHORole = isHO(user.role);
     const pending = isHORole ? db.loans.filter(l => l.approvalStatus === "Pending") : scopeLoans(db, user).filter(l => l.approvalStatus === "Pending");
@@ -2058,6 +2115,9 @@ function Payments({ db, setDb, user, onReport }) {
     const loan = db.loans.find(l => l.loanNo === lno.trim().toUpperCase() && ["Active", "Overdue", "Defaulted"].includes(getSt(l, db.payments)));
     const bal = loan ? getBal(loan, db.payments) : 0;
     const di = loan ? getDI(loan, db.payments) : 0;
+    const stNow = loan ? getSt(loan, db.payments) : null;
+    const extraDue = stNow === "Defaulted" ? getDI(loan, db.payments) : stNow === "Overdue" ? getPen(loan, db.payments) : 0;
+    const hasApprovedPlan = loan ? (db.paymentPlans || []).some(p => p.loanNo === loan.loanNo && p.status === "Approved") : false;
     const allPayments = scopePayments(db, user);
     function record() {
         if (!loan) {
@@ -2069,12 +2129,17 @@ function Payments({ db, setDb, user, onReport }) {
             setErr("Enter valid amount.");
             return;
         }
-        if (a > bal + di + 0.01) {
-            setErr(`Exceeds total owed: ${fmt(bal + di)}`);
+        const totalOwedNow = getTotalOwed(loan, db.payments);
+        if (a > totalOwedNow + 0.01) {
+            setErr(`Exceeds total owed: ${fmt(totalOwedNow)}`);
+            return;
+        }
+        if (extraDue > 0.01 && !hasApprovedPlan && a < extraDue - 0.01) {
+            setErr(`This loan has ${fmt(extraDue)} in accrued penalty/interest. Payment must cover at least this amount, or request an approved Payment Plan first (Payment Plans tab).`);
             return;
         }
         setErr("");
-        const newBalance = Math.max(0, bal - a);
+        const newBalance = Math.max(0, totalOwedNow - a);
         const r = { id: `RCP-${pad(db.payments.length + 1)}`, loanNo: loan.loanNo, clientId: loan.clientId, name: loan.name, branch, amount: a, date: dt, method: meth, recordedBy: user.name, totalDue: loan.totalDue, newBalance };
         const nd = { ...db, payments: [...db.payments, r] };
         saveDB(nd);
@@ -2136,7 +2201,7 @@ function Payments({ db, setDb, user, onReport }) {
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                 React.createElement(Inp, { label: "Loan No.", req: true, value: lno, onChange: e => { setLno(e.target.value.toUpperCase()); setErr(""); }, placeholder: "LN-LSLS-0001" }),
                 React.createElement(Inp, { label: "Date", req: true, type: "date", value: dt, onChange: e => setDt(e.target.value) }),
-                React.createElement(Inp, { label: `Amount (K)${loan ? " — Bal: " + fmt(bal) : ""}`, req: true, type: "number", value: amt, onChange: e => setAmt(e.target.value), placeholder: "0.00" }),
+                React.createElement(Inp, { label: `Amount (K)${loan ? " — Total Owed: " + fmt(getTotalOwed(loan, db.payments)) : ""}`, req: true, type: "number", value: amt, onChange: e => setAmt(e.target.value), placeholder: "0.00" }),
                 React.createElement(Sel, { label: "Method", value: meth, onChange: e => setMeth(e.target.value) },
                     React.createElement("option", null, "Cash"),
                     React.createElement("option", null, "Bank Transfer"),
@@ -2150,6 +2215,8 @@ function Payments({ db, setDb, user, onReport }) {
                 " \u00B7 Bal: ",
                 React.createElement("strong", { style: { color: C.red } }, fmt(bal))),
             di > 0 && React.createElement(DIBadge, { loan: loan, pmts: db.payments }),
+            loan && extraDue > 0.01 && !hasApprovedPlan && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Minimum payment required: ${fmt(extraDue)} (accrued penalty/interest) \u2014 unless an approved Payment Plan exists for this loan.`),
+            loan && hasApprovedPlan && React.createElement(Alrt, { type: "success" }, "\u2705 This loan has an approved Payment Plan \u2014 reduced payments are allowed."),
             React.createElement(Btn, { color: C.green, full: true, onClick: record }, "\uD83D\uDCB3 Record Payment")),
         React.createElement(Card, null,
             React.createElement(ST, null, "Payment History"),
@@ -3387,8 +3454,8 @@ function App() {
     const pendN = scopeLoans(db, user).filter(l => l.approvalStatus === "Pending").length;
     const ovN = scopeLoans(db, user).filter(l => ["Overdue", "Defaulted"].includes(getSt(l, db.payments))).length;
     const delN = (db.clients || []).filter(c => c.deletionRequested).length;
-    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
-    const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
+    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
+    const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
@@ -3418,6 +3485,7 @@ function App() {
         React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto" } },
             tab === "dashboard" && (hoRole ? React.createElement(HODashboard, { db: db, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : provRole ? React.createElement(HODashboard, { db: { ...db, loans: scopeLoans(db, user), clients: scopeClients(db, user), payments: scopePayments(db, user), staff: db.staff.filter(s => s.province === user.province) }, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : React.createElement(BranchDashboard, { db: db, user: user, onNewLoan: () => newLoan(""), onReport: onReport, onViewOverdue: () => setTab("overdue") })),
             tab === "overdue" && React.createElement(OverdueTab, { db: db, user: user, onReport: onReport }),
+            tab === "planpay" && React.createElement(PaymentPlans, { db: db, setDb: setDb, user: user }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
