@@ -305,13 +305,12 @@ function SideDecor({ side }) {
         const t = setInterval(() => {
             setVisible(false);
             setTimeout(() => { setIdx(i => (i + 1) % BG_SIDE_IMAGES.length); setVisible(true); }, 800);
-        }, 300000);
+        }, 180000);
         return () => clearInterval(t);
     }, []);
-    return React.createElement("div", { style: { position: "fixed", top: 0, bottom: 0, [side]: 0, width: "calc((100vw - 720px)/2)", minWidth: 90, zIndex: 1, pointerEvents: "none", overflow: "hidden", boxSizing: "border-box" } },
-        React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 1 : 0, transition: "opacity 0.8s ease" } }),
-        React.createElement("div", { style: { position: "absolute", inset: 0, background: "linear-gradient(180deg,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.05) 40%,rgba(0,0,0,0.55) 100%)" } }),
-        React.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: 0, padding: "0 12px 22px", fontSize: 12, fontWeight: 700, color: "#fff", textAlign: "center", opacity: visible ? 0.92 : 0, transition: "opacity 0.8s ease", lineHeight: 1.5, textShadow: "0 2px 6px rgba(0,0,0,0.5)" } }, BG_TAGLINES[idx % BG_TAGLINES.length]));
+    return React.createElement("div", { style: { position: "fixed", top: 0, bottom: 0, [side]: 0, width: "calc((100vw - 720px)/2)", minWidth: 90, zIndex: 1, pointerEvents: "none", overflow: "hidden", boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 } },
+        React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { width: "100%", maxWidth: 130, aspectRatio: "3/4", objectFit: "cover", borderRadius: 12, boxShadow: "0 6px 18px rgba(0,0,0,0.18)", opacity: visible ? 1 : 0, transition: "opacity 0.8s ease" } }),
+        React.createElement("div", { style: { marginTop: 14, fontSize: 11, fontWeight: 700, color: C.navy, textAlign: "center", opacity: visible ? 0.7 : 0, transition: "opacity 0.8s ease", maxWidth: 130, lineHeight: 1.5 } }, BG_TAGLINES[idx % BG_TAGLINES.length]));
 }
 function TrustBadge() { return React.createElement("div", { style: { background: "#EAF6EF", border: `1.5px solid ${C.teal}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginTop: 4 } },
     React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDD12"),
@@ -1477,7 +1476,7 @@ function Login({ db, onLogin }) {
                     React.createElement("br", null),
                     "one loan at a time."))),
         React.createElement("div", { style: { width: "100%", maxWidth: 460, padding: "0 20px 28px", marginTop: -18, display: "flex", flexDirection: "column", alignItems: "center" } },
-            React.createElement("div", { style: { background: C.orange, borderRadius: 20, padding: "30px 28px 28px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" } },
+            React.createElement("div", { style: { background: C.light, borderRadius: 20, padding: "30px 28px 28px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" } },
                 React.createElement("div", { style: { textAlign: "center", marginBottom: 22 } },
                     React.createElement("div", { style: { fontWeight: 900, fontSize: 17, color: C.navy } }, "Staff Login Portal"),
                     React.createElement("div", { style: { fontSize: 11, color: C.teal, fontWeight: 700, marginTop: 8, background: "#E0F2F1", borderRadius: 8, padding: "6px 12px", display: "inline-block" } }, "\uD83D\uDCBE Data saves automatically + Backup tab available")),
@@ -3397,7 +3396,7 @@ function App() {
         finReport && React.createElement(FinancialReportView, { loan: finReport.loan, client: finReport.client, db: db, onClose: () => setFinReport(null) }),
         isWide && React.createElement(SideDecor, { side: "left" }),
         isWide && React.createElement(SideDecor, { side: "right" }),
-        React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
+        React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50 } },
             hoRole ? "🌍 HEAD OFFICE — All 10 Provinces" : provRole ? `🌐 ${user.province} PROVINCE — All Branches` : `📍 ${user.branch}, ${info.province} · ${info.provinceCode}-${info.townCode}`,
             " \u00A0\u00B7\u00A0 \uD83D\uDCBE Data auto-saved"),
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(15,45,92,0.3)" } },
@@ -3413,7 +3412,7 @@ function App() {
                     React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
                         React.createElement("button", { onClick: () => setModule(null), style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
                         React.createElement("button", { onClick: handleLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))))),
-        React.createElement("div", { style: { background: C.navy, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.orange}` } }, allTabs.map(t => (React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", position: "relative", flexShrink: 0 } },
+        React.createElement("div", { style: { background: C.navy, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.orange}`, position: "relative", zIndex: 50 } }, allTabs.map(t => (React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", position: "relative", flexShrink: 0 } },
             t.lb,
             t.badge > 0 && React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 8, padding: "1px 4px", marginLeft: 2, fontWeight: 800 } }, t.badge))))),
         React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto" } },
