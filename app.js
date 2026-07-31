@@ -31,8 +31,19 @@ async function hashPin(pin) {
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 // snake_case (database) <-> camelCase (app) field mapping
-function staffIn(r) { return { id: r.id, name: r.name, pinHash: r.pin_hash, role: r.role, roleLabel: r.role_label, dept: r.dept, salary: r.salary || 0, startDate: r.start_date || "", branch: r.branch, province: r.province, active: r.active, nrc: r.nrc || "", bank: r.bank || "", accountNo: r.account_no || "", grade: r.grade || "", phone: r.phone || "", email: r.email || "", tpin: r.tpin || "", photoUrl: r.photo_url || "" }; }
-function staffOut(s) { return { id: s.id, name: s.name, pin_hash: s.pinHash, role: s.role, role_label: s.roleLabel, dept: s.dept, salary: s.salary || 0, start_date: s.startDate || null, branch: s.branch, province: s.province, active: s.active, nrc: s.nrc || "", bank: s.bank || "", account_no: s.accountNo || "", grade: s.grade || "", phone: s.phone || "", email: s.email || "", tpin: s.tpin || "", photo_url: s.photoUrl || null }; }
+function staffIn(r) { return { id: r.id, name: r.name, pinHash: r.pin_hash, role: r.role, roleLabel: r.role_label, dept: r.dept, salary: r.salary || 0, startDate: r.start_date || "", branch: r.branch, province: r.province, active: r.active, employmentStatus: r.employment_status || "Active", suspensionUntil: r.suspension_until || "", suspensionIndefinite: r.suspension_indefinite || false, nrc: r.nrc || "", bank: r.bank || "", accountNo: r.account_no || "", grade: r.grade || "", phone: r.phone || "", email: r.email || "", tpin: r.tpin || "", photoUrl: r.photo_url || "" }; }
+function staffOut(s) { return { id: s.id, name: s.name, pin_hash: s.pinHash, role: s.role, role_label: s.roleLabel, dept: s.dept, salary: s.salary || 0, start_date: s.startDate || null, branch: s.branch, province: s.province, active: s.active, employment_status: s.employmentStatus || "Active", suspension_until: s.suspensionUntil || null, suspension_indefinite: s.suspensionIndefinite || false, nrc: s.nrc || "", bank: s.bank || "", account_no: s.accountNo || "", grade: s.grade || "", phone: s.phone || "", email: s.email || "", tpin: s.tpin || "", photo_url: s.photoUrl || null }; }
+function isEffectivelyActive(s) {
+    if (!s) return false;
+    const status = s.employmentStatus || "Active";
+    if (status === "Resigned") return false;
+    if (status === "Suspended") {
+        if (s.suspensionIndefinite) return false;
+        if (s.suspensionUntil && s.suspensionUntil > today()) return false;
+        return true;
+    }
+    return s.active !== false;
+}
 function clientIn(r) { return { id: r.id, branch: r.branch, province: r.province, name: r.name, nrc: r.nrc, sex: r.sex, dob: r.dob, phone: r.phone, phone2: r.phone_2 || "", phone3: r.phone_3 || "", whatsapp: r.whatsapp || "", email: r.email, address: r.address, company: r.company, bank: r.bank, accountNo: r.account_no, bankCode: r.bank_code, tpin: r.tpin, nok_name: r.nok_name, nok_phone: r.nok_phone, nok_relationship: r.nok_relationship, nok_address: r.nok_address, passportPhoto: r.passport_photo, docs: r.docs || {}, regDate: r.reg_date, deletionRequested: r.deletion_requested || false, deletionRequestedBy: r.deletion_requested_by || "", deletionRequestedDate: r.deletion_requested_date || null, deletionReason: r.deletion_reason || "" }; }
 function clientOut(c) { return { id: c.id, branch: c.branch, province: c.province, name: c.name, nrc: c.nrc, sex: c.sex, dob: c.dob || null, phone: c.phone, phone_2: c.phone2 || null, phone_3: c.phone3 || null, whatsapp: c.whatsapp || null, email: c.email, address: c.address, company: c.company, bank: c.bank, account_no: c.accountNo, bank_code: c.bankCode, tpin: c.tpin, nok_name: c.nok_name, nok_phone: c.nok_phone, nok_relationship: c.nok_relationship, nok_address: c.nok_address, passport_photo: c.passportPhoto || null, docs: c.docs || {}, reg_date: c.regDate || null, deletion_requested: c.deletionRequested || false, deletion_requested_by: c.deletionRequestedBy || null, deletion_requested_date: c.deletionRequestedDate || null, deletion_reason: c.deletionReason || null }; }
 function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.nrc, name: r.name, branch: r.branch, province: r.province, branchCode: r.branch_code, type: r.type, principal: r.principal, interestRate: r.interest_rate, interest: r.interest, totalDue: r.total_due, period: r.period, appDate: r.app_date, disburseDate: r.disburse_date, dueDate: r.due_date, consultant: r.consultant, consultantId: r.consultant_id, approvalStatus: r.approval_status, approvedBy: r.approved_by, approvedDate: r.approved_date, remarks: r.remarks, collateral: r.collateral, deduction: r.deduction, signedLoanCopy: r.signed_loan_copy }; }
@@ -809,7 +820,7 @@ function BackupRestore({ db, setDb }) {
     const fileRef = useRef();
     const [status, setStatus] = useState("");
     const [busy, setBusy] = useState(false);
-    const stats = { clients: db.clients.length, loans: db.loans.length, payments: db.payments.length, staff: db.staff.filter(s => s.active).length };
+    const stats = { clients: db.clients.length, loans: db.loans.length, payments: db.payments.length, staff: db.staff.filter(s => isEffectivelyActive(s)).length };
     function dlJSON(data, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" })); a.download = name; a.click(); }
     function fullBackup() { try {
         dlJSON(db, `Palian_FULL_Backup_${today()}.json`);
@@ -1059,7 +1070,7 @@ function PayslipGenerator({ db }) {
         React.createElement(HRAlrt, { type: "info" }, "Ledger-format payslip \u2014 opens for printing, or downloads directly as a PDF."),
         React.createElement(HRSel, { label: "Staff Member", value: sel, onChange: e => setSel(e.target.value) },
             React.createElement("option", { value: "" }, "-- Select Staff --"),
-            db.staff.filter(s => s.active).map(s => React.createElement("option", { key: s.id, value: s.id },
+            db.staff.filter(s => isEffectivelyActive(s)).map(s => React.createElement("option", { key: s.id, value: s.id },
                 s.name,
                 " \u2014 ",
                 s.roleLabel || s.role))),
@@ -1091,11 +1102,11 @@ function PayrollTab({ db }) {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const salaried = db.staff.filter(s => s.salary > 0 && s.active);
+    const salaried = db.staff.filter(s => s.salary > 0 && isEffectivelyActive(s));
     return (React.createElement("div", null,
         React.createElement(HRHeading, { eyebrow: "Register \u2014 Payroll", title: "Payroll Summary" }),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 } },
-            React.createElement(HRStatCard, { label: "Active Staff", value: db.staff.filter(s => s.active).length }),
+            React.createElement(HRStatCard, { label: "Active Staff", value: db.staff.filter(s => isEffectivelyActive(s)).length }),
             React.createElement(HRStatCard, { label: "Monthly Payroll", value: fmt(salaried.reduce((s, x) => s + x.salary, 0)), accent: HRT.green700 })),
         React.createElement(HRPanel, { title: "Run Payroll Report (All Staff)" },
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
@@ -1116,34 +1127,57 @@ function PayrollTab({ db }) {
 }
 function GradesManager({ grades, refreshGrades }) {
     const [name, setName] = useState("");
-    const [amount, setAmount] = useState("");
+    const [roles, setRoles] = useState("");
+    const [minAmt, setMinAmt] = useState("");
+    const [maxAmt, setMaxAmt] = useState("");
     const [edits, setEdits] = useState({});
+    const [seeding, setSeeding] = useState(false);
     async function addGrade() {
-        if (!name.trim() || !amount) { alert("Enter a grade name and salary amount."); return; }
+        if (!name.trim() || !minAmt) { alert("Enter a grade name and at least a minimum salary."); return; }
         if (grades.find(g => g.grade_name.toLowerCase() === name.trim().toLowerCase())) { alert("That grade already exists — edit it below instead."); return; }
-        await saveSalaryGrade({ grade_name: name.trim(), amount: parseFloat(amount) || 0 });
-        setName(""); setAmount(""); refreshGrades();
+        const min = parseFloat(minAmt) || 0;
+        const max = maxAmt ? (parseFloat(maxAmt) || min) : min;
+        await saveSalaryGrade({ grade_name: name.trim(), roles: roles.trim(), min_amount: min, max_amount: max });
+        setName(""); setRoles(""); setMinAmt(""); setMaxAmt(""); refreshGrades();
     }
     async function updateGrade(g) {
-        const newAmt = edits[g.grade_name];
-        if (newAmt === undefined) return;
-        await saveSalaryGrade({ grade_name: g.grade_name, amount: parseFloat(newAmt) || 0 });
+        const e = edits[g.grade_name] || {};
+        const min = e.min !== undefined ? (parseFloat(e.min) || 0) : g.min_amount;
+        const max = e.max !== undefined ? (parseFloat(e.max) || min) : g.max_amount;
+        const rolesVal = e.roles !== undefined ? e.roles : (g.roles || "");
+        await saveSalaryGrade({ grade_name: g.grade_name, roles: rolesVal, min_amount: min, max_amount: max });
         setEdits(x => ({ ...x, [g.grade_name]: undefined }));
         refreshGrades();
     }
+    async function loadStandard() {
+        setSeeding(true);
+        await seedStandardGrades();
+        await refreshGrades();
+        setSeeding(false);
+    }
     return (React.createElement("div", null,
         React.createElement(HRHeading, { eyebrow: "Register \u2014 Compensation", title: "Salary Grades" }),
-        React.createElement(HRAlrt, { type: "info" }, "Define standard salary per grade here. When adding or editing staff, selecting a grade fills in their salary automatically."),
+        React.createElement(HRAlrt, { type: "info" }, "Each grade has a salary range (min\u2013max). When adding or editing staff, selecting a grade lets you pick a salary within that range."),
+        grades.length === 0 && React.createElement(HRPanel, null,
+            React.createElement(HRAlrt, { type: "warn" }, "No grades set up yet."),
+            React.createElement(HRBtn, { full: true, bg: HRT.gold500, onClick: loadStandard, disabled: seeding }, seeding ? "Loading..." : "\u26A1 Load Standard Palian Grade Table")),
         React.createElement(HRPanel, { title: "Add New Grade" },
-            React.createElement(HRInp, { label: "Grade Name", value: name, onChange: e => setName(e.target.value), placeholder: "e.g. Grade 1, Junior Consultant" }),
-            React.createElement(HRInp, { label: "Salary (K)", type: "number", value: amount, onChange: e => setAmount(e.target.value), placeholder: "0.00" }),
+            React.createElement(HRInp, { label: "Grade Name", value: name, onChange: e => setName(e.target.value), placeholder: "e.g. Grade B (Middle Management)" }),
+            React.createElement(HRInp, { label: "Roles (comma separated)", value: roles, onChange: e => setRoles(e.target.value), placeholder: "e.g. Branch Manager, Recovery Manager" }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                React.createElement(HRInp, { label: "Min Salary (K)", type: "number", value: minAmt, onChange: e => setMinAmt(e.target.value), placeholder: "0.00" }),
+                React.createElement(HRInp, { label: "Max Salary (K, optional)", type: "number", value: maxAmt, onChange: e => setMaxAmt(e.target.value), placeholder: "Same as min if blank" })),
             React.createElement(HRBtn, { full: true, bg: HRT.gold500, onClick: addGrade }, "Add Grade")),
         React.createElement(HRPanel, { title: `Existing Grades (${grades.length})` },
             grades.length === 0 ? React.createElement(HRAlrt, { type: "warn" }, "No grades set up yet \u2014 add one above.") :
-                grades.map(g => (React.createElement("div", { key: g.grade_name, style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
-                    React.createElement("div", { style: { flex: 1, fontFamily: HRF.display, fontWeight: 600, fontSize: 13 } }, g.grade_name),
-                    React.createElement("input", { type: "number", value: edits[g.grade_name] !== undefined ? edits[g.grade_name] : g.amount, onChange: e => setEdits(x => ({ ...x, [g.grade_name]: e.target.value })), style: { width: 100, ...hrInpStyle } }),
-                    React.createElement(HRGBtn, { onClick: () => updateGrade(g) }, "Save")))))));
+                grades.map(g => { const e = edits[g.grade_name] || {}; return (React.createElement("div", { key: g.grade_name, style: { padding: "10px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
+                    React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 13, marginBottom: 4 } }, g.grade_name),
+                    React.createElement("input", { value: e.roles !== undefined ? e.roles : (g.roles || ""), onChange: ev => setEdits(x => ({ ...x, [g.grade_name]: { ...x[g.grade_name], roles: ev.target.value } })), placeholder: "Roles", style: { width: "100%", marginBottom: 6, ...hrInpStyle } }),
+                    React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+                        React.createElement("input", { type: "number", value: e.min !== undefined ? e.min : g.min_amount, onChange: ev => setEdits(x => ({ ...x, [g.grade_name]: { ...x[g.grade_name], min: ev.target.value } })), style: { width: 90, ...hrInpStyle } }),
+                        React.createElement("span", { style: { color: HRT.ink600, fontSize: 12 } }, "to"),
+                        React.createElement("input", { type: "number", value: e.max !== undefined ? e.max : g.max_amount, onChange: ev => setEdits(x => ({ ...x, [g.grade_name]: { ...x[g.grade_name], max: ev.target.value } })), style: { width: 90, ...hrInpStyle } }),
+                        React.createElement(HRGBtn, { onClick: () => updateGrade(g) }, "Save")))); }))));
 }
 function HRSystem({ db, setDb, user }) {
     const isAccountsOnly = user.role === "accounts";
@@ -1195,6 +1229,31 @@ function HRSystem({ db, setDb, user }) {
         alert(`Entry recorded — ${roleLabel} added.`);
     }
     function togStaff(id) { const nd = { ...db, staff: db.staff.map(s => s.id === id ? { ...s, active: !s.active } : s) }; saveDB(nd); setDb(nd); }
+    const [statusEditId, setStatusEditId] = useState(null);
+    const [statusForm, setStatusForm] = useState({ mode: "Active", duration: "", unit: "months", indefinite: false });
+    function startStatusEdit(s) { setStatusEditId(s.id); setStatusForm({ mode: s.employmentStatus || "Active", duration: "", unit: "months", indefinite: s.suspensionIndefinite || false }); }
+    function applyStatus(s) {
+        let patch = {};
+        if (statusForm.mode === "Active") {
+            patch = { employmentStatus: "Active", active: true, suspensionUntil: "", suspensionIndefinite: false };
+        } else if (statusForm.mode === "Resigned") {
+            patch = { employmentStatus: "Resigned", active: false, suspensionUntil: "", suspensionIndefinite: false };
+        } else if (statusForm.mode === "Suspended") {
+            if (statusForm.indefinite) {
+                patch = { employmentStatus: "Suspended", active: false, suspensionIndefinite: true, suspensionUntil: "" };
+            } else {
+                const n = parseInt(statusForm.duration) || 0;
+                if (!n) { alert("Enter how many months or years."); return; }
+                const d = new Date();
+                if (statusForm.unit === "years") d.setFullYear(d.getFullYear() + n); else d.setMonth(d.getMonth() + n);
+                patch = { employmentStatus: "Suspended", active: false, suspensionIndefinite: false, suspensionUntil: d.toISOString().split("T")[0] };
+            }
+        }
+        const nd = { ...db, staff: db.staff.map(x => x.id === s.id ? { ...x, ...patch } : x) };
+        saveDB(nd);
+        setDb(nd);
+        setStatusEditId(null);
+    }
     function remStaff(id) { if (!window.confirm("Remove this entry?"))
         return; const nd = { ...db, staff: db.staff.filter(s => s.id !== id) }; saveDB(nd); setDb(nd); }
     function startEdit(s) { setEditId(s.id); setEf({ name: s.name, pin: "", role: s.role, province: s.province || "", town: isHQR(s.role) ? "" : s.branch, nrc: s.nrc || "", bank: s.bank || "", accountNo: s.accountNo || "", grade: s.grade || "", phone: s.phone || "", email: s.email || "", tpin: s.tpin || "" }); setEfPhoto(s.photoUrl || null); }
@@ -1214,7 +1273,7 @@ function HRSystem({ db, setDb, user }) {
         const photoUrl = photoChanged ? (await uploadParcelPhoto(efPhoto, `staff-${s.id}`)) || s.photoUrl : (efPhoto || "");
         const gradeChanged = ef.grade && ef.grade !== s.grade;
         const matchedGrade = gradeChanged ? grades.find(g => g.grade_name === ef.grade) : null;
-        const newSalary = matchedGrade ? matchedGrade.amount : s.salary;
+        const newSalary = matchedGrade ? matchedGrade.min_amount : s.salary;
         const nd = { ...db, staff: db.staff.map(x => x.id === s.id ? { ...x, name: ef.name.trim(), pinHash: newPinHash, role: newRole, roleLabel: newRoleLabel, branch: needsBranch ? (ef.town || s.branch) : (isProvincialRole ? "Provincial Office" : "Head Office"), province: needsBranch ? (ef.province || s.province) : (isProvincialRole ? (ef.province || s.province) : "Head Office"), nrc: ef.nrc, bank: ef.bank, accountNo: ef.accountNo, grade: ef.grade, salary: newSalary, phone: ef.phone, email: ef.email, tpin: ef.tpin, photoUrl } : x) };
         saveDB(nd);
         setDb(nd);
@@ -1222,12 +1281,12 @@ function HRSystem({ db, setDb, user }) {
         alert("Entry updated.");
     }
     function approveLeave(id, status) { const nd = { ...db, leaveRequests: db.leaveRequests.map(r => r.id === id ? { ...r, status, approvedBy: user.name } : r) }; saveDB(nd); setDb(nd); }
-    const activeStaff = db.staff.filter(s => s.active).length;
-    const inactiveStaff = db.staff.filter(s => !s.active).length;
+    const activeStaff = db.staff.filter(s => isEffectivelyActive(s)).length;
+    const inactiveStaff = db.staff.filter(s => !isEffectivelyActive(s)).length;
     const pendingLeaveCt = (db.leaveRequests || []).filter(r => r.status === "Pending").length;
     const branchCt = new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office").map(s => s.branch)).size;
     const deptCounts = {};
-    db.staff.filter(s => s.active).forEach(s => { const d = s.dept || s.roleLabel || s.role; deptCounts[d] = (deptCounts[d] || 0) + 1; });
+    db.staff.filter(s => isEffectivelyActive(s)).forEach(s => { const d = s.dept || s.roleLabel || s.role; deptCounts[d] = (deptCounts[d] || 0) + 1; });
     const maxDept = Math.max(1, ...Object.values(deptCounts));
     const tabDefs = isAccountsOnly
         ? [["payslips", "Payslips"], ["payroll", "Payroll"], ["finance", "Finance"]]
@@ -1277,10 +1336,10 @@ function HRSystem({ db, setDb, user }) {
                     React.createElement(HRInp, { label: "Phone", value: ns.phone, onChange: e => setNs(f => ({ ...f, phone: e.target.value })), placeholder: "0977000000" }),
                     React.createElement(HRInp, { label: "Email", type: "email", value: ns.email, onChange: e => setNs(f => ({ ...f, email: e.target.value })) }),
                     React.createElement(HRInp, { label: "Department", value: ns.dept, onChange: e => setNs(f => ({ ...f, dept: e.target.value })) }),
-                    React.createElement(HRSel, { label: "Grade / Pay Point", value: ns.grade, onChange: e => { const g = grades.find(x => x.grade_name === e.target.value); setNs(f => ({ ...f, grade: e.target.value, salary: g ? g.amount : f.salary })); } },
+                    React.createElement(HRSel, { label: "Grade / Pay Point", value: ns.grade, onChange: e => { const g = grades.find(x => x.grade_name === e.target.value); setNs(f => ({ ...f, grade: e.target.value, salary: g ? g.min_amount : f.salary })); } },
                         React.createElement("option", { value: "" }, "-- Select Grade --"),
-                        grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, `${g.grade_name} — ${fmt(g.amount)}`))),
-                    React.createElement(HRInp, { label: "Basic Salary (K) — from Grade", type: "number", value: ns.salary, readOnly: true, note: "Set automatically from the selected grade above." }),
+                        grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, g.min_amount === g.max_amount ? `${g.grade_name} — ${fmt(g.min_amount)}` : `${g.grade_name} — ${fmt(g.min_amount)}\u2013${fmt(g.max_amount)}`))),
+                    React.createElement(HRInp, { label: "Basic Salary (K)", type: "number", value: ns.salary, onChange: e => setNs(f => ({ ...f, salary: e.target.value })), note: ns.grade ? "Pick a value within the grade's salary range." : "" }),
                     React.createElement(HRInp, { label: "Start Date", type: "date", value: ns.startDate, onChange: e => setNs(f => ({ ...f, startDate: e.target.value })) }),
                     React.createElement(HRInp, { label: "Bank Name", value: ns.bank, onChange: e => setNs(f => ({ ...f, bank: e.target.value })) }),
                     React.createElement(HRInp, { label: "Account No.", value: ns.accountNo, onChange: e => setNs(f => ({ ...f, accountNo: e.target.value })) })),
@@ -1296,9 +1355,9 @@ function HRSystem({ db, setDb, user }) {
                     React.createElement(HRInp, { label: "Email", type: "email", value: ef.email, onChange: e => setEf(f => ({ ...f, email: e.target.value })) }),
                     React.createElement(HRInp, { label: "Bank Name", value: ef.bank, onChange: e => setEf(f => ({ ...f, bank: e.target.value })) }),
                     React.createElement(HRInp, { label: "Account No.", value: ef.accountNo, onChange: e => setEf(f => ({ ...f, accountNo: e.target.value })) }),
-                    React.createElement(HRSel, { label: "Grade / Pay Point", value: ef.grade, onChange: e => { const g = grades.find(x => x.grade_name === e.target.value); setEf(f => ({ ...f, grade: e.target.value })); } },
+                    React.createElement(HRSel, { label: "Grade / Pay Point", value: ef.grade, onChange: e => { setEf(f => ({ ...f, grade: e.target.value })); } },
                         React.createElement("option", { value: "" }, "-- Select Grade --"),
-                        grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, `${g.grade_name} — ${fmt(g.amount)}`))),
+                        grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, g.min_amount === g.max_amount ? `${g.grade_name} — ${fmt(g.min_amount)}` : `${g.grade_name} — ${fmt(g.min_amount)}\u2013${fmt(g.max_amount)}`))),
                     (user.role === "admin" || user.role === "director") && React.createElement(HRSel, { label: "\uD83D\uDD11 Role / Rights (Admin/Director only)", value: ef.role, onChange: e => setEf(f => ({ ...f, role: e.target.value })) },
                         React.createElement("option", { value: "consultant" }, "Loan Consultant"),
                         React.createElement("option", { value: "manager" }, "Branch Manager"),
@@ -1331,10 +1390,27 @@ function HRSystem({ db, setDb, user }) {
                                 s.salary > 0 && React.createElement("div", { style: { fontSize: 11, color: HRT.green700, fontFamily: HRF.mono } },
                                     fmt(s.salary),
                                     "/mo"))),
-                        React.createElement(HRBadge, { label: s.active ? "Active" : "Inactive", tone: s.active ? "approved" : "action" })),
+                        React.createElement(HRBadge, { label: isEffectivelyActive(s) ? "Active" : s.employmentStatus === "Resigned" ? "Resigned" : s.employmentStatus === "Suspended" ? (s.suspensionIndefinite ? "Suspended (indefinite)" : `Suspended till ${s.suspensionUntil}`) : "Inactive", tone: isEffectivelyActive(s) ? "approved" : "action" })),
+                    statusEditId === s.id && (React.createElement("div", { style: { background: HRT.parchment100, borderRadius: 8, padding: 12, marginBottom: 8 } },
+                        React.createElement(HRSel, { label: "Status", value: statusForm.mode, onChange: e => setStatusForm(f => ({ ...f, mode: e.target.value })) },
+                            React.createElement("option", { value: "Active" }, "Active"),
+                            React.createElement("option", { value: "Suspended" }, "Suspended"),
+                            React.createElement("option", { value: "Resigned" }, "Resigned")),
+                        statusForm.mode === "Suspended" && React.createElement("div", null,
+                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 } },
+                                React.createElement("input", { type: "checkbox", checked: statusForm.indefinite, onChange: e => setStatusForm(f => ({ ...f, indefinite: e.target.checked })) }),
+                                React.createElement("span", { style: { fontSize: 12, color: HRT.ink900 } }, "Suspend indefinitely")),
+                            !statusForm.indefinite && React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                                React.createElement(HRInp, { label: "Duration", type: "number", value: statusForm.duration, onChange: e => setStatusForm(f => ({ ...f, duration: e.target.value })), placeholder: "e.g. 3" }),
+                                React.createElement(HRSel, { label: "Unit", value: statusForm.unit, onChange: e => setStatusForm(f => ({ ...f, unit: e.target.value })) },
+                                    React.createElement("option", { value: "months" }, "Months"),
+                                    React.createElement("option", { value: "years" }, "Years")))),
+                        React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                            React.createElement(HRBtn, { sm: true, bg: HRT.green700, onClick: () => applyStatus(s) }, "Save Status"),
+                            React.createElement(HRGBtn, { onClick: () => setStatusEditId(null) }, "Cancel")))),
                     React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", paddingBottom: 10 } },
                         React.createElement(HRGBtn, { onClick: () => startEdit(s) }, "Edit"),
-                        React.createElement(HRGBtn, { onClick: () => togStaff(s.id) }, s.active ? "Deactivate" : "Activate"),
+                        React.createElement(HRGBtn, { onClick: () => startStatusEdit(s) }, "Set Status"),
                         s.salary > 0 && React.createElement(HRGBtn, { onClick: () => openPayslip(s, { month: new Date().getMonth() + 1, year: new Date().getFullYear() }) }, "Payslip"),
                         s.id !== "hr001" && React.createElement(HRGBtn, { onClick: () => remStaff(s.id), style: { color: HRT.garnet700, borderColor: HRT.garnet700 } }, "Remove")))),
                 React.createElement(HRRule, null))))))),
@@ -1368,7 +1444,7 @@ function HRSystem({ db, setDb, user }) {
         tab === "org" && (React.createElement("div", null,
             React.createElement(HRHeading, { eyebrow: "Register \u2014 Structure", title: "Organisation Chart" }),
             ["ceo", "admin", "director", "strategic", "hr", "accounts", "manager", "officer", "consultant"].map(role => {
-                const members = db.staff.filter(s => s.role === role && s.active);
+                const members = db.staff.filter(s => s.role === role && isEffectivelyActive(s));
                 if (!members.length)
                     return null;
                 return (React.createElement(HRPanel, { key: role, title: `${role === "ceo" ? "CEO" : role.charAt(0).toUpperCase() + role.slice(1)} (${members.length})` }, members.map(s => (React.createElement("div", { key: s.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
@@ -1404,7 +1480,7 @@ function FinanceTracker({ db, user }) {
     const [loading, setLoading] = useState(true);
     const [newBodyName, setNewBodyName] = useState("");
     const [edits, setEdits] = useState({});
-    const allocated = db.staff.filter(s => s.active).reduce((s, x) => s + (x.salary || 0), 0);
+    const allocated = db.staff.filter(s => isEffectivelyActive(s)).reduce((s, x) => s + (x.salary || 0), 0);
     const remaining = budget - allocated;
     function refresh() { setLoading(true); Promise.all([loadPayrollBudget(), loadStatutory()]).then(([b, s]) => { setBudget(b); setStatutory(s); setLoading(false); }); }
     useEffect(() => { refresh(); }, []);
@@ -1458,7 +1534,7 @@ function Login({ db, onLogin }) {
     const [err, setErr] = useState("");
     const [show, setShow] = useState(false);
     async function go() {
-        const s = db.staff.find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase() && x.active);
+        const s = db.staff.find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase() && isEffectivelyActive(x));
         if (!s) {
             setErr("Incorrect name or PIN. Contact HR.");
             return;
@@ -1552,7 +1628,7 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                 pendingReports > 0 && React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#fff", borderRadius: 8 } },
                     React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\uD83D\uDDD2\uFE0F Daily reports awaiting approval"),
                     React.createElement("span", { style: { background: C.gold, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingReports)))),
-        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [["Clients", db.clients.length, C.navy, "👥"], ["Active", countSt("Active"), C.green, "✅"], ["Overdue", countSt("Overdue"), C.orange, "⏰"], ["Defaulted", countSt("Defaulted"), C.red, "⚠️"], ["Cleared", countSt("Cleared"), C.teal, "🎉"], ["Staff", db.staff.filter(s => s.active).length, C.purple, "👤"]].map(([l, v, c, i]) => (React.createElement(StatCard, { key: l, label: l, value: v, color: c, icon: i })))),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [["Clients", db.clients.length, C.navy, "👥"], ["Active", countSt("Active"), C.green, "✅"], ["Overdue", countSt("Overdue"), C.orange, "⏰"], ["Defaulted", countSt("Defaulted"), C.red, "⚠️"], ["Cleared", countSt("Cleared"), C.teal, "🎉"], ["Staff", db.staff.filter(s => isEffectivelyActive(s)).length, C.purple, "👤"]].map(([l, v, c, i]) => (React.createElement(StatCard, { key: l, label: l, value: v, color: c, icon: i })))),
         (countSt("Overdue") + countSt("Defaulted")) > 0 && (React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF5F5" } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", null,
@@ -1632,7 +1708,7 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
 }
 function BranchConsultantSummary({ db, branch }) {
     const branchFund = (db.branchFunds || {})[branch] || 0;
-    const consultants = db.staff.filter(s => s.role === "consultant" && s.branch === branch && s.active);
+    const consultants = db.staff.filter(s => s.role === "consultant" && s.branch === branch && isEffectivelyActive(s));
     const branchLoans = bL(db, branch);
     const branchCollected = bP(db, branch).reduce((s, p) => s + p.amount, 0);
     return (React.createElement(Card, null,
@@ -1707,7 +1783,7 @@ function ManagerFunds({ db, setDb, user }) {
     const [overrideBranch, setOverrideBranch] = useState("");
     const branch = canOverride ? (overrideBranch || "") : user.branch;
     const branchFund = branch ? (db.branchFunds || {})[branch] || 0 : 0;
-    const consultants = branch ? db.staff.filter(s => s.role === "consultant" && s.branch === branch && s.active) : [];
+    const consultants = branch ? db.staff.filter(s => s.role === "consultant" && s.branch === branch && isEffectivelyActive(s)) : [];
     const [cAmts, setCAmts] = useState({});
     const [cTgts, setCTgts] = useState({});
     function allocate(id, name) { const a = parseFloat(cAmts[id] || 0); if (!a || a > branchFund) {
@@ -1872,7 +1948,7 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement(Btn, { onClick: checkNRC, full: true, color: C.blue }, "Check NRC \u2192"))),
         step === 2 && (React.createElement(Card, null,
             React.createElement(ST, null, ex ? `Found — ${ex.name}` : "New Client Registration"),
-            React.createElement(Sel, { label: "Entered By (who this loan is credited to)", value: enteredBy, onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => s.active).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.roleLabel || s.role))),
+            React.createElement(Sel, { label: "Entered By (who this loan is credited to)", value: enteredBy, onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.roleLabel || s.role))),
             blockedLoan && (React.createElement(Alrt, { type: "error" },
                 "\uD83D\uDEAB ",
                 React.createElement("strong", null, "Loan Rejected \u2014 Existing Unresolved Loan"),
@@ -2839,11 +2915,24 @@ async function saveRoutePrice(row) {
     catch (e) { console.error(e); }
 }
 async function loadSalaryGrades() {
-    try { const { data } = await sb.from("salary_grades").select("*").order("amount", { ascending: true }); return data || []; }
+    try { const { data } = await sb.from("salary_grades").select("*").order("min_amount", { ascending: true }); return data || []; }
     catch (e) { console.error(e); return []; }
 }
 async function saveSalaryGrade(row) {
     try { await sb.from("salary_grades").upsert([row], { onConflict: "grade_name" }); }
+    catch (e) { console.error(e); }
+}
+const STANDARD_GRADES = [
+    { grade_name: "Grade A+ (Executive Leadership)", roles: "CEO", min_amount: 30000, max_amount: 30000 },
+    { grade_name: "Grade A (Executive)", roles: "Director", min_amount: 25000, max_amount: 25000 },
+    { grade_name: "Grade B+ (Provincial Leadership)", roles: "Provincial Manager", min_amount: 20000, max_amount: 20000 },
+    { grade_name: "Grade B+ (Senior Management)", roles: "Operations Manager, HR Manager, Accounts Manager", min_amount: 15000, max_amount: 16000 },
+    { grade_name: "Grade B (Middle Management)", roles: "Branch Manager, Recovery Manager", min_amount: 10000, max_amount: 12000 },
+    { grade_name: "Grade C+ (Entry/Support)", roles: "Loan Consultant, clerical staff", min_amount: 7000, max_amount: 7000 },
+    { grade_name: "Grade C (Support)", roles: "Office Cleaner", min_amount: 3000, max_amount: 3000 },
+];
+async function seedStandardGrades() {
+    try { await sb.from("salary_grades").upsert(STANDARD_GRADES, { onConflict: "grade_name" }); }
     catch (e) { console.error(e); }
 }
 async function loadPayrollBudget() {
@@ -3220,7 +3309,7 @@ function DailyReports({ db, setDb, user }) {
             React.createElement(ST, null,
                 "\uD83D\uDCCA Team Performance \u2014 ",
                 isHORole ? "All Provinces" : user.branch),
-            db.staff.filter(s => s.role === "consultant" && s.active && (isHORole || s.branch === user.branch)).map(s => {
+            db.staff.filter(s => s.role === "consultant" && isEffectivelyActive(s) && (isHORole || s.branch === user.branch)).map(s => {
                 const { target, achieved, pct } = targetRollup(s.id);
                 const { defaulted, overdue } = outstandingFor(s.id);
                 return (React.createElement("div", { key: s.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } },
