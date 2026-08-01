@@ -3462,22 +3462,30 @@ function DeletionRequests({ db, setDb }) {
     async function approve(c) {
         if (!window.confirm(`Permanently delete ${c.name}'s record? This cannot be undone.`))
             return;
-        const hasLoans = db.loans.some(l => l.clientId === c.id);
-        if (hasLoans && !window.confirm(`${c.name} has loan history on record. Deleting anyway may be blocked by the database, or could remove their loan trail. Continue?`))
+        const clientLoans = db.loans.filter(l => l.clientId === c.id);
+        const hasLoans = clientLoans.length > 0;
+        if (hasLoans && !window.confirm(`${c.name} has ${clientLoans.length} loan(s) and their payment history on record. Continuing will permanently erase ALL of it \u2014 loans, payments, everything. This cannot be recovered. Are you sure?`))
             return;
         try {
+            const loanNos = clientLoans.map(l => l.loanNo);
+            if (loanNos.length) {
+                const { error: payErr } = await sb.from("payments").delete().in("loan_no", loanNos);
+                if (payErr) { alert("❌ Deletion failed while removing payments: " + payErr.message); return; }
+                const { error: loanErr } = await sb.from("loans").delete().eq("client_id", c.id);
+                if (loanErr) { alert("❌ Deletion failed while removing loans: " + loanErr.message); return; }
+            }
             const { error } = await sb.from("clients").delete().eq("id", c.id);
             if (error) {
-                alert("❌ Deletion failed: " + error.message + (hasLoans ? "\n\nThis is likely because the client still has loan records linked to them." : ""));
+                alert("❌ Deletion failed: " + error.message);
                 return;
             }
         } catch (e) {
             alert("❌ Deletion failed: " + (e.message || "Unknown error"));
             return;
         }
-        const nd = { ...db, clients: db.clients.filter(x => x.id !== c.id) };
+        const nd = { ...db, clients: db.clients.filter(x => x.id !== c.id), loans: db.loans.filter(l => l.clientId !== c.id), payments: db.payments.filter(p => !clientLoans.some(l => l.loanNo === p.loanNo)) };
         setDb(nd);
-        alert(`✅ ${c.name}'s record has been permanently deleted.`);
+        alert(`✅ ${c.name}'s record and all related loan/payment history has been permanently deleted.`);
     }
     function reject(c) {
         const nd = { ...db, clients: db.clients.map(x => x.id === c.id ? { ...x, deletionRequested: false, deletionRequestedBy: "", deletionRequestedDate: null, deletionReason: "" } : x) };
