@@ -24,7 +24,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -52,13 +52,37 @@ function paymentIn(r) { return { id: r.id, loanNo: r.loan_no, clientId: r.client
 function paymentOut(p) { return { id: p.id, loan_no: p.loanNo, client_id: p.clientId, name: p.name, branch: p.branch, amount: p.amount, date: p.date || null, method: p.method, recorded_by: p.recordedBy, total_due: p.totalDue, new_balance: p.newBalance }; }
 function paymentPlanIn(r) { return { id: r.id, loanNo: r.loan_no, requestedBy: r.requested_by, requestedByRole: r.requested_by_role, requestedDate: r.requested_date, proposedAmount: r.proposed_amount || 0, reason: r.reason || "", status: r.status, approvedBy: r.approved_by || "", approvedDate: r.approved_date || null }; }
 function paymentPlanOut(p) { return { id: p.id, loan_no: p.loanNo, requested_by: p.requestedBy, requested_by_role: p.requestedByRole, requested_date: p.requestedDate || null, proposed_amount: p.proposedAmount || 0, reason: p.reason || "", status: p.status, approved_by: p.approvedBy || null, approved_date: p.approvedDate || null }; }
+function messageIn(r) { return { id: r.id, senderId: r.sender_id, senderName: r.sender_name, senderRole: r.sender_role, sentDate: r.sent_date, sentTime: r.sent_time, recipientType: r.recipient_type, recipientPosition: r.recipient_position || "", recipientIds: r.recipient_ids || [], text: r.text || "", attachmentUrl: r.attachment_url || "", attachmentType: r.attachment_type || "", attachmentName: r.attachment_name || "" }; }
+function messageOut(m) { return { id: m.id, sender_id: m.senderId, sender_name: m.senderName, sender_role: m.senderRole, sent_date: m.sentDate, sent_time: m.sentTime, recipient_type: m.recipientType, recipient_position: m.recipientPosition || null, recipient_ids: m.recipientIds || [], text: m.text || "", attachment_url: m.attachmentUrl || null, attachment_type: m.attachmentType || null, attachment_name: m.attachmentName || null }; }
+function messageAppliesTo(m, user) {
+    if (m.recipientType === "all") return true;
+    if (m.recipientType === "position") return (m.recipientPosition || "") === user.role;
+    if (m.recipientType === "individual") return (m.recipientIds || []).includes(user.id);
+    return false;
+}
+async function markMessageRead(messageId, staffId) {
+    try { await sb.from("message_reads").upsert([{ message_id: messageId, staff_id: staffId }], { onConflict: "message_id,staff_id" }); }
+    catch (e) { console.error(e); }
+}
+async function uploadMessageAttachment(dataUrl, msgId, fileName) {
+    if (!dataUrl) return null;
+    try {
+        const blob = dataURLtoBlob(dataUrl);
+        const safeName = (fileName || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `attachments/${msgId}-${safeName}`;
+        const { error } = await sb.storage.from("messages").upload(path, blob, { contentType: blob.type, upsert: true });
+        if (error) { console.error(error); return null; }
+        const { data } = sb.storage.from("messages").getPublicUrl(path);
+        return data.publicUrl;
+    } catch (e) { console.error(e); return null; }
+}
 function leaveIn(r) { return { id: r.id, staffName: r.staff_name, branch: r.branch, type: r.type, from: r.from_date, to: r.to_date, reason: r.reason, status: r.status, submittedDate: r.submitted_date, approvedBy: r.approved_by, docUrl: r.doc_url || "" }; }
 function leaveOut(l) { return { id: l.id, staff_name: l.staffName, branch: l.branch, type: l.type, from_date: l.from || null, to_date: l.to || null, reason: l.reason, status: l.status, submitted_date: l.submittedDate || null, approved_by: l.approvedBy || null, doc_url: l.docUrl || null }; }
 function logIn(r) { return { name: r.name, role: r.role, roleLabel: r.role_label, branch: r.branch, province: r.province, date: r.logged_at ? new Date(r.logged_at).toLocaleDateString("en") : "", time: r.logged_at ? new Date(r.logged_at).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "" }; }
 function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultantName:r.consultant_name,branch:r.branch,province:r.province,reportDate:r.report_date,clientsSeen:r.clients_seen||0,loanAmount:r.loan_amount||0,notes:r.notes||"",status:r.status,approvedBy:r.approved_by,approvedDate:r.approved_date,submittedAt:r.submitted_at};}
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -70,6 +94,8 @@ async function loadDB() {
         sb.from("bank_account").select("*").eq("id", 1).maybeSingle(),
         sb.from("daily_reports").select("*").order("report_date", { ascending: false }).limit(500),
         sb.from("payment_plans").select("*").order("requested_date", { ascending: false }).limit(300),
+        sb.from("messages").select("*").order("sent_date", { ascending: false }).limit(300),
+        sb.from("message_reads").select("*").limit(3000),
     ]);
     return {
         staff: (staffR.data || []).map(staffIn),
@@ -84,6 +110,8 @@ async function loadDB() {
         bankBalance: bankR.data?.balance || 0,
         dailyReports: (drR.data || []).map(dailyReportIn),
         paymentPlans: (ppR.data || []).map(paymentPlanIn),
+        messages: (msgR.data || []).map(messageIn),
+        messageReads: (mrR.data || []).map(r => ({ messageId: r.message_id, staffId: r.staff_id })),
     };
 }
 async function saveDB(db) {
@@ -103,6 +131,8 @@ async function saveDB(db) {
             await sb.from("daily_reports").upsert(db.dailyReports.map(dailyReportOut));
         if (db.paymentPlans?.length)
             await sb.from("payment_plans").upsert(db.paymentPlans.map(paymentPlanOut));
+        if (db.messages?.length)
+            await sb.from("messages").upsert(db.messages.map(messageOut));
         const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
         if (bfRows.length)
             await sb.from("branch_funds").upsert(bfRows);
@@ -2094,6 +2124,97 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement(Btn, { color: C.green, style: { flex: 1 }, onClick: submit }, "\u2705 Submit Loan"))))));
 }
 // ── APPROVALS ─────────────────────────────────────────────────────────────────
+const POP_SOUND = "data:audio/wav;base64,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";
+function MessageCenter({ db, setDb, user, allStaff }) {
+    const [tab, setTab] = useState("inbox");
+    const [sendMode, setSendMode] = useState("all");
+    const [position, setPosition] = useState("");
+    const [search, setSearch] = useState("");
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [text, setText] = useState("");
+    const [file, setFile] = useState(null);
+    const [fileName, setFileName] = useState("");
+    const [fileType, setFileType] = useState("");
+    const [busy, setBusy] = useState(false);
+    const fileRef = useRef();
+    const roles = [...new Set(allStaff.map(s => s.role))];
+    const positionMatches = position ? allStaff.filter(s => s.role === position) : [];
+    const searchMatches = search.trim().length > 1 ? allStaff.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.id.toLowerCase().includes(search.toLowerCase())) : [];
+    const listForSelection = sendMode === "position" ? positionMatches : sendMode === "search" ? searchMatches : [];
+    function toggleId(id) { setSelectedIds(x => x.includes(id) ? x.filter(i => i !== id) : [...x, id]); }
+    function handleFile(e) {
+        const f = e.target.files[0];
+        if (!f) return;
+        setFileName(f.name);
+        setFileType(f.type);
+        const r = new FileReader();
+        r.onload = ev => setFile(ev.target.result);
+        r.readAsDataURL(f);
+    }
+    async function send() {
+        if (!text.trim() && !file) { alert("Write a message or attach a file."); return; }
+        if (sendMode !== "all" && selectedIds.length === 0) { alert("Select at least one recipient, or choose 'All' to message everyone."); return; }
+        setBusy(true);
+        const id = `MSG-${Date.now()}`;
+        const attachmentUrl = file ? await uploadMessageAttachment(file, id, fileName) : "";
+        const row = { id, senderId: user.id, senderName: user.name, senderRole: user.roleLabel || user.role, sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: sendMode === "all" ? "all" : sendMode === "position" ? "individual" : "individual", recipientPosition: "", recipientIds: sendMode === "all" ? [] : selectedIds, text: text.trim(), attachmentUrl: attachmentUrl || "", attachmentType: fileType, attachmentName: fileName };
+        const nd = { ...db, messages: [...(db.messages || []), row] };
+        saveDB(nd);
+        setDb(nd);
+        setText(""); setFile(null); setFileName(""); setFileType(""); setSelectedIds([]); setSearch(""); setPosition("");
+        setBusy(false);
+        alert("✅ Message sent.");
+    }
+    const myMessages = (db.messages || []).filter(m => messageAppliesTo(m, user)).sort((a, b) => (b.sentDate + b.sentTime).localeCompare(a.sentDate + a.sentTime));
+    const readSet = new Set((db.messageReads || []).filter(r => r.staffId === user.id).map(r => r.messageId));
+    function openMsg(m) {
+        if (!readSet.has(m.id)) {
+            markMessageRead(m.id, user.id);
+            setDb({ ...db, messageReads: [...(db.messageReads || []), { messageId: m.id, staffId: user.id }] });
+        }
+    }
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14 } },
+            React.createElement(GBtn, { onClick: () => setTab("inbox"), style: tab === "inbox" ? { background: C.navy, color: "#fff" } : {} }, "\uD83D\uDCE5 Inbox"),
+            React.createElement(GBtn, { onClick: () => setTab("compose"), style: tab === "compose" ? { background: C.navy, color: "#fff" } : {} }, "\u270F\uFE0F Compose")),
+        tab === "compose" && (React.createElement(Card, null,
+            React.createElement(ST, null, "Send Message"),
+            React.createElement(Sel, { label: "Send To", value: sendMode, onChange: e => { setSendMode(e.target.value); setSelectedIds([]); setPosition(""); setSearch(""); } },
+                React.createElement("option", { value: "all" }, "All Staff"),
+                React.createElement("option", { value: "position" }, "By Position"),
+                React.createElement("option", { value: "search" }, "By Name / Employee No.")),
+            sendMode === "position" && React.createElement(Sel, { label: "Position", value: position, onChange: e => { setPosition(e.target.value); setSelectedIds([]); } },
+                React.createElement("option", { value: "" }, "-- Select Position --"),
+                roles.map(r => React.createElement("option", { key: r, value: r }, r))),
+            sendMode === "search" && React.createElement(Inp, { label: "Search Name or Employee No.", value: search, onChange: e => setSearch(e.target.value), placeholder: "Type to search..." }),
+            listForSelection.length > 0 && React.createElement("div", { style: { border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, marginBottom: 12, maxHeight: 220, overflowY: "auto" } }, listForSelection.map(s => (React.createElement("label", { key: s.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "6px 4px", cursor: "pointer" } },
+                React.createElement("input", { type: "checkbox", checked: selectedIds.includes(s.id), onChange: () => toggleId(s.id) }),
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, s.name),
+                    React.createElement("div", { style: { fontSize: 11, color: C.muted } }, s.id, " \u00B7 ", s.roleLabel || s.role)))))),
+            selectedIds.length > 0 && React.createElement(Alrt, { type: "success" }, `${selectedIds.length} recipient(s) selected.`),
+            React.createElement("div", { style: { marginBottom: 12 } },
+                React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 } }, "Message"),
+                React.createElement("textarea", { value: text, onChange: e => setText(e.target.value), rows: 4, placeholder: "Type your message...", style: { ...iSt, resize: "vertical", fontFamily: "inherit" } })),
+            React.createElement("div", { style: { marginBottom: 14 } },
+                React.createElement(Btn, { sm: true, color: C.blue, onClick: () => fileRef.current.click() }, "\uD83D\uDCCE Attach File / Voice Note"),
+                fileName && React.createElement("span", { style: { marginLeft: 10, fontSize: 12, color: C.green, fontWeight: 700 } }, "\u2705 ", fileName),
+                React.createElement("input", { ref: fileRef, type: "file", accept: "image/*,application/pdf,audio/*,video/*", style: { display: "none" }, onChange: handleFile })),
+            React.createElement(Btn, { color: C.green, full: true, onClick: send, disabled: busy }, busy ? "\u23F3 Sending..." : "\uD83D\uDCE4 Send Message"))),
+        tab === "inbox" && React.createElement(Card, null,
+            React.createElement(ST, null, `Inbox (${myMessages.length})`),
+            myMessages.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No messages yet.") :
+                myMessages.map(m => React.createElement(MessageRow, { key: m.id, m: m, unread: !readSet.has(m.id), onOpen: () => openMsg(m) })))));
+}
+function MessageRow({ m, unread, onOpen }) {
+    return React.createElement("div", { onClick: onOpen, style: { border: `1.5px solid ${unread ? C.orange : C.border}`, background: unread ? "#FFF8E1" : "#fff", borderRadius: 10, padding: 12, marginBottom: 10, cursor: "pointer" } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
+            React.createElement("strong", { style: { color: C.navy, fontSize: 13 } }, m.senderName, " \u00B7 ", m.senderRole),
+            unread && React.createElement("span", { style: { background: C.orange, color: "#fff", borderRadius: 10, fontSize: 9, padding: "2px 7px", fontWeight: 800 } }, "NEW")),
+        React.createElement("div", { style: { fontSize: 11, color: C.muted, marginBottom: 6 } }, m.sentDate, " \u00B7 ", m.sentTime),
+        m.text && React.createElement("div", { style: { fontSize: 13, color: C.text, marginBottom: 8, whiteSpace: "pre-wrap" } }, m.text),
+        m.attachmentUrl && React.createElement("a", { href: m.attachmentUrl, target: "_blank", rel: "noreferrer", onClick: e => e.stopPropagation(), style: { fontSize: 12, color: C.blue } }, "\uD83D\uDCCE ", m.attachmentName || "Attachment"));
+}
 function PaymentPlans({ db, setDb, user }) {
     const [loanNo, setLoanNo] = useState("");
     const [proposedAmount, setProposedAmount] = useState("");
@@ -3490,6 +3611,14 @@ function App() {
     const [showSplash, setShowSplash] = useState(true);
     useEffect(() => { const t = setTimeout(() => setShowSplash(false), 2200); return () => clearTimeout(t); }, []);
     useEffect(() => { const h = () => setIsWide(window.innerWidth >= 900); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
+    const prevUnreadRef = useRef(0);
+    const unreadForSound = user ? (db.messages || []).filter(m => messageAppliesTo(m, user) && !(db.messageReads || []).some(r => r.staffId === user.id && r.messageId === m.id)).length : 0;
+    useEffect(() => {
+        if (unreadForSound > prevUnreadRef.current) {
+            try { new Audio(POP_SOUND).play().catch(() => { }); } catch (e) { }
+        }
+        prevUnreadRef.current = unreadForSound;
+    }, [unreadForSound]);
     useEffect(() => {
         (async () => {
             try {
@@ -3542,8 +3671,10 @@ function App() {
     const info = (hoRole || provRole) ? null : gBI(user.branch);
     const pendN = scopeLoans(db, user).filter(l => l.approvalStatus === "Pending").length;
     const ovN = scopeLoans(db, user).filter(l => ["Overdue", "Defaulted"].includes(getSt(l, db.payments))).length;
+    const msgReadSet = new Set((db.messageReads || []).filter(r => r.staffId === user.id).map(r => r.messageId));
+    const unreadMsgN = (db.messages || []).filter(m => messageAppliesTo(m, user) && !msgReadSet.has(m.id)).length;
     const delN = (db.clients || []).filter(c => c.deletionRequested).length;
-    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
+    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
     const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
@@ -3572,9 +3703,11 @@ function App() {
             t.lb,
             t.badge > 0 && React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 8, padding: "1px 4px", marginLeft: 2, fontWeight: 800 } }, t.badge))))),
         React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto" } },
+            tab === "dashboard" && unreadMsgN > 0 && React.createElement("div", { onClick: () => setTab("messages"), style: { background: `linear-gradient(135deg,${C.orange},${C.amber})`, color: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontWeight: 700, fontSize: 13 } }, "\uD83D\uDCAC ", `You have ${unreadMsgN} new message${unreadMsgN !== 1 ? "s" : ""} \u2014 tap to view`),
             tab === "dashboard" && (hoRole ? React.createElement(HODashboard, { db: db, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : provRole ? React.createElement(HODashboard, { db: { ...db, loans: scopeLoans(db, user), clients: scopeClients(db, user), payments: scopePayments(db, user), staff: db.staff.filter(s => s.province === user.province) }, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : React.createElement(BranchDashboard, { db: db, user: user, onNewLoan: () => newLoan(""), onReport: onReport, onViewOverdue: () => setTab("overdue") })),
             tab === "overdue" && React.createElement(OverdueTab, { db: db, user: user, onReport: onReport }),
             tab === "planpay" && React.createElement(PaymentPlans, { db: db, setDb: setDb, user: user }),
+            tab === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
