@@ -3459,13 +3459,25 @@ function DailyReports({ db, setDb, user }) {
 
 function DeletionRequests({ db, setDb }) {
     const pending = (db.clients || []).filter(c => c.deletionRequested);
-    function approve(c) {
+    async function approve(c) {
         if (!window.confirm(`Permanently delete ${c.name}'s record? This cannot be undone.`))
             return;
+        const hasLoans = db.loans.some(l => l.clientId === c.id);
+        if (hasLoans && !window.confirm(`${c.name} has loan history on record. Deleting anyway may be blocked by the database, or could remove their loan trail. Continue?`))
+            return;
+        try {
+            const { error } = await sb.from("clients").delete().eq("id", c.id);
+            if (error) {
+                alert("❌ Deletion failed: " + error.message + (hasLoans ? "\n\nThis is likely because the client still has loan records linked to them." : ""));
+                return;
+            }
+        } catch (e) {
+            alert("❌ Deletion failed: " + (e.message || "Unknown error"));
+            return;
+        }
         const nd = { ...db, clients: db.clients.filter(x => x.id !== c.id) };
-        saveDB(nd);
         setDb(nd);
-        sb.from("clients").delete().eq("id", c.id).then(() => { }).catch(e => console.error(e));
+        alert(`✅ ${c.name}'s record has been permanently deleted.`);
     }
     function reject(c) {
         const nd = { ...db, clients: db.clients.map(x => x.id === c.id ? { ...x, deletionRequested: false, deletionRequestedBy: "", deletionRequestedDate: null, deletionReason: "" } : x) };
