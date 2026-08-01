@@ -2157,9 +2157,20 @@ function MessageCenter({ db, setDb, user, allStaff }) {
         setBusy(true);
         const id = `MSG-${Date.now()}`;
         const attachmentUrl = file ? await uploadMessageAttachment(file, id, fileName) : "";
-        const row = { id, senderId: user.id, senderName: user.name, senderRole: user.roleLabel || user.role, sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: sendMode === "all" ? "all" : sendMode === "position" ? "individual" : "individual", recipientPosition: "", recipientIds: sendMode === "all" ? [] : selectedIds, text: text.trim(), attachmentUrl: attachmentUrl || "", attachmentType: fileType, attachmentName: fileName };
+        const row = { id, senderId: user.id, senderName: user.name, senderRole: user.roleLabel || user.role, sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: sendMode === "all" ? "all" : "individual", recipientPosition: "", recipientIds: sendMode === "all" ? [] : selectedIds, text: text.trim(), attachmentUrl: attachmentUrl || "", attachmentType: fileType, attachmentName: fileName };
+        try {
+            const { error } = await sb.from("messages").insert([messageOut(row)]);
+            if (error) {
+                setBusy(false);
+                alert("❌ Message failed to send: " + error.message + "\n\nCheck that the 'messages' table exists in Supabase with the right columns.");
+                return;
+            }
+        } catch (e) {
+            setBusy(false);
+            alert("❌ Message failed to send: " + (e.message || "Unknown error") + "\n\nCheck your internet connection and try again.");
+            return;
+        }
         const nd = { ...db, messages: [...(db.messages || []), row] };
-        saveDB(nd);
         setDb(nd);
         setText(""); setFile(null); setFileName(""); setFileType(""); setSelectedIds([]); setSearch(""); setPosition("");
         setBusy(false);
@@ -3619,6 +3630,19 @@ function App() {
         }
         prevUnreadRef.current = unreadForSound;
     }, [unreadForSound]);
+    useEffect(() => {
+        if (!user) return;
+        const poll = setInterval(async () => {
+            try {
+                const [msgR, mrR] = await Promise.all([
+                    sb.from("messages").select("*").order("sent_date", { ascending: false }).limit(300),
+                    sb.from("message_reads").select("*").limit(3000),
+                ]);
+                setDb(prev => ({ ...prev, messages: (msgR.data || []).map(messageIn), messageReads: (mrR.data || []).map(r => ({ messageId: r.message_id, staffId: r.staff_id })) }));
+            } catch (e) { console.error("message poll error", e); }
+        }, 20000);
+        return () => clearInterval(poll);
+    }, [user]);
     useEffect(() => {
         (async () => {
             try {
