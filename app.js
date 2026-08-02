@@ -504,7 +504,7 @@ function openPayslip(staff, opts) {
     if (!w)
         return;
     w.document.write(`<!DOCTYPE html><html><head><title>Payslip — ${staff.name}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;padding:30px;color:#1A2744;max-width:680px;margin:0 auto}.hdr{text-align:center;background:#0F2D5C;color:#fff;padding:16px}.hdr-co{font-size:17px;font-weight:900;letter-spacing:1px;margin:6px 0 2px}.hdr-ps{font-size:13px;font-weight:700;color:#FFB300;letter-spacing:2px;margin:3px 0}.hdr-ct{font-size:10px;color:rgba(255,255,255,0.7)}.period{background:#FF6F00;color:#fff;text-align:center;padding:7px;font-weight:800;font-size:11px;letter-spacing:1.5px}.emp{width:100%;border-collapse:collapse;border:1.5px solid #0F2D5C}.emp td{padding:6px 8px;border:1px solid #ccc;font-size:11px}.emp .l{background:#F5F7FA;font-weight:700;color:#0F2D5C;width:14%}.pay{width:100%;border-collapse:collapse;border:1.5px solid #0F2D5C}.pay th{background:#0F2D5C;color:#fff;padding:8px;text-align:left;font-size:11px}.pay .a{text-align:right}.pay td{padding:7px 8px;border-bottom:1px solid #eee;font-size:12px}.pay tr:nth-child(even) td{background:#FAFBFD}.tot td{background:#E8F5E9;font-weight:800;border-top:2px solid #0F2D5C}.sm{background:#0F2D5C;color:#fff;padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px}.si{text-align:center}.sl{font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.5px}.sv{font-size:12px;font-weight:800;color:#FFB300}.np2{background:#2E7D32;color:#fff;padding:14px;text-align:center}.nl{font-size:11px;opacity:.8;letter-spacing:1px}.na{font-size:24px;font-weight:900}.ft{text-align:center;font-size:10px;color:#888;margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;line-height:1.7}@media print{.np{display:none!important}}</style></head><body>
-  <div class="hdr"><div style="margin-bottom:6px">${LSVG}</div><div class="hdr-co">PALIAN MONEY LENDING LIMITED</div><div class="hdr-ps">PAY STATEMENT</div><div class="hdr-ct">Chingola | Kasama • palian2023@gmail.com • 0977 903 111 / +260 976 767 627</div></div>
+  <div class="hdr"><div style="margin-bottom:6px">${LSVG}</div><div class="hdr-co">PALIAN MONEY LENDING LIMITED</div><div class="hdr-ps">PAY STATEMENT</div><div class="hdr-ct">Chingola | Kasama • palianml2023@gmail.com • HR: palianhr40@gmail.com • 0977 903 111</div></div>
   <div class="period">PAY PERIOD: ${mName.toUpperCase()} ${opts.year}</div>
   <table class="emp"><tr><td class="l">EMP NAME</td><td colspan="3">${staff.name.toUpperCase()}</td><td class="l">EMP NO.</td><td>${staff.id}</td><td class="l">NRC NO.</td><td>${staff.nrc || "—"}</td></tr>
   <tr><td class="l">ENG. DATE</td><td>${staff.startDate || "—"}</td><td class="l">JOB TITLE</td><td>${(staff.roleLabel || staff.role).toUpperCase()}</td><td class="l">BANK</td><td colspan="3">${staff.bank || "—"}</td></tr>
@@ -1594,14 +1594,14 @@ function Login({ db, onLogin }) {
     async function go() {
         const s = db.staff.find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase() && isEffectivelyActive(x));
         if (!s) {
-            setErr("Incorrect name or PIN. Contact HR.");
+            setErr("Incorrect name or PIN. Contact HR: palianhr40@gmail.com or 0977 903 111.");
             return;
         }
         const enteredHash = await hashPin(pin.trim());
         if (enteredHash === s.pinHash)
             onLogin(s);
         else
-            setErr("Incorrect name or PIN. Contact HR.");
+            setErr("Incorrect name or PIN. Contact HR: palianhr40@gmail.com or 0977 903 111.");
     }
     return (React.createElement("div", { style: { minHeight: "100vh", position: "relative", display: "flex", flexDirection: "column", alignItems: "center" } },
         React.createElement(LoginBgSlides, null),
