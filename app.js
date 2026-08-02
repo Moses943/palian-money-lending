@@ -1558,6 +1558,23 @@ function FinanceTracker({ db, user }) {
                 React.createElement(HRBtn, { bg: HRT.gold500, onClick: addBody }, "Add")))));
 }
 
+function LoginBgSlides() {
+    const [videoFailed, setVideoFailed] = useState(false);
+    const [idx, setIdx] = useState(0);
+    const [visible, setVisible] = useState(true);
+    useEffect(() => {
+        if (!videoFailed) return;
+        const t = setInterval(() => {
+            setVisible(false);
+            setTimeout(() => { setIdx(i => (i + 1) % BG_SIDE_IMAGES.length); setVisible(true); }, 800);
+        }, 8000);
+        return () => clearInterval(t);
+    }, [videoFailed]);
+    return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", background: C.navy } },
+        !videoFailed ? React.createElement("video", { src: "giraffe-bg.mp4", autoPlay: true, loop: true, muted: true, playsInline: true, onError: () => setVideoFailed(true), style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" } })
+            : React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 1 : 0, transition: "opacity 0.8s ease" } }),
+        React.createElement("div", { style: { position: "absolute", inset: 0, background: `linear-gradient(160deg,${C.navy}CC 0%,${C.blue}AA 60%,#1976D2AA 100%)` } }));
+}
 function Login({ db, onLogin }) {
     const [name, setName] = useState("");
     const [pin, setPin] = useState("");
@@ -1575,22 +1592,15 @@ function Login({ db, onLogin }) {
         else
             setErr("Incorrect name or PIN. Contact HR.");
     }
-    return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy} 0%,${C.blue} 60%,#1976D2 100%)`, display: "flex", flexDirection: "column", alignItems: "center" } },
-        React.createElement("div", { style: { width: "100%", maxWidth: 460, position: "relative", height: 220, overflow: "hidden" } },
-            React.createElement("img", { src: HERO_PHOTO, alt: "Palian Leadership", style: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 20%" } }),
-            React.createElement("div", { style: { position: "absolute", inset: 0, background: `linear-gradient(180deg,rgba(15,45,92,0.15) 0%,rgba(15,45,92,0.55) 65%,${C.navy} 100%)` } }),
-            React.createElement("div", { style: { position: "absolute", top: 16, left: 16, display: "flex", alignItems: "center", gap: 10 } },
-                React.createElement("div", { style: { background: "rgba(255,255,255,0.95)", borderRadius: 12, padding: 6 } },
-                    React.createElement(PalianLogo, { size: 30 })),
-                React.createElement("div", { style: { color: "#fff" } },
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 14, letterSpacing: 0.5 } }, "PALIAN MONEY LENDING"),
-                    React.createElement("div", { style: { fontSize: 10, opacity: 0.85 } }, "Microfinance \u00B7 All 10 Provinces of Zambia"))),
-            React.createElement("div", { style: { position: "absolute", bottom: 14, left: 16, right: 16, color: "#fff" } },
-                React.createElement("div", { style: { fontSize: 13, fontWeight: 700, lineHeight: 1.4 } },
-                    "Empowering entrepreneurs across Zambia,",
-                    React.createElement("br", null),
-                    "one loan at a time."))),
-        React.createElement("div", { style: { width: "100%", maxWidth: 460, padding: "0 20px 28px", marginTop: -18, display: "flex", flexDirection: "column", alignItems: "center" } },
+    return (React.createElement("div", { style: { minHeight: "100vh", position: "relative", display: "flex", flexDirection: "column", alignItems: "center" } },
+        React.createElement(LoginBgSlides, null),
+        React.createElement("div", { style: { width: "100%", maxWidth: 460, position: "relative", zIndex: 1, padding: "56px 16px 0", display: "flex", alignItems: "center", gap: 10 } },
+            React.createElement("div", { style: { background: "rgba(255,255,255,0.95)", borderRadius: 12, padding: 6 } },
+                React.createElement(PalianLogo, { size: 34 })),
+            React.createElement("div", { style: { color: "#fff" } },
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 15, letterSpacing: 0.5 } }, "PALIAN MONEY LENDING"),
+                React.createElement("div", { style: { fontSize: 11, opacity: 0.85 } }, "Microfinance \u00B7 All 10 Provinces of Zambia"))),
+        React.createElement("div", { style: { width: "100%", maxWidth: 460, padding: "60px 20px 28px", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 1 } },
             React.createElement("div", { style: { background: C.light, borderRadius: 20, padding: "30px 28px 28px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" } },
                 React.createElement("div", { style: { textAlign: "center", marginBottom: 22 } },
                     React.createElement("div", { style: { fontWeight: 900, fontSize: 17, color: C.navy } }, "Staff Login Portal"),
@@ -3725,8 +3735,6 @@ function App() {
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
         React.createElement("style", null, `@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`),
         finReport && React.createElement(FinancialReportView, { loan: finReport.loan, client: finReport.client, db: db, onClose: () => setFinReport(null) }),
-        isWide && React.createElement(SideDecor, { side: "left" }),
-        isWide && React.createElement(SideDecor, { side: "right" }),
         React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50 } },
             hoRole ? "🌍 HEAD OFFICE — All 10 Provinces" : provRole ? `🌐 ${user.province} PROVINCE — All Branches` : `📍 ${user.branch}, ${info.province} · ${info.provinceCode}-${info.townCode}`,
             " \u00A0\u00B7\u00A0 \uD83D\uDCBE Data auto-saved"),
