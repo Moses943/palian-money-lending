@@ -1569,6 +1569,19 @@ function FinanceTracker({ db, user }) {
                 React.createElement(HRBtn, { bg: HRT.gold500, onClick: addBody }, "Add")))));
 }
 
+function AppBgSlides() {
+    const [idx, setIdx] = useState(0);
+    const [visible, setVisible] = useState(true);
+    useEffect(() => {
+        const t = setInterval(() => {
+            setVisible(false);
+            setTimeout(() => { setIdx(i => (i + 1) % BG_SIDE_IMAGES.length); setVisible(true); }, 800);
+        }, 15000);
+        return () => clearInterval(t);
+    }, []);
+    return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", background: C.light } },
+        React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 0.14 : 0, transition: "opacity 1s ease" } }));
+}
 function LoginBgSlides() {
     const [videoFailed, setVideoFailed] = useState(false);
     const [idx, setIdx] = useState(0);
@@ -3743,7 +3756,8 @@ function App() {
     const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
-    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
+    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
+        React.createElement(AppBgSlides, null),
         React.createElement("style", null, `@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`),
         finReport && React.createElement(FinancialReportView, { loan: finReport.loan, client: finReport.client, db: db, onClose: () => setFinReport(null) }),
         React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50 } },
