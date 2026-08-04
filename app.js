@@ -1580,7 +1580,7 @@ function AppBgSlides() {
         return () => clearInterval(t);
     }, []);
     return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", background: C.light } },
-        React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 0.14 : 0, transition: "opacity 1s ease" } }));
+        React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 0.28 : 0, transition: "opacity 1s ease" } }));
 }
 function LoginBgSlides() {
     const [videoFailed, setVideoFailed] = useState(false);
@@ -2517,7 +2517,12 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
     const [q, setQ] = useState("");
     const [sel, setSel] = useState(null);
     const [pf, setPf] = useState("all");
-    const all = db.clients.filter(c => { const mQ = c.name.toLowerCase().includes(q.toLowerCase()) || c.nrc.toLowerCase().includes(q) || (c.phone || "").includes(q); const mB = isHORole ? (pf === "all" || c.province === pf) : isProvincial(user.role) ? c.province === user.province : c.branch === user.branch; return mQ && mB; });
+    function latestLoanDate(c) {
+        const cl = db.loans.filter(l => l.clientId === c.id);
+        if (!cl.length) return c.regDate || "";
+        return cl.reduce((max, l) => { const d = l.disburseDate || l.appDate || ""; return d > max ? d : max; }, "");
+    }
+    const all = db.clients.filter(c => { const mQ = c.name.toLowerCase().includes(q.toLowerCase()) || c.nrc.toLowerCase().includes(q) || (c.phone || "").includes(q); const mB = isHORole ? (pf === "all" || c.province === pf) : isProvincial(user.role) ? c.province === user.province : c.branch === user.branch; return mQ && mB; }).sort((a, b) => latestLoanDate(b).localeCompare(latestLoanDate(a)));
     if (sel) {
         const c = sel;
         const cl = db.loans.filter(l => l.clientId === c.id);
@@ -2648,6 +2653,7 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                         c.nok_name && React.createElement("div", { style: { fontSize: 10, color: C.teal, fontWeight: 600 } },
                             "NOK: ",
                             c.nok_name),
+                        cl.length > 0 && (() => { const latest = cl.reduce((a, b) => (a.disburseDate || a.appDate || "") > (b.disburseDate || b.appDate || "") ? a : b); return React.createElement("div", { style: { fontSize: 10, color: C.muted } }, "Latest: ", latest.loanNo, " \u00B7 ", latest.disburseDate || latest.appDate || "\u2014"); })(),
                         isHORole && React.createElement("div", { style: { fontSize: 10, color: C.blue, fontWeight: 600 } },
                             "\uD83D\uDCCD ",
                             c.branch,
@@ -3123,7 +3129,9 @@ async function addStatutory(name, user) {
 }
 // ── SYSTEM SELECT ──────────────────────────────────────────────────────────────
 function SystemSelect({ user, onSelect, onLogout }) {
-    return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 } },
+    return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", overflow: "hidden" } },
+        React.createElement(AppBgSlides, null),
+        React.createElement("div", { style: { position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center" } },
         React.createElement(PalianLogo, { size: 64 }),
         React.createElement("div", { style: { color: "#fff", fontWeight: 900, fontSize: 18, marginTop: 12 } }, "PALIAN"),
         React.createElement("div", { style: { color: "rgba(255,255,255,0.75)", fontSize: 13, marginBottom: 32 } },
@@ -3139,9 +3147,9 @@ function SystemSelect({ user, onSelect, onLogout }) {
             React.createElement("button", { onClick: () => onSelect("transport"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCE6"),
                 React.createElement("div", { style: { textAlign: "left" } },
-                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "PTD"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery \u2014 parcels, shifting")))),
-        React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout")));
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "PTDC"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery Courier \u2014 parcels, shifting")))),
+        React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout"))));
 }
 // ── NEW PARCEL FORM ────────────────────────────────────────────────────────────
 function NewParcelForm({ user, onBooked }) {
@@ -3225,7 +3233,7 @@ function NewParcelForm({ user, onBooked }) {
                 "\uD83D\uDCB0 Route price: ",
                 React.createElement("strong", null, fmt(basePrice)),
                 routePrice.home_delivery_fee > 0 ? ` (+${fmt(routePrice.home_delivery_fee)} for home delivery)` : "")
-                : React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F No price set for this route yet \u2014 ask System Admin to set it in PTD \u2192 Prices.")),
+                : React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F No price set for this route yet \u2014 ask System Admin to set it in PTDC \u2192 Prices.")),
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, margin: "10px 0", padding: "10px 12px", background: C.light, borderRadius: 8 } },
             React.createElement("input", { type: "checkbox", checked: homeDelivery, onChange: e => setHomeDelivery(e.target.checked), style: { width: 18, height: 18 } }),
             React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.navy } },
@@ -3378,13 +3386,13 @@ function TransportApp({ user, onLogout, onSwitch }) {
     const [tab, setTab] = useState("dash");
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
         React.createElement("div", { style: { background: C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
-            "\uD83D\uDCE6 PTD \u2014 PALIAN TRANSPORT & DELIVERY \u2014 ",
+            "\uD83D\uDCE6 PTDC \u2014 PALIAN TRANSPORT & DELIVERY COURIER \u2014 ",
             user.name),
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200 } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     React.createElement(PalianLogo, { size: 34 }),
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff" } }, "PTD")),
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff" } }, "PTDC")),
                 React.createElement("div", { style: { display: "flex", gap: 10 } },
                     React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Switch"),
                     React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Logout")))),
@@ -3562,7 +3570,7 @@ function PTDDashboard({ user }) {
         return React.createElement(Card, { style: { textAlign: "center", padding: 32, color: C.muted } }, "Loading...");
     return (React.createElement("div", null,
         React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 18, marginBottom: 14 } },
-            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, isHORole ? "📦 PTD — All Towns" : `📦 PTD — ${user.branch}`),
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, isHORole ? "📦 PTDC — All Towns" : `📦 PTDC — ${user.branch}`),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
                 React.createElement("div", { style: { background: "#3A3A3A", borderRadius: 10, padding: 10, textAlign: "center" } },
                     React.createElement("div", { style: { fontSize: 9, opacity: 0.75 } }, "DELIVERY AMOUNT"),
