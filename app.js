@@ -1,5 +1,13 @@
 "use strict";
 const { useState, useRef, useEffect } = React;
+const ZM_BANKS = ["Zanaco (Zambia National Commercial Bank)", "Absa Bank Zambia", "Stanbic Bank Zambia", "Standard Chartered Bank Zambia", "First National Bank (FNB) Zambia", "Indo-Zambia Bank", "Access Bank Zambia", "Ecobank Zambia", "United Bank for Africa (UBA) Zambia", "Bank of China Zambia", "Citibank Zambia", "First Capital Bank Zambia", "Investrust Bank", "Zambia Industrial Commercial Bank (ZICB)", "AB Bank Zambia", "Other"];
+function formatNRC(raw) {
+    const digits = (raw || "").replace(/\D/g, "").slice(0, 9);
+    let out = digits.slice(0, 6);
+    if (digits.length > 6) out += "/" + digits.slice(6, 8);
+    if (digits.length > 8) out += "/" + digits.slice(8, 9);
+    return out;
+}
 const PROVINCES = {
     "Central": { code: "CE", towns: [["Kabwe", "KBW"], ["Kapiri Mposhi", "KAP"], ["Mkushi", "MKU"], ["Mumbwa", "MUM"], ["Chibombo", "CHB"], ["Serenje", "SER"]] },
     "Copperbelt": { code: "CB", towns: [["Kitwe", "KIT"], ["Ndola", "NDL"], ["Mufulira", "MUF"], ["Chingola", "CHG"], ["Chililabombwe", "CLB"], ["Luanshya", "LUA"], ["Kalulushi", "KAL"]] },
@@ -203,8 +211,7 @@ function rawTimeStatus(loan) {
 function getPen(loan, pmts) { const d = getDOD(loan), b = getBal(loan, pmts); if (!d || !b)
     return 0; return b * 0.05 * Math.min(d, 7); }
 function getDI(loan, pmts) { if (rawTimeStatus(loan) !== "Defaulted")
-    return 0; const dod = getDOD(loan); if (dod < 30)
-    return 0; return getBal(loan, pmts) * 0.05 * Math.max(1, Math.ceil((dod - 29) / 7)); }
+    return 0; return getBal(loan, pmts) * 0.05 * 7; }
 function getTotalOwed(loan, pmts) { const bal = getBal(loan, pmts); const rst = rawTimeStatus(loan); if (rst === "Defaulted")
     return bal + getDI(loan, pmts); if (rst === "Overdue")
     return bal + getPen(loan, pmts); return bal; }
@@ -435,9 +442,9 @@ function PhotoUpload({ label, value, onChange, small }) {
         React.createElement("input", { ref: ref, type: "file", accept: "image/*,application/pdf", style: { display: "none" }, onChange: handle })));
 }
 function DIBadge({ loan, pmts }) { const di = getDI(loan, pmts); if (!di)
-    return null; const dod = getDOD(loan), periods = Math.max(1, Math.ceil((dod - 29) / 7)); return (React.createElement("div", { style: { background: "#FFF3E0", border: `1.5px solid ${C.orange}`, borderRadius: 9, padding: "9px 12px", marginBottom: 8 } },
-    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 3 } }, "\uD83D\uDCC8 Default Interest (5% per 7 days auto)"),
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, fontSize: 11 } }, [["Days OD", dod], ["Periods", periods], ["Default Int.", fmt(di)]].map(([l, v]) => React.createElement("div", { key: l },
+    return null; const dod = getDOD(loan); return (React.createElement("div", { style: { background: "#FFF3E0", border: `1.5px solid ${C.orange}`, borderRadius: 9, padding: "9px 12px", marginBottom: 8 } },
+    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 3 } }, "\uD83D\uDCC8 Default Interest (flat 5% \u00D7 7 days)"),
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11 } }, [["Days OD", dod], ["Default Int.", fmt(di)]].map(([l, v]) => React.createElement("div", { key: l },
         React.createElement("div", { style: { color: C.muted, fontWeight: 600 } }, l),
         React.createElement("div", { style: { fontWeight: 700, color: C.red } }, v)))),
     React.createElement("div", { style: { marginTop: 6, fontWeight: 700, fontSize: 12, color: C.navy } },
@@ -753,7 +760,6 @@ function FinancialReportView({ loan, client, db, onClose }) {
     const penAmt = st === "Defaulted" ? di : pen;
     const totalOwed = bal + penAmt;
     const stColor = st === "Cleared" ? C.green : st === "Defaulted" || st === "Overdue" ? C.red : C.blue;
-    const periods = Math.max(1, Math.ceil((dod - 29) / 7));
     return (React.createElement("div", { style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, overflowY: "auto" } },
         React.createElement("div", { style: { background: "#fff", maxWidth: 640, margin: "0 auto", minHeight: "100vh" } },
             React.createElement("div", { style: { background: C.navy, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 10 } },
@@ -815,7 +821,7 @@ function FinancialReportView({ loan, client, db, onClose }) {
                     React.createElement(IR, { label: "Total Amount Paid", value: fmt(paid), color: C.green }),
                     React.createElement(IR, { label: "Outstanding Balance (Before Charges)", value: fmt(bal) }),
                     React.createElement(IR, { label: "Days Late", value: dod > 0 ? `${dod} days` : "Not overdue", color: dod > 0 ? C.red : C.green }),
-                    st === "Defaulted" && React.createElement(IR, { label: `Default Interest (5% × ${periods} × 7-day periods)`, value: fmt(di), color: C.red }),
+                    st === "Defaulted" && React.createElement(IR, { label: "Default Interest (flat 5% \u00D7 7 days)", value: fmt(di), color: C.red }),
                     st === "Overdue" && React.createElement(IR, { label: "Penalty Charge", value: fmt(pen), color: C.red }),
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: `2px solid ${C.amber}`, marginTop: 10 } },
                         React.createElement("span", { style: { fontWeight: 800, color: C.navy, fontSize: 13 } }, "TOTAL AMOUNT DUE (Including Charges)"),
@@ -1372,7 +1378,7 @@ function HRSystem({ db, setDb, user }) {
                 React.createElement(PhotoUpload, { label: "Passport-Size Photo", value: nsPhoto, onChange: setNsPhoto }),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                     React.createElement(HRInp, { label: "PIN", type: "password", req: true, value: ns.pin, onChange: e => setNs(f => ({ ...f, pin: e.target.value })), placeholder: "4\u20136 digits" }),
-                    React.createElement(HRInp, { label: "NRC No.", value: ns.nrc, onChange: e => setNs(f => ({ ...f, nrc: e.target.value })), placeholder: "123456/78/1" }),
+                    React.createElement(HRInp, { label: "NRC No.", value: ns.nrc, onChange: e => setNs(f => ({ ...f, nrc: formatNRC(e.target.value) })), placeholder: "123456/78/1" }),
                     React.createElement(HRInp, { label: "TPIN No.", value: ns.tpin, onChange: e => setNs(f => ({ ...f, tpin: e.target.value })) }),
                     React.createElement(HRInp, { label: "Phone", value: ns.phone, onChange: e => setNs(f => ({ ...f, phone: e.target.value })), placeholder: "0977000000" }),
                     React.createElement(HRInp, { label: "Email", type: "email", value: ns.email, onChange: e => setNs(f => ({ ...f, email: e.target.value })) }),
@@ -1382,7 +1388,9 @@ function HRSystem({ db, setDb, user }) {
                         grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, g.min_amount === g.max_amount ? `${g.grade_name} — ${fmt(g.min_amount)}` : `${g.grade_name} — ${fmt(g.min_amount)}\u2013${fmt(g.max_amount)}`))),
                     React.createElement(HRInp, { label: "Basic Salary (K)", type: "number", value: ns.salary, onChange: e => setNs(f => ({ ...f, salary: e.target.value })), note: ns.grade ? "Pick a value within the grade's salary range." : "" }),
                     React.createElement(HRInp, { label: "Start Date", type: "date", value: ns.startDate, onChange: e => setNs(f => ({ ...f, startDate: e.target.value })) }),
-                    React.createElement(HRInp, { label: "Bank Name", value: ns.bank, onChange: e => setNs(f => ({ ...f, bank: e.target.value })) }),
+                    React.createElement(HRSel, { label: "Bank Name", value: ns.bank, onChange: e => setNs(f => ({ ...f, bank: e.target.value })) },
+                        React.createElement("option", { value: "" }, "-- Select Bank --"),
+                        ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
                     React.createElement(HRInp, { label: "Account No.", value: ns.accountNo, onChange: e => setNs(f => ({ ...f, accountNo: e.target.value })) })),
                 React.createElement(HRBtn, { full: true, bg: HRT.gold500, onClick: addStaff }, "Save Entry")),
             React.createElement(HRPanel, { title: `Ledger (${db.staff.length} entries)` }, db.staff.map((s, idx) => (React.createElement("div", { key: s.id },
@@ -1390,11 +1398,13 @@ function HRSystem({ db, setDb, user }) {
                     React.createElement(PhotoUpload, { label: "Passport-Size Photo", value: efPhoto, onChange: setEfPhoto, small: true }),
                     React.createElement(HRInp, { label: "Full Name", req: true, value: ef.name, onChange: e => setEf(f => ({ ...f, name: e.target.value })) }),
                     React.createElement(HRInp, { label: "New PIN (leave blank to keep current)", type: "password", value: ef.pin, onChange: e => setEf(f => ({ ...f, pin: e.target.value })) }),
-                    React.createElement(HRInp, { label: "NRC No.", value: ef.nrc, onChange: e => setEf(f => ({ ...f, nrc: e.target.value })) }),
+                    React.createElement(HRInp, { label: "NRC No.", value: ef.nrc, onChange: e => setEf(f => ({ ...f, nrc: formatNRC(e.target.value) })), placeholder: "123456/78/1" }),
                     React.createElement(HRInp, { label: "TPIN No.", value: ef.tpin, onChange: e => setEf(f => ({ ...f, tpin: e.target.value })) }),
                     React.createElement(HRInp, { label: "Phone", value: ef.phone, onChange: e => setEf(f => ({ ...f, phone: e.target.value })) }),
                     React.createElement(HRInp, { label: "Email", type: "email", value: ef.email, onChange: e => setEf(f => ({ ...f, email: e.target.value })) }),
-                    React.createElement(HRInp, { label: "Bank Name", value: ef.bank, onChange: e => setEf(f => ({ ...f, bank: e.target.value })) }),
+                    React.createElement(HRSel, { label: "Bank Name", value: ef.bank, onChange: e => setEf(f => ({ ...f, bank: e.target.value })) },
+                        React.createElement("option", { value: "" }, "-- Select Bank --"),
+                        ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
                     React.createElement(HRInp, { label: "Account No.", value: ef.accountNo, onChange: e => setEf(f => ({ ...f, accountNo: e.target.value })) }),
                     React.createElement(HRSel, { label: "Grade / Pay Point", value: ef.grade, onChange: e => { setEf(f => ({ ...f, grade: e.target.value })); } },
                         React.createElement("option", { value: "" }, "-- Select Grade --"),
@@ -1646,6 +1656,56 @@ function Login({ db, onLogin }) {
                     React.createElement("div", { style: { fontSize: 10.5, opacity: 0.75, lineHeight: 1.5 } }, "Committed to financial inclusion and ethical lending across Zambia."))))));
 }
 // ── DASHBOARDS ────────────────────────────────────────────────────────────────
+function branchStats(db, branch) {
+    const loans = bL(db, branch);
+    const payments = bP(db, branch);
+    const collected = payments.reduce((s, p) => s + p.amount, 0);
+    const totalDue = loans.reduce((s, l) => s + l.totalDue, 0);
+    const outstanding = loans.reduce((s, l) => s + getBal(l, db.payments), 0);
+    const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
+    const defaulted = loans.filter(l => getSt(l, db.payments) === "Defaulted").length;
+    return { branch, loans: loans.length, collected, outstanding, recovery, defaulted };
+}
+function AdminProvincialView({ db }) {
+    const rows = Object.keys(PROVINCES).map(p => {
+        const towns = PROVINCES[p].towns.map(t => t[0]);
+        const loans = db.loans.filter(l => l.province === p);
+        const payments = db.payments.filter(pm => towns.includes(pm.branch));
+        const collected = payments.reduce((s, pm) => s + pm.amount, 0);
+        const totalDue = loans.reduce((s, l) => s + l.totalDue, 0);
+        const outstanding = loans.reduce((s, l) => s + getBal(l, db.payments), 0);
+        const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
+        const defaulted = loans.filter(l => getSt(l, db.payments) === "Defaulted").length;
+        return { province: p, loans: loans.length, collected, outstanding, recovery, defaulted };
+    }).sort((a, b) => a.recovery - b.recovery);
+    return (React.createElement(Card, null,
+        React.createElement(ST, null, "\uD83C\uDFDB\uFE0F Provincial Performance (All 10 Provinces)"),
+        React.createElement(Alrt, { type: "info" }, "Sorted worst-to-best by recovery rate."),
+        rows.map(r => (React.createElement("div", { key: r.province, style: { border: `1.5px solid ${r.recovery < 50 ? C.red : C.border}`, background: r.recovery < 50 ? "#FFF5F5" : "#fff", borderRadius: 10, padding: 12, marginBottom: 8 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
+                React.createElement("strong", { style: { color: C.navy } }, r.province, r.recovery < 50 && React.createElement("span", { style: { color: C.red, fontSize: 11, marginLeft: 6 } }, "\u26A0\uFE0F Underperforming")),
+                React.createElement("span", { style: { fontWeight: 800, color: r.recovery >= 70 ? C.green : r.recovery >= 50 ? C.amber : C.red } }, r.recovery.toFixed(1), "%")),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, fontSize: 11 } }, [["Loans", r.loans], ["Collected", fmt(r.collected)], ["Outstanding", fmt(r.outstanding)]].map(([l, v]) => React.createElement("div", { key: l },
+                React.createElement("div", { style: { color: C.muted, fontSize: 10 } }, l),
+                React.createElement("div", { style: { fontWeight: 700 } }, v))))))))
+    );
+}
+function AdminBranchView({ db }) {
+    const allBranches = [...new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch))];
+    const rows = allBranches.map(b => branchStats(db, b)).sort((a, b) => a.recovery - b.recovery);
+    return (React.createElement(Card, null,
+        React.createElement(ST, null, "\uD83C\uDFE2 Branch Performance (All Branches)"),
+        React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Branches below 50% recovery are flagged \u2014 these are the ones dragging down their province's results."),
+        rows.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "No branches with staff on record yet.") :
+        rows.map(r => (React.createElement("div", { key: r.branch, style: { border: `1.5px solid ${r.recovery < 50 ? C.red : C.border}`, background: r.recovery < 50 ? "#FFF5F5" : "#fff", borderRadius: 10, padding: 12, marginBottom: 8 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
+                React.createElement("strong", { style: { color: C.navy } }, r.branch, r.recovery < 50 && React.createElement("span", { style: { color: C.red, fontSize: 11, marginLeft: 6 } }, "\u26A0\uFE0F Underperforming")),
+                React.createElement("span", { style: { fontWeight: 800, color: r.recovery >= 70 ? C.green : r.recovery >= 50 ? C.amber : C.red } }, r.recovery.toFixed(1), "%")),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, fontSize: 11 } }, [["Loans", r.loans], ["Collected", fmt(r.collected)], ["Outstanding", fmt(r.outstanding)], ["Defaulted", r.defaulted]].map(([l, v]) => React.createElement("div", { key: l },
+                React.createElement("div", { style: { color: C.muted, fontSize: 10 } }, l),
+                React.createElement("div", { style: { fontWeight: 700, color: l === "Defaulted" && r.defaulted > 0 ? C.red : C.text } }, v))))))))
+    );
+}
 function HODashboard({ db, user, onReport, onViewOverdue }) {
     const [showBal, setShowBal] = useState(true);
     const { loans, payments, branchFunds, bankBalance } = db;
@@ -2005,7 +2065,7 @@ function Wizard({ db, setDb, user, onDone }) {
             canOverrideBranch && React.createElement(ProvinceTownSelect, { required: true, province: overrideProvince, town: overrideBranch, onProvince: setOverrideProvince, onTown: setOverrideBranch }),
             (!canOverrideBranch || branch) && React.createElement(React.Fragment, null,
                 React.createElement(Alrt, { type: "info" }, "Checks NRC across ALL 10 provinces."),
-                React.createElement(Inp, { label: "NRC Number", req: true, value: nrc, onChange: e => { setNrc(e.target.value.toUpperCase()); setNrcErr(""); }, placeholder: "123456/78/1", note: "Format: 123456/78/1" }),
+                React.createElement(Inp, { label: "NRC Number", req: true, value: nrc, onChange: e => { setNrc(formatNRC(e.target.value)); setNrcErr(""); }, placeholder: "123456/78/1", note: "Auto-formats as you type." }),
                 nrcErr && React.createElement(Alrt, { type: "error" },
                     "\u274C ",
                     nrcErr),
@@ -2057,7 +2117,9 @@ function Wizard({ db, setDb, user, onDone }) {
                     React.createElement(Inp, { label: "Physical Address", req: true, value: cf.address, onChange: e => setCf(f => ({ ...f, address: e.target.value })) }),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                         React.createElement(Inp, { label: "Employer", value: cf.company, onChange: e => setCf(f => ({ ...f, company: e.target.value })) }),
-                        React.createElement(Inp, { label: "Bank Name", value: cf.bank, onChange: e => setCf(f => ({ ...f, bank: e.target.value })) }),
+                        React.createElement(Sel, { label: "Bank Name", value: cf.bank, onChange: e => setCf(f => ({ ...f, bank: e.target.value })) },
+                        React.createElement("option", { value: "" }, "-- Select Bank --"),
+                        ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
                         React.createElement(Inp, { label: "Account No.", value: cf.accountNo, onChange: e => setCf(f => ({ ...f, accountNo: e.target.value })) }),
                         React.createElement(Inp, { label: "Bank Code", value: cf.bankCode, onChange: e => setCf(f => ({ ...f, bankCode: e.target.value })), placeholder: "e.g. 060144" }),
                         React.createElement(Inp, { label: "TPIN No.", value: cf.tpin, onChange: e => setCf(f => ({ ...f, tpin: e.target.value })) })),
@@ -2533,7 +2595,7 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                 React.createElement(ST, { color: C.orange }, "\u270F\uFE0F Edit Client Details"),
                 React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Changing the NRC affects duplicate-client detection across branches \u2014 only correct genuine entry errors."),
                 React.createElement(Inp, { label: "Full Name", req: true, value: cef.name, onChange: e => setCef(f => ({ ...f, name: e.target.value })) }),
-                React.createElement(Inp, { label: "NRC Number", req: true, value: cef.nrc, onChange: e => setCef(f => ({ ...f, nrc: e.target.value.toUpperCase() })), placeholder: "123456/78/1" }),
+                React.createElement(Inp, { label: "NRC Number", req: true, value: cef.nrc, onChange: e => setCef(f => ({ ...f, nrc: formatNRC(e.target.value) })), placeholder: "123456/78/1" }),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                     React.createElement(Sel, { label: "Sex", value: cef.sex, onChange: e => setCef(f => ({ ...f, sex: e.target.value })) },
                         React.createElement("option", { value: "" }, "--"),
@@ -2549,7 +2611,9 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                 React.createElement(Inp, { label: "Physical Address", value: cef.address, onChange: e => setCef(f => ({ ...f, address: e.target.value })) }),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                     React.createElement(Inp, { label: "Employer", value: cef.company, onChange: e => setCef(f => ({ ...f, company: e.target.value })) }),
-                    React.createElement(Inp, { label: "Bank Name", value: cef.bank, onChange: e => setCef(f => ({ ...f, bank: e.target.value })) }),
+                    React.createElement(Sel, { label: "Bank Name", value: cef.bank, onChange: e => setCef(f => ({ ...f, bank: e.target.value })) },
+                React.createElement("option", { value: "" }, "-- Select Bank --"),
+                ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
                     React.createElement(Inp, { label: "Account No.", value: cef.accountNo, onChange: e => setCef(f => ({ ...f, accountNo: e.target.value })) }),
                     React.createElement(Inp, { label: "Bank Code", value: cef.bankCode, onChange: e => setCef(f => ({ ...f, bankCode: e.target.value })) }),
                     React.createElement(Inp, { label: "TPIN No.", value: cef.tpin, onChange: e => setCef(f => ({ ...f, tpin: e.target.value })) })),
@@ -3241,7 +3305,7 @@ function NewParcelForm({ user, onBooked }) {
                 routePrice?.home_delivery_fee > 0 ? ` (+${fmt(routePrice.home_delivery_fee)})` : "")),
         React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.teal}`, paddingLeft: 8 } }, "Sender"),
         React.createElement(Inp, { label: "Sender Full Name", req: true, value: f.senderName, onChange: e => setF(x => ({ ...x, senderName: e.target.value })) }),
-        React.createElement(Inp, { label: "Sender NRC", req: true, value: f.senderNrc, onChange: e => setF(x => ({ ...x, senderNrc: e.target.value.toUpperCase() })), placeholder: "123456/78/1" }),
+        React.createElement(Inp, { label: "Sender NRC", req: true, value: f.senderNrc, onChange: e => setF(x => ({ ...x, senderNrc: formatNRC(e.target.value) })), placeholder: "123456/78/1" }),
         React.createElement(Inp, { label: "Sender Phone", value: f.senderPhone, onChange: e => setF(x => ({ ...x, senderPhone: e.target.value })) }),
         React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.purple}`, paddingLeft: 8 } }, "Receiver"),
         React.createElement(Inp, { label: "Receiver Full Name", req: true, value: f.receiverName, onChange: e => setF(x => ({ ...x, receiverName: e.target.value })) }),
@@ -3762,7 +3826,7 @@ function App() {
     const delN = (db.clients || []).filter(c => c.deletionRequested).length;
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
     const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
-    const allTabs = [...coreTabs, ...(extraTabs[user.role] || [])];
+    const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
         React.createElement(AppBgSlides, null),
@@ -3793,6 +3857,8 @@ function App() {
             tab === "overdue" && React.createElement(OverdueTab, { db: db, user: user, onReport: onReport }),
             tab === "planpay" && React.createElement(PaymentPlans, { db: db, setDb: setDb, user: user }),
             tab === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
+            tab === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
+            tab === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
