@@ -72,6 +72,32 @@ async function markMessageRead(messageId, staffId) {
     try { await sb.from("message_reads").upsert([{ message_id: messageId, staff_id: staffId }], { onConflict: "message_id,staff_id" }); }
     catch (e) { console.error(e); }
 }
+async function loadWallpapers() {
+    try {
+        const { data, error } = await sb.storage.from("wallpapers").list("", { sortBy: { column: "created_at", order: "desc" } });
+        if (error || !data) return [];
+        return data.filter(f => f.name && !f.name.startsWith(".")).map(f => {
+            const { data: pub } = sb.storage.from("wallpapers").getPublicUrl(f.name);
+            return { name: f.name, url: pub.publicUrl };
+        });
+    } catch (e) { console.error(e); return []; }
+}
+async function uploadWallpaper(dataUrl, fileName) {
+    try {
+        const blob = dataURLtoBlob(dataUrl);
+        const safeName = `${Date.now()}-${(fileName || "wallpaper").replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const { error } = await sb.storage.from("wallpapers").upload(safeName, blob, { contentType: blob.type, upsert: true });
+        if (error) return { error: error.message };
+        return { ok: true };
+    } catch (e) { return { error: e.message || "Unknown error" }; }
+}
+async function deleteWallpaper(name) {
+    try {
+        const { error } = await sb.storage.from("wallpapers").remove([name]);
+        if (error) return { error: error.message };
+        return { ok: true };
+    } catch (e) { return { error: e.message || "Unknown error" }; }
+}
 async function uploadMessageAttachment(dataUrl, msgId, fileName) {
     if (!dataUrl) return null;
     try {
@@ -1582,31 +1608,35 @@ function FinanceTracker({ db, user }) {
 function AppBgSlides() {
     const [idx, setIdx] = useState(0);
     const [visible, setVisible] = useState(true);
+    const [imgs, setImgs] = useState(BG_SIDE_IMAGES);
+    useEffect(() => { loadWallpapers().then(w => { if (w.length) setImgs(w.map(x => x.url)); }); }, []);
     useEffect(() => {
         const t = setInterval(() => {
             setVisible(false);
-            setTimeout(() => { setIdx(i => (i + 1) % BG_SIDE_IMAGES.length); setVisible(true); }, 800);
+            setTimeout(() => { setIdx(i => (i + 1) % imgs.length); setVisible(true); }, 800);
         }, 15000);
         return () => clearInterval(t);
-    }, []);
+    }, [imgs]);
     return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", background: C.light } },
-        React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 0.28 : 0, transition: "opacity 1s ease" } }));
+        React.createElement("img", { src: imgs[idx % imgs.length], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 0.28 : 0, transition: "opacity 1s ease" } }));
 }
 function LoginBgSlides() {
     const [videoFailed, setVideoFailed] = useState(false);
     const [idx, setIdx] = useState(0);
     const [visible, setVisible] = useState(true);
+    const [imgs, setImgs] = useState(BG_SIDE_IMAGES);
+    useEffect(() => { loadWallpapers().then(w => { if (w.length) setImgs(w.map(x => x.url)); }); }, []);
     useEffect(() => {
         if (!videoFailed) return;
         const t = setInterval(() => {
             setVisible(false);
-            setTimeout(() => { setIdx(i => (i + 1) % BG_SIDE_IMAGES.length); setVisible(true); }, 800);
+            setTimeout(() => { setIdx(i => (i + 1) % imgs.length); setVisible(true); }, 800);
         }, 8000);
         return () => clearInterval(t);
-    }, [videoFailed]);
+    }, [videoFailed, imgs]);
     return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", background: C.navy } },
         !videoFailed ? React.createElement("video", { src: "giraffe-bg.mp4", autoPlay: true, loop: true, muted: true, playsInline: true, onError: () => setVideoFailed(true), style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" } })
-            : React.createElement("img", { src: BG_SIDE_IMAGES[idx], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 1 : 0, transition: "opacity 0.8s ease" } }),
+            : React.createElement("img", { src: imgs[idx % imgs.length], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 1 : 0, transition: "opacity 0.8s ease" } }),
         React.createElement("div", { style: { position: "absolute", inset: 0, background: `linear-gradient(160deg,${C.navy}CC 0%,${C.blue}AA 60%,#1976D2AA 100%)` } }));
 }
 function Login({ db, onLogin }) {
@@ -1689,6 +1719,51 @@ function AdminProvincialView({ db }) {
                 React.createElement("div", { style: { color: C.muted, fontSize: 10 } }, l),
                 React.createElement("div", { style: { fontWeight: 700 } }, v))))))))
     );
+}
+function SettingsTab({ user }) {
+    const [wallpapers, setWallpapers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const fileRef = useRef();
+    function refresh() { setLoading(true); loadWallpapers().then(w => { setWallpapers(w); setLoading(false); }); }
+    useEffect(() => { refresh(); }, []);
+    function handleUpload(e) {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        setUploading(true);
+        let remaining = files.length;
+        files.forEach(f => {
+            const r = new FileReader();
+            r.onload = async ev => {
+                const res = await uploadWallpaper(ev.target.result, f.name);
+                if (res.error) alert(`❌ ${f.name} failed: ${res.error}`);
+                remaining--;
+                if (remaining === 0) { setUploading(false); refresh(); }
+            };
+            r.readAsDataURL(f);
+        });
+        e.target.value = "";
+    }
+    async function handleDelete(w) {
+        if (!window.confirm(`Remove this wallpaper photo?`)) return;
+        const res = await deleteWallpaper(w.name);
+        if (res.error) { alert("❌ Delete failed: " + res.error); return; }
+        refresh();
+    }
+    return (React.createElement("div", null,
+        React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 18, marginBottom: 14 } },
+            React.createElement("div", { style: { fontSize: 15, fontWeight: 800, marginBottom: 4 } }, "\u2699\uFE0F System Settings"),
+            React.createElement("div", { style: { fontSize: 12, opacity: 0.85 } }, "Admin / Director only")),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "\uD83D\uDDBC\uFE0F Wallpaper Sliding Photos"),
+            React.createElement(Alrt, { type: "info" }, "These photos rotate in the background on the login screen and throughout the app. Upload as many as you like \u2014 no need to touch any code."),
+            React.createElement(Btn, { color: C.blue, full: true, onClick: () => fileRef.current.click(), disabled: uploading }, uploading ? "\u23F3 Uploading..." : "\u2795 Upload Wallpaper Photo(s)"),
+            React.createElement("input", { ref: fileRef, type: "file", accept: "image/*", multiple: true, style: { display: "none" }, onChange: handleUpload }),
+            loading ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "Loading...") :
+                wallpapers.length === 0 ? React.createElement(Alrt, { type: "warn" }, "No custom wallpapers uploaded yet \u2014 the app is using its built-in default photo set.") :
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 14 } }, wallpapers.map(w => React.createElement("div", { key: w.name, style: { position: "relative" } },
+                        React.createElement("img", { src: w.url, style: { width: "100%", aspectRatio: "3/4", objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` } }),
+                        React.createElement("button", { onClick: () => handleDelete(w), style: { position: "absolute", top: 4, right: 4, background: "rgba(198,40,40,0.9)", color: "#fff", border: "none", borderRadius: 6, width: 24, height: 24, cursor: "pointer", fontSize: 12, fontWeight: 800 } }, "\u2715")))))));
 }
 function AdminBranchView({ db }) {
     const allBranches = [...new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch))];
@@ -3826,7 +3901,7 @@ function App() {
     const delN = (db.clients || []).filter(c => c.deletionRequested).length;
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
     const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
-    const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : [])];
+    const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
         React.createElement(AppBgSlides, null),
@@ -3859,6 +3934,7 @@ function App() {
             tab === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             tab === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             tab === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
+            tab === "settings" && (user.role === "admin" || user.role === "director") && React.createElement(SettingsTab, { user: user }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
