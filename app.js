@@ -150,34 +150,34 @@ async function loadDB() {
 }
 async function saveDB(db) {
     MDB = db;
-    try {
-        if (db.staff?.length)
-            await sb.from("staff").upsert(db.staff.map(staffOut));
-        if (db.clients?.length)
-            await sb.from("clients").upsert(db.clients.map(clientOut));
-        if (db.loans?.length)
-            await sb.from("loans").upsert(db.loans.map(loanOut));
-        if (db.payments?.length)
-            await sb.from("payments").upsert(db.payments.map(paymentOut));
-        if (db.leaveRequests?.length)
-            await sb.from("leave_requests").upsert(db.leaveRequests.map(leaveOut));
-        if (db.dailyReports?.length)
-            await sb.from("daily_reports").upsert(db.dailyReports.map(dailyReportOut));
-        if (db.paymentPlans?.length)
-            await sb.from("payment_plans").upsert(db.paymentPlans.map(paymentPlanOut));
-        if (db.messages?.length)
-            await sb.from("messages").upsert(db.messages.map(messageOut));
-        const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
-        if (bfRows.length)
-            await sb.from("branch_funds").upsert(bfRows);
-        const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
-        if (cfRows.length)
-            await sb.from("consultant_funds").upsert(cfRows);
-        await sb.from("bank_account").upsert([{ id: 1, balance: db.bankBalance || 0 }]);
+    const failures = [];
+    async function tryUpsert(label, table, rows, opts) {
+        if (!rows || !rows.length) return;
+        try {
+            const { error } = await sb.from(table).upsert(rows, opts || {});
+            if (error) failures.push(`${label}: ${error.message}`);
+        } catch (e) {
+            failures.push(`${label}: ${e.message || "Unknown error"}`);
+        }
     }
-    catch (e) {
-        console.error("saveDB error", e);
+    await tryUpsert("Staff", "staff", db.staff?.length ? db.staff.map(staffOut) : null);
+    await tryUpsert("Clients", "clients", db.clients?.length ? db.clients.map(clientOut) : null);
+    await tryUpsert("Loans", "loans", db.loans?.length ? db.loans.map(loanOut) : null);
+    await tryUpsert("Payments", "payments", db.payments?.length ? db.payments.map(paymentOut) : null);
+    await tryUpsert("Leave Requests", "leave_requests", db.leaveRequests?.length ? db.leaveRequests.map(leaveOut) : null);
+    await tryUpsert("Daily Reports", "daily_reports", db.dailyReports?.length ? db.dailyReports.map(dailyReportOut) : null);
+    await tryUpsert("Payment Plans", "payment_plans", db.paymentPlans?.length ? db.paymentPlans.map(paymentPlanOut) : null);
+    await tryUpsert("Messages", "messages", db.messages?.length ? db.messages.map(messageOut) : null);
+    const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
+    await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null);
+    const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
+    await tryUpsert("Consultant Funds", "consultant_funds", cfRows.length ? cfRows : null);
+    await tryUpsert("Bank Account", "bank_account", [{ id: 1, balance: db.bankBalance || 0 }]);
+    if (failures.length) {
+        console.error("saveDB errors", failures);
+        alert("⚠️ Some data failed to save to the database:\n\n" + failures.join("\n") + "\n\nYour changes may only exist on this device until this is fixed. Please screenshot this and report it.");
     }
+    return { ok: failures.length === 0, errors: failures };
 }
 async function logLoginToDB(u) {
     try {
