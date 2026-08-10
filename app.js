@@ -160,8 +160,13 @@ async function saveDB(db) {
             failures.push(`${label}: ${e.message || "Unknown error"}`);
         }
     }
-    await tryUpsert("Staff", "staff", db.staff?.length ? db.staff.map(staffOut) : null);
-    await tryUpsert("Clients", "clients", db.clients?.length ? db.clients.map(clientOut) : null);
+    function dedupeById(rows) {
+        const map = new Map();
+        for (const r of rows) map.set(r.id, r); // last occurrence wins
+        return Array.from(map.values());
+    }
+    await tryUpsert("Staff", "staff", db.staff?.length ? dedupeById(db.staff.map(staffOut)) : null);
+    await tryUpsert("Clients", "clients", db.clients?.length ? dedupeById(db.clients.map(clientOut)) : null);
     await tryUpsert("Loans", "loans", db.loans?.length ? db.loans.map(loanOut) : null);
     await tryUpsert("Payments", "payments", db.payments?.length ? db.payments.map(paymentOut) : null);
     await tryUpsert("Leave Requests", "leave_requests", db.leaveRequests?.length ? db.leaveRequests.map(leaveOut) : null);
