@@ -148,37 +148,8 @@ async function loadDB() {
         messageReads: (mrR.data || []).map(r => ({ messageId: r.message_id, staffId: r.staff_id })),
     };
 }
-// ── LOCAL SAVE-SAFETY NET ──────────────────────────────────────────────────
-// A save to Supabase can fail (schema mismatch, bad connection, etc). Before
-// this existed, a failed save left the new data ONLY in browser memory — if
-// the tab was closed or refreshed, it was gone with no way to recover it.
-// This snapshots the data locally BEFORE every save attempt, keeps that
-// snapshot if the save fails (clearing it once the save truly succeeds),
-// warns before the tab is closed while a failed save is pending, and offers
-// to retry or download that snapshot the next time the app is opened.
-const BACKUP_KEY = "palian_pending_backup_v1";
-function downloadJSON(filename, data) {
-    try {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (e) { console.error("downloadJSON failed", e); }
-}
-window.addEventListener("beforeunload", function (e) {
-    if (localStorage.getItem(BACKUP_KEY)) {
-        e.preventDefault();
-        e.returnValue = "Some data failed to save to the database and only exists on this device. Leaving now may lose it.";
-        return e.returnValue;
-    }
-});
 async function saveDB(db) {
     MDB = db;
-    // Snapshot BEFORE attempting to save, so a mid-way failure still leaves a full local copy.
-    try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ savedAt: new Date().toISOString(), db })); }
-    catch (e) { console.error("local backup snapshot failed", e); }
     const failures = [];
     async function tryUpsert(label, table, rows, opts) {
         if (!rows || !rows.length) return;
@@ -189,13 +160,8 @@ async function saveDB(db) {
             failures.push(`${label}: ${e.message || "Unknown error"}`);
         }
     }
-    function dedupeById(rows) {
-        const map = new Map();
-        for (const r of rows) map.set(r.id, r); // last occurrence wins
-        return Array.from(map.values());
-    }
-    await tryUpsert("Staff", "staff", db.staff?.length ? dedupeById(db.staff.map(staffOut)) : null);
-    await tryUpsert("Clients", "clients", db.clients?.length ? dedupeById(db.clients.map(clientOut)) : null);
+    await tryUpsert("Staff", "staff", db.staff?.length ? db.staff.map(staffOut) : null);
+    await tryUpsert("Clients", "clients", db.clients?.length ? db.clients.map(clientOut) : null);
     await tryUpsert("Loans", "loans", db.loans?.length ? db.loans.map(loanOut) : null);
     await tryUpsert("Payments", "payments", db.payments?.length ? db.payments.map(paymentOut) : null);
     await tryUpsert("Leave Requests", "leave_requests", db.leaveRequests?.length ? db.leaveRequests.map(leaveOut) : null);
@@ -209,32 +175,30 @@ async function saveDB(db) {
     await tryUpsert("Bank Account", "bank_account", [{ id: 1, balance: db.bankBalance || 0 }]);
     if (failures.length) {
         console.error("saveDB errors", failures);
-        // Keep the local backup (already written above) and also push a JSON file
-        // to the device's Downloads folder as a second, portable copy.
-        downloadJSON(`palian-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`, db);
-        alert("⚠️ Some data failed to save to the database:\n\n" + failures.join("\n") + "\n\nA backup of your data has been saved on this device (in localStorage) and downloaded as a JSON file. Do NOT close this tab if possible — reopening it later and saving again will retry automatically. Please screenshot this and report it.");
-    } else {
-        // Save succeeded — the data is safely in Supabase, so the local safety copy is no longer needed.
-        try { localStorage.removeItem(BACKUP_KEY); } catch (e) { /* ignore */ }
+        alert("⚠️ Some data failed to save to the database:\n\n" + failures.join("\n") + "\n\nYour changes may only exist on this device until this is fixed. Please screenshot this and report it.");
     }
+    scheduleGoogleBackup(); // fire-and-forget: tells the server to pull fresh data from Supabase and mirror it to Google. Never blocks or throws into the UI.
     return { ok: failures.length === 0, errors: failures };
 }
-function checkForUnsavedBackupOnStartup() {
+
+// ── GOOGLE DRIVE / SHEETS AUTO-BACKUP ───────────────────────────────────────
+// Debounced so a burst of quick saves (e.g. typing through a form) doesn't
+// fire a flood of backup requests — it settles 3s after the last save.
+// The server endpoint reads directly from Supabase (source of truth), so
+// this call carries no data — it's just a "go back up now" trigger.
+let _gBackupTimer = null;
+function scheduleGoogleBackup() {
+    if (_gBackupTimer) clearTimeout(_gBackupTimer);
+    _gBackupTimer = setTimeout(runGoogleBackup, 3000);
+}
+async function runGoogleBackup() {
     try {
-        const raw = localStorage.getItem(BACKUP_KEY);
-        if (!raw) return;
-        const { savedAt, db } = JSON.parse(raw);
-        const when = savedAt ? new Date(savedAt).toLocaleString("en") : "an earlier session";
-        const retry = confirm(`⚠️ Unsaved data was found from ${when} that never made it to the database (a previous save failed).\n\nClick OK to retry saving it now, or Cancel to just download it as a backup file instead.`);
-        if (retry) {
-            saveDB(db).then(res => {
-                if (res.ok) alert("✅ Recovered data saved successfully.");
-                else alert("⚠️ Retry failed again:\n\n" + res.errors.join("\n") + "\n\nThe backup is still kept on this device — try again later or contact support.");
-            });
-        } else {
-            downloadJSON(`palian-recovered-backup-${Date.now()}.json`, db);
-        }
-    } catch (e) { console.error("startup backup check failed", e); }
+        const res = await fetch("/api/backup-to-drive", { method: "POST" });
+        if (!res.ok) console.warn("Google backup failed:", await res.text().catch(() => res.statusText));
+    } catch (e) {
+        // Deliberately silent to the user — this is a secondary safety net, not the primary save path.
+        console.warn("Google backup request failed:", e);
+    }
 }
 async function logLoginToDB(u) {
     try {
@@ -1042,6 +1006,7 @@ function BackupRestore({ db, setDb }) {
                 React.createElement("div", { style: { fontSize: 18, fontWeight: 800 } }, v),
                 React.createElement("div", { style: { fontSize: 10, opacity: 0.75 } }, l)))))),
         status && React.createElement(Alrt, { type: status.startsWith("✅") ? "success" : status.startsWith("❌") ? "error" : "info" }, status),
+        React.createElement(Alrt, { type: "success" }, "\u2601\uFE0F Automatic backup is also active \u2014 every save is mirrored to Palian's Google Sheet + Drive in real time. This is a second safety net; still keep manual backups for anything critical."),
         React.createElement(Card, null,
             React.createElement(ST, { color: C.green }, "\uD83D\uDCE4 Download Backup"),
             React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Save your backup immediately after downloading \u2014 send it to WhatsApp, email, or Google Drive so it is never lost."),
@@ -4011,5 +3976,4 @@ function App() {
             tab === "mgr-funds" && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }))));
 }
 // ── MOUNT ──────────────────────────────────────────────────────────────────
-checkForUnsavedBackupOnStartup();
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
