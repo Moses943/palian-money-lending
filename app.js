@@ -162,7 +162,7 @@ async function saveDB(db) {
     }
     await tryUpsert("Staff", "staff", db.staff?.length ? db.staff.map(staffOut) : null);
     await tryUpsert("Clients", "clients", db.clients?.length ? db.clients.map(clientOut) : null);
-    await tryUpsert("Loans", "loans", db.loans?.length ? db.loans.map(loanOut) : null);
+    await tryUpsert("Loans", "loans", db.loans?.length ? db.loans.map(loanOut) : null, { onConflict: "loan_no" });
     await tryUpsert("Payments", "payments", db.payments?.length ? db.payments.map(paymentOut) : null);
     await tryUpsert("Leave Requests", "leave_requests", db.leaveRequests?.length ? db.leaveRequests.map(leaveOut) : null);
     await tryUpsert("Daily Reports", "daily_reports", db.dailyReports?.length ? db.dailyReports.map(dailyReportOut) : null);
