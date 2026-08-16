@@ -571,6 +571,7 @@ function openClearanceCert(loan, client, db) {
   <div class="stmt">This certifies that <strong>${client?.name || loan.name}</strong> (NRC: ${client?.nrc || loan.nrc}) has fully repaid loan <strong>${loan.loanNo}</strong> issued by Palian Money Lending Limited, ${loan.branch} Branch. As of <strong>${clearDate}</strong>, there are no outstanding obligations. This client is eligible for a new loan.</div>
   <div class="sms"><strong style="color:#1565C0">📱 SMS/WhatsApp:</strong><br><span id="s">${sms}</span><br><br><button class="np" onclick="navigator.clipboard.writeText(document.getElementById('s').innerText).then(()=>alert('✅ Copied!'))" style="padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:700;margin-top:4px;">📋 Copy SMS</button></div>
   <div class="sga"><div class="sg"><div class="sl"></div><div class="slb">LOAN OFFICER / CONSULTANT</div><div style="font-size:11px;color:#888;margin-top:3px">${loan.consultant}</div></div><div class="sg"><div class="sl"></div><div class="slb">AUTHORIZED SIGNATORY</div><div style="font-size:11px;color:#888;margin-top:3px">Branch Manager — ${loan.branch}</div></div></div>
+  <div style="text-align:right;margin-top:6px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:90px;opacity:0.9" alt="Official Stamp"/></div>
   <div class="ft">Palian Money Lending Limited · Licensed Microfinance Institution, Zambia<br>Cert Ref: CLR-${loan.loanNo} · Generated: ${new Date().toLocaleString()}</div>
   <br><button class="np" onclick="window.print()" style="width:100%;padding:14px;background:#0F2D5C;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:800;margin-top:10px;">🖨️ Print / Save as PDF</button>
   </body></html>`);
@@ -608,6 +609,7 @@ function openPayslip(staff, opts) {
   <tbody>${tRows}<tr class="tot"><td>TOTAL INCOME</td><td class="a">${kf(total)}</td><td>TOTAL DEDUCTIONS</td><td class="a">${kf(napsa + paye)}</td></tr></tbody></table>
   <div class="sm"><div class="si"><div class="sl">Taxable</div><div class="sv">${kf(Math.max(0, total - napsa))}</div></div><div class="si"><div class="sl">Leave Days</div><div class="sv">${opts.leaveDays || 0}</div></div><div class="si"><div class="sl">Gross YTD</div><div class="sv">${kf(basic * 12)}</div></div><div class="si"><div class="sl">Xmas Bonus</div><div class="sv">${kf(opts.xmasBonus || 0)}</div></div></div>
   <div class="np2"><div class="nl">NET PAY (BANK TRANSFER)</div><div class="na">K ${kf(net)}</div></div>
+  <div style="text-align:right;margin-top:14px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:80px;opacity:0.9" alt="Official Stamp"/></div>
   <div class="ft">Computer-generated payslip. No signature required.<br>Palian Money Lending Limited — Licensed Microfinance Institution, Zambia · ${new Date().toLocaleString()}</div>
   <br><button class="np" onclick="window.print()" style="width:100%;padding:15px;background:#0F2D5C;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:800;margin-top:10px;">🖨️ Print / Save as PDF</button>
   </body></html>`);
@@ -2620,6 +2622,7 @@ function Payments({ db, setDb, user, onReport }) {
     <hr><div class="row"><span class="lb">Receipt No.</span><span class="vl">${r.id}</span></div><div class="row"><span class="lb">Date</span><span class="vl">${r.date}</span></div><div class="row"><span class="lb">Loan No.</span><span class="vl">${r.loanNo}</span></div><div class="row"><span class="lb">Client</span><span class="vl">${r.name}</span></div><div class="row"><span class="lb">Method</span><span class="vl">${r.method}</span></div>
     <hr><div class="row"><span class="lb">Total Due</span><span class="vl">${kf(r.totalDue)}</span></div><div class="row"><span class="lb">Amount Paid</span><span class="vl amt">${kf(r.amount)}</span></div><div class="row"><span class="lb">Balance</span><span class="bal">${r.newBalance <= 0 ? "✅ CLEARED" : kf(r.newBalance)}</span></div>
     <hr><div class="row"><span class="lb">Recorded By</span><span class="vl">${r.recordedBy}</span></div>
+    <div style="text-align:right;margin-top:8px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:60px;opacity:0.9" alt="Official Stamp"/></div>
     <div class="ft">Thank you for your payment!<br>Authorized Signature: _________________________</div>
     <br><button class="np" onclick="window.print()" style="width:100%;padding:11px;background:#0F2D5C;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700;">🖨️ Print</button></body></html>`);
         w.document.close();
