@@ -419,6 +419,28 @@ function IR({ label, value, bold, color }) { return React.createElement("div", {
     React.createElement("span", { style: { color: C.muted } }, label),
     React.createElement("span", { style: { fontWeight: bold ? 800 : 600, color: color || (bold ? C.navy : C.text) } }, value)); }
 function Alrt({ type, children }) { const m = { info: { bg: "#E3F2FD", b: C.blue, c: C.navy }, warn: { bg: "#FFF8E1", b: C.amber, c: "#5D4037" }, error: { bg: "#FFEBEE", b: C.red, c: C.red }, success: { bg: "#E8F5E9", b: C.green, c: C.green } }; const s = m[type || "info"]; return React.createElement("div", { style: { background: s.bg, border: `1.5px solid ${s.b}`, color: s.c, borderRadius: 10, padding: "11px 14px", fontSize: 13, fontWeight: 600, marginBottom: 12 } }, children); }
+// Desktop-only sidebar (≥900px, hidden via CSS below that — see the media query
+// injected in App's render). Reuses the exact same allTabs list, click handler,
+// and badge counts as the mobile top nav, so permissions/behavior never drift
+// between the two — this is purely a visual alternate for wider screens.
+function Sidebar({ allTabs, tab, setTab, user, onSwitch, onLogout }) {
+    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: "#0C1730", zIndex: 300, overflowY: "auto" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "20px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)" } },
+            React.createElement(PalianLogo, { size: 32 }),
+            React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "PALIAN"),
+                React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 1 } }, "MONEY LENDING"))),
+        React.createElement("div", { style: { flex: 1, padding: "10px 10px", display: "flex", flexDirection: "column", gap: 2 } },
+            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? "rgba(255,111,0,0.16)" : "transparent", borderLeft: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.6)", fontWeight: tab === t.id ? 700 : 600, fontSize: 12.5 } },
+                React.createElement("span", null, t.lb),
+                t.badge > 0 && React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 9, padding: "1px 6px", fontWeight: 800 } }, t.badge)))),
+        React.createElement("div", { style: { padding: 14, borderTop: "1px solid rgba(255,255,255,0.08)" } },
+            React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+            React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", marginBottom: 8 } }, user.roleLabel || user.role),
+            React.createElement("div", { style: { display: "flex", gap: 10 } },
+                React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
+                React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))));
+}
 const iSt = { width: "100%", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", background: "#FAFBFD" };
 function Inp({ label, req, note, ...p }) { return React.createElement("div", { style: { marginBottom: 12 } },
     label && React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 } },
@@ -3946,12 +3968,23 @@ function App() {
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
         React.createElement(AppBgSlides, null),
-        React.createElement("style", null, `@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`),
+        React.createElement("style", null, `
+            @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+            /* ── Desktop sidebar layout (≥900px only) — mobile is untouched below this breakpoint ── */
+            .pw-sidebar-desktop { display: none; }
+            @media (min-width: 900px) {
+                .pw-sidebar-desktop { display: flex !important; }
+                .pw-topnav-mobile { display: none !important; }
+                .pw-shift-for-sidebar { margin-left: 240px !important; }
+                .pw-main-content { max-width: 1100px !important; margin-left: 264px !important; padding: 24px !important; }
+            }
+        `),
         finReport && React.createElement(FinancialReportView, { loan: finReport.loan, client: finReport.client, db: db, onClose: () => setFinReport(null) }),
-        React.createElement("div", { style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50 } },
+        React.createElement(Sidebar, { allTabs: allTabs, tab: tab, setTab: setTab, user: user, onSwitch: () => setModule(null), onLogout: handleLogout }),
+        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: hoRole ? C.purple : provRole ? C.teal : C.teal, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50 } },
             hoRole ? "🌍 HEAD OFFICE — All 10 Provinces" : provRole ? `🌐 ${user.province} PROVINCE — All Branches` : `📍 ${user.branch}, ${info.province} · ${info.provinceCode}-${info.townCode}`,
             " \u00A0\u00B7\u00A0 \uD83D\uDCBE Data auto-saved"),
-        React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(15,45,92,0.3)" } },
+        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(15,45,92,0.3)" } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     React.createElement(PalianLogo, { size: 34 }),
@@ -3964,10 +3997,10 @@ function App() {
                     React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
                         React.createElement("button", { onClick: () => setModule(null), style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
                         React.createElement("button", { onClick: handleLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))))),
-        React.createElement("div", { style: { background: C.navy, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.orange}`, position: "relative", zIndex: 50 } }, allTabs.map(t => (React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", position: "relative", flexShrink: 0 } },
+        React.createElement("div", { className: "pw-topnav-mobile", style: { background: C.navy, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.orange}`, position: "relative", zIndex: 50 } }, allTabs.map(t => (React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", position: "relative", flexShrink: 0 } },
             t.lb,
             t.badge > 0 && React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 8, padding: "1px 4px", marginLeft: 2, fontWeight: 800 } }, t.badge))))),
-        React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto", position: "relative", zIndex: 1 } },
+        React.createElement("div", { className: "pw-main-content", style: { padding: 14, maxWidth: 720, margin: "0 auto", position: "relative", zIndex: 1 } },
             tab === "dashboard" && unreadMsgN > 0 && React.createElement("div", { onClick: () => setTab("messages"), style: { background: `linear-gradient(135deg,${C.orange},${C.amber})`, color: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontWeight: 700, fontSize: 13 } }, "\uD83D\uDCAC ", `You have ${unreadMsgN} new message${unreadMsgN !== 1 ? "s" : ""} \u2014 tap to view`),
             tab === "dashboard" && (hoRole ? React.createElement(HODashboard, { db: db, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : provRole ? React.createElement(HODashboard, { db: { ...db, loans: scopeLoans(db, user), clients: scopeClients(db, user), payments: scopePayments(db, user), staff: db.staff.filter(s => s.province === user.province) }, user: user, onReport: onReport, onViewOverdue: () => setTab("overdue") }) : React.createElement(BranchDashboard, { db: db, user: user, onNewLoan: () => newLoan(""), onReport: onReport, onViewOverdue: () => setTab("overdue") })),
             tab === "overdue" && React.createElement(OverdueTab, { db: db, user: user, onReport: onReport }),
