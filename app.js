@@ -154,7 +154,16 @@ async function saveDB(db) {
     async function tryUpsert(label, table, rows, opts) {
         if (!rows || !rows.length) return;
         try {
-            const { error } = await sb.from(table).upsert(rows, opts || {});
+            // Safety net: dedupe by conflict key before sending. If the same key
+            // appears twice in one batch (e.g. a client-side id collision), Postgres
+            // rejects the whole upsert with "ON CONFLICT DO UPDATE command cannot
+            // affect row a second time" -- keep the LAST occurrence of each key so
+            // a bad duplicate never blocks the rest of that table's save.
+            const conflictKey = (opts && opts.onConflict) || "id";
+            const seen = new Map();
+            for (const row of rows) { seen.set(row[conflictKey], row); }
+            const dedupedRows = Array.from(seen.values());
+            const { error } = await sb.from(table).upsert(dedupedRows, opts || {});
             if (error) failures.push(`${label}: ${error.message}`);
         } catch (e) {
             failures.push(`${label}: ${e.message || "Unknown error"}`);
@@ -224,6 +233,16 @@ async function logLogoutToDB(logId) {
 const fmt = n => "K " + Number(n || 0).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().split("T")[0];
 const pad = (n, l = 4) => String(n).padStart(l, "0");
+// Base the next client id on the highest existing CLT-#### number, not the
+// array's current length -- length breaks after any deletion (reuses an id)
+// and can momentarily disagree between devices; max-existing-number doesn't.
+function nextClientId(clients) {
+    const maxNum = (clients || []).reduce((max, c) => {
+        const m = /^CLT-(\d+)$/.exec(c.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `CLT-${pad(maxNum + 1)}`;
+}
 const validNRC = n => /^\d{6}\/\d{2}\/\d{1}$/.test((n || "").trim());
 const isHO = r => HO_ROLES.includes(r);
 const isProvincial = r => r === "provincial";
@@ -2116,7 +2135,7 @@ function Wizard({ db, setDb, user, onDone }) {
         const nd = { ...db, clients: [...db.clients], loans: [...db.loans], payments: [...db.payments] };
         let client = ex;
         if (!client) {
-            client = { id: `CLT-${pad(db.clients.length + 1)}`, regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs };
+            client = { id: nextClientId(db.clients), regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs };
             nd.clients.push(client);
         }
         if (user.role === "consultant")
@@ -2348,7 +2367,7 @@ function MessageCenter({ db, setDb, user, allStaff }) {
         if (!text.trim() && !file) { alert("Write a message or attach a file."); return; }
         if (sendMode !== "all" && selectedIds.length === 0) { alert("Select at least one recipient, or choose 'All' to message everyone."); return; }
         setBusy(true);
-        const id = `MSG-${Date.now()}`;
+        const id = `MSG-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const attachmentUrl = file ? await uploadMessageAttachment(file, id, fileName) : "";
         const row = { id, senderId: user.id, senderName: user.name, senderRole: user.roleLabel || user.role, sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: sendMode === "all" ? "all" : "individual", recipientPosition: "", recipientIds: sendMode === "all" ? [] : selectedIds, text: text.trim(), attachmentUrl: attachmentUrl || "", attachmentType: fileType, attachmentName: fileName };
         try {
