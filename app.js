@@ -1881,6 +1881,9 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
     const hasNotifications = pendingLoans > 0 || pendingDeletions > 0 || pendingReports > 0;
     const disbByCategory = (db.branchDisbursements || []).reduce((acc, d) => { acc[d.category || "Other"] = (acc[d.category || "Other"] || 0) + (d.amount || 0); return acc; }, {});
     const totalDisbursedToBranches = Object.values(disbByCategory).reduce((s, v) => s + v, 0);
+    // DDOC = loans under a Direct Deduction arrangement (loan.type === "Deduction")
+    const ddocLoans = loans.filter(l => l.type === "Deduction");
+    const ddocAmount = ddocLoans.reduce((s, l) => s + (l.principal || 0), 0);
     return (React.createElement("div", null,
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
@@ -1921,6 +1924,12 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                 [["Number of Loans", loans.length], ["Amount Applied", fmt(allApplied)], ["Amount Disbursed", fmt(allDisbursed)]].map(([l, v]) => React.createElement("div", { key: l },
                     React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
                     React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.teal }, "🏦 DDOC (Direct Deduction) Loans"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+                [["Number Submitted", ddocLoans.length], ["Amount to Date", fmt(ddocAmount)]].map(([l, v]) => React.createElement("div", { key: l },
+                    React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
         totalDisbursedToBranches > 0 && React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "🔑 Branch Disbursements by Category"),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
@@ -1954,6 +1963,15 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
     const pendingLoans = loans.filter(l => l.approvalStatus === "Pending").length;
     const pendingReports = (db.dailyReports || []).filter(r => r.status === "Pending" && r.branch === branch).length;
     const hasNotifications = user.role === "manager" && (pendingLoans > 0 || pendingReports > 0);
+    const isConsultant = user.role === "consultant";
+    // "General Dashboard" (consultant): scope everything to just this person's own loans.
+    const myLoans = isConsultant ? loans.filter(l => l.consultantId === user.id) : loans;
+    const myPayments = isConsultant ? payments.filter(p => myLoans.some(l => l.loanNo === p.loanNo)) : payments;
+    const myApplied = myLoans.reduce((s, l) => s + (l.principal || 0), 0);
+    const myPaid = myPayments.reduce((s, p) => s + p.amount, 0);
+    // "Branch Dashboard" (manager): DDOC count + fund handed to each consultant in this branch.
+    const branchDdocLoans = loans.filter(l => l.type === "Deduction");
+    const branchConsultants = (db.staff || []).filter(s => s.branch === branch && s.role === "consultant");
     return (React.createElement("div", null,
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
@@ -1981,6 +1999,21 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
                 React.createElement("div", { style: { fontSize: 10, opacity: 0.75 } }, "Your Loan Fund"),
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: myFund > 0 ? C.gold : "#ff6b6b" } }, fmt(myFund)))),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [["Clients", bC(db, branch).length, C.navy, "👥"], ["Active", countSt("Active"), C.green, "✅"], ["Overdue", countSt("Overdue"), C.orange, "⏰"], ["Defaulted", countSt("Defaulted"), C.red, "⚠️"], ["Cleared", countSt("Cleared"), C.teal, "🎉"], ["Recovery", rec + "%", parseFloat(rec) >= 70 ? C.green : C.red, "📊"]].map(([l, v, c, i]) => (React.createElement(StatCard, { key: l, label: l, value: v, color: c, icon: i, small: true })))),
+        isConsultant && React.createElement(Card, null,
+            React.createElement(ST, { color: C.blue }, "📊 My Loan Summary"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+                [["Amount Applied", fmt(myApplied)], ["Amount Paid", fmt(myPaid)]].map(([l, v]) => React.createElement("div", { key: l },
+                    React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
+        user.role === "manager" && React.createElement(Card, null,
+            React.createElement(ST, { color: C.teal }, "🏦 DDOC (Direct Deduction) Loans"),
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, `${branchDdocLoans.length} loans · ${fmt(branchDdocLoans.reduce((s, l) => s + (l.principal || 0), 0))}`)),
+        user.role === "manager" && branchConsultants.length > 0 && React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "💰 Loan Fund by Consultant"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+                branchConsultants.map(s => React.createElement("div", { key: s.id, style: { display: "flex", justifyContent: "space-between", padding: "6px 10px", background: C.light, borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, s.name),
+                    React.createElement("span", { style: { fontWeight: 700, fontSize: 12 } }, fmt((db.consultantFunds || {})[s.id] || 0)))))),
         hasNotifications && React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}`, background: "#FAF5FF" } },
             React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Needs Your Attention"),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
