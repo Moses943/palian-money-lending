@@ -32,7 +32,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -116,7 +116,7 @@ function logIn(r) { return { name: r.name, role: r.role, roleLabel: r.role_label
 function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultantName:r.consultant_name,branch:r.branch,province:r.province,reportDate:r.report_date,clientsSeen:r.clients_seen||0,loanAmount:r.loan_amount||0,notes:r.notes||"",status:r.status,approvedBy:r.approved_by,approvedDate:r.approved_date,submittedAt:r.submitted_at};}
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -130,6 +130,7 @@ async function loadDB() {
         sb.from("payment_plans").select("*").order("requested_date", { ascending: false }).limit(300),
         sb.from("messages").select("*").order("sent_date", { ascending: false }).limit(300),
         sb.from("message_reads").select("*").limit(3000),
+        sb.from("branch_disbursements").select("*").order("date", { ascending: false }).limit(1000),
     ]);
     return {
         staff: (staffR.data || []).map(staffIn),
@@ -139,6 +140,7 @@ async function loadDB() {
         leaveRequests: (leaveR.data || []).map(leaveIn),
         loginLogs: (logsR.data || []).map(logIn),
         branchFunds: Object.fromEntries((bfR.data || []).map(r => [r.branch, r.amount])),
+        branchDisbursements: (bdR.data || []).map(r => ({ id: r.id, branch: r.branch, province: r.province, amount: r.amount || 0, category: r.category || "Other", note: r.note || "", date: r.date, sentBy: r.sent_by })),
         consultantFunds: Object.fromEntries((cfR.data || []).map(r => [r.staff_id, r.amount])),
         consultantTargets: Object.fromEntries((cfR.data || []).map(r => [r.staff_id, r.target])),
         bankBalance: bankR.data?.balance || 0,
@@ -175,6 +177,7 @@ async function saveDB(db) {
     await tryUpsert("Payments", "payments", db.payments?.length ? db.payments.map(paymentOut) : null, { onConflict: "id" });
     await tryUpsert("Leave Requests", "leave_requests", db.leaveRequests?.length ? db.leaveRequests.map(leaveOut) : null);
     await tryUpsert("Daily Reports", "daily_reports", db.dailyReports?.length ? db.dailyReports.map(dailyReportOut) : null);
+    await tryUpsert("Branch Disbursements", "branch_disbursements", db.branchDisbursements?.length ? db.branchDisbursements.map(d => ({ id: d.id, branch: d.branch, province: d.province, amount: d.amount, category: d.category, note: d.note || null, date: d.date, sent_by: d.sentBy })) : null, { onConflict: "id" });
     await tryUpsert("Payment Plans", "payment_plans", db.paymentPlans?.length ? db.paymentPlans.map(paymentPlanOut) : null);
     await tryUpsert("Messages", "messages", db.messages?.length ? db.messages.map(messageOut) : null);
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
@@ -1867,6 +1870,8 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
     const allPaid = payments.reduce((s, p) => s + p.amount, 0);
     const allDue = loans.reduce((s, l) => s + l.totalDue, 0);
     const allOut = loans.reduce((s, l) => s + getBal(l, payments), 0);
+    const allApplied = loans.reduce((s, l) => s + (l.principal || 0), 0);
+    const allDisbursed = loans.filter(l => l.approvalStatus === "Approved" || l.disburseDate).reduce((s, l) => s + (l.principal || 0), 0);
     const rec = allDue > 0 ? (allPaid / allDue * 100).toFixed(1) : 0;
     const countSt = s => loans.filter(l => getSt(l, payments) === s).length;
     const healthOk = parseFloat(rec) >= 70;
@@ -1874,6 +1879,8 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
     const pendingDeletions = (db.clients || []).filter(c => c.deletionRequested).length;
     const pendingReports = (db.dailyReports || []).filter(r => r.status === "Pending").length;
     const hasNotifications = pendingLoans > 0 || pendingDeletions > 0 || pendingReports > 0;
+    const disbByCategory = (db.branchDisbursements || []).reduce((acc, d) => { acc[d.category || "Other"] = (acc[d.category || "Other"] || 0) + (d.amount || 0); return acc; }, {});
+    const totalDisbursedToBranches = Object.values(disbByCategory).reduce((s, v) => s + v, 0);
     return (React.createElement("div", null,
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
@@ -1908,6 +1915,21 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                     React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, "\uD83D\uDDD2\uFE0F Daily reports awaiting approval"),
                     React.createElement("span", { style: { background: C.gold, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, pendingReports)))),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [["Clients", db.clients.length, C.navy, "👥"], ["Active", countSt("Active"), C.green, "✅"], ["Overdue", countSt("Overdue"), C.orange, "⏰"], ["Defaulted", countSt("Defaulted"), C.red, "⚠️"], ["Cleared", countSt("Cleared"), C.teal, "🎉"], ["Staff", db.staff.filter(s => isEffectivelyActive(s)).length, C.purple, "👤"]].map(([l, v, c, i]) => (React.createElement(StatCard, { key: l, label: l, value: v, color: c, icon: i })))),
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.blue }, "📊 Loan Book Summary"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 } },
+                [["Number of Loans", loans.length], ["Amount Applied", fmt(allApplied)], ["Amount Disbursed", fmt(allDisbursed)]].map(([l, v]) => React.createElement("div", { key: l },
+                    React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
+        totalDisbursedToBranches > 0 && React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "🔑 Branch Disbursements by Category"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                Object.entries(disbByCategory).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => React.createElement("div", { key: cat, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: C.light, borderRadius: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, cat),
+                    React.createElement("span", { style: { fontWeight: 800, color: C.purple } }, fmt(amt)))),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px 10px", borderTop: `2px solid ${C.border}`, marginTop: 4 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } }, "Total Sent to Branches"),
+                    React.createElement("span", { style: { fontWeight: 900, color: C.navy } }, fmt(totalDisbursedToBranches))))),
         (countSt("Overdue") + countSt("Defaulted")) > 0 && (React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF5F5" } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", null,
@@ -2009,15 +2031,17 @@ function BranchConsultantSummary({ db, branch }) {
 }
 // ── ACCOUNTS FUNDS ────────────────────────────────────────────────────────────
 function AccountsFunds({ db, setDb, user }) {
-    const [dep, setDep] = useState({ amt: "", note: "", province: "", town: "" });
+    const [dep, setDep] = useState({ amt: "", note: "", province: "", town: "", category: "Loan Fund" });
     const [bAmt, setBAmt] = useState("");
     const [setAmt, setSetAmt] = useState("");
     const canEditBalance = user && (user.role === "admin" || user.role === "ceo" || user.role === "director");
     const { branchFunds, bankBalance } = db;
+    const DISBURSEMENT_CATEGORIES = ["Loan Fund", "Stationery", "License", "Other"];
     function deposit() { const a = parseFloat(dep.amt); if (!a || !dep.town) {
         alert("Enter amount and select town.");
         return;
-    } const nd = { ...db, bankBalance: (bankBalance || 0) - a, branchFunds: { ...branchFunds, [dep.town]: (branchFunds[dep.town] || 0) + a } }; saveDB(nd); setDb(nd); setDep({ amt: "", note: "", province: "", town: "" }); alert(`✅ ${fmt(a)} sent to ${dep.town}.`); }
+    } const disbursement = { id: `DSB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, branch: dep.town, province: dep.province, amount: a, category: dep.category || "Other", note: dep.note, date: today(), sentBy: user.name };
+    const nd = { ...db, bankBalance: (bankBalance || 0) - a, branchFunds: { ...branchFunds, [dep.town]: (branchFunds[dep.town] || 0) + a }, branchDisbursements: [...(db.branchDisbursements || []), disbursement] }; saveDB(nd); setDb(nd); setDep({ amt: "", note: "", province: "", town: "", category: "Loan Fund" }); alert(`✅ ${fmt(a)} sent to ${dep.town} (${disbursement.category}).`); }
     function bankDeposit() { const a = parseFloat(bAmt); if (!a) {
         alert("Enter amount.");
         return;
@@ -2050,6 +2074,10 @@ function AccountsFunds({ db, setDb, user }) {
             React.createElement(ST, { color: C.purple }, "\uD83D\uDCE4 Send Funds to Branch"),
             React.createElement(ProvinceTownSelect, { required: true, province: dep.province, town: dep.town, onProvince: p => setDep(f => ({ ...f, province: p, town: "" })), onTown: t => setDep(f => ({ ...f, town: t })) }),
             React.createElement(Inp, { label: "Amount (K)", req: true, type: "number", value: dep.amt, onChange: e => setDep(f => ({ ...f, amt: e.target.value })), placeholder: "0.00" }),
+            React.createElement("div", { style: { marginBottom: 10 } },
+                React.createElement("label", { style: { fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 } }, "Category"),
+                React.createElement("select", { value: dep.category, onChange: e => setDep(f => ({ ...f, category: e.target.value })), style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13 } },
+                    DISBURSEMENT_CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c)))),
             React.createElement(Inp, { label: "Note", value: dep.note, onChange: e => setDep(f => ({ ...f, note: e.target.value })), placeholder: "e.g. Monthly allocation" }),
             React.createElement(Btn, { onClick: deposit, color: C.purple, full: true, disabled: !dep.town || !(bankBalance > 0) }, "\uD83D\uDCE4 Send to Branch"))));
 }
@@ -3980,7 +4008,13 @@ function App() {
     const msgReadSet = new Set((db.messageReads || []).filter(r => r.staffId === user.id).map(r => r.messageId));
     const unreadMsgN = (db.messages || []).filter(m => messageAppliesTo(m, user) && !msgReadSet.has(m.id)).length;
     const delN = (db.clients || []).filter(c => c.deletionRequested).length;
-    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, { id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }, { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
+    // CEO and Accountant are view-only: no loan creation, no approving, no
+    // payment recording. Everything else (viewing loans/clients/reports/
+    // messages/etc.) stays available -- this is a display-level filter only,
+    // any direct-permission checks elsewhere (canApprove, canEditClient etc.)
+    // already exclude these roles too, so this isn't the only guard.
+    const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
+    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
     const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
