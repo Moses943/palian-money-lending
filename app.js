@@ -2235,23 +2235,38 @@ function WDashboard({ requests, goto }) {
     const pendingValue = requests.filter(r => ["pending_ceo", "pending_director", "fully_approved"].includes(r.status)).reduce((s, r) => s + r.amount, 0);
     const recent = requests.slice(0, 6);
     return React.createElement("div", null,
+        React.createElement("div", { style: { marginBottom: 16 } },
+            React.createElement("h2", { style: { color: C.navy, fontSize: 20, fontWeight: 800, margin: 0 } }, "Accounts Dashboard"),
+            React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Overview of withdrawal requests and approval pipeline")),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 } },
             React.createElement(StatCard, { label: "Awaiting CEO", value: pendingCeo, color: C.gold }),
             React.createElement(StatCard, { label: "Awaiting Director", value: pendingDirector, color: C.gold }),
             React.createElement(StatCard, { label: "Fully Approved", value: fullyApproved, color: C.green }),
             React.createElement(StatCard, { label: "Processed", value: processed, color: C.blue }),
             React.createElement(StatCard, { label: "Pending Value", value: fmt(pendingValue), color: C.purple, small: true })),
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16 } },
+        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" } },
             React.createElement(Btn, { onClick: () => goto("apply"), color: C.navy }, "\u2795 New Withdrawal Request"),
             React.createElement(Btn, { onClick: () => goto("ceo"), color: C.navy, style: { background: "#fff", color: C.navy, border: `1.5px solid ${C.navy}` } }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
         React.createElement(Card, null,
             React.createElement(ST, null, "Recent Requests"),
-            recent.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No withdrawal requests yet.")
-                : recent.map(r => React.createElement("div", { key: r.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.border}` } },
-                    React.createElement("div", null,
-                        React.createElement("div", { style: { fontWeight: 700, color: C.navy, fontSize: 13 } }, r.id, " \u00B7 ", r.category),
-                        React.createElement("div", { style: { fontSize: 11, color: C.muted } }, r.branch, " \u00B7 ", r.requestedBy, " \u00B7 ", fmt(r.amount))),
-                    React.createElement(WBadge, { status: r.status })))));
+            React.createElement(WRequestTable, { requests: recent })));
+}
+function WRequestTable({ requests }) {
+    if (requests.length === 0) return React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No requests to show.");
+    const th = { textAlign: "left", padding: "8px 10px", fontSize: 11, color: C.muted, textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+    const td = { padding: "10px", fontSize: 13, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+    return React.createElement("div", { style: { overflowX: "auto" } },
+        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+            React.createElement("thead", null, React.createElement("tr", null,
+                React.createElement("th", { style: th }, "Ref"), React.createElement("th", { style: th }, "Branch"), React.createElement("th", { style: th }, "Requested by"),
+                React.createElement("th", { style: th }, "Purpose"), React.createElement("th", { style: th }, "Amount"), React.createElement("th", { style: th }, "Status"))),
+            React.createElement("tbody", null, requests.map(r => React.createElement("tr", { key: r.id },
+                React.createElement("td", { style: { ...td, fontWeight: 700, color: C.navy } }, r.id),
+                React.createElement("td", { style: td }, r.branch),
+                React.createElement("td", { style: td }, r.requestedBy),
+                React.createElement("td", { style: { ...td, whiteSpace: "normal", maxWidth: 220 } }, r.purpose),
+                React.createElement("td", { style: { ...td, fontWeight: 600 } }, fmt(r.amount)),
+                React.createElement("td", { style: td }, React.createElement(WBadge, { status: r.status })))))));
 }
 function WApplyForm({ db, canApply, onSubmit }) {
     const branches = wdlBranchOptions(db);
@@ -4214,7 +4229,7 @@ function App() {
     // already exclude these roles too, so this isn't the only guard.
     const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
-    const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
+    const extraTabs = { accounts: [{ id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
