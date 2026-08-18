@@ -3610,7 +3610,12 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCE6"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "PTDC"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery Courier \u2014 parcels, shifting")))),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery Courier \u2014 parcels, shifting"))),
+            ["accounts", "admin", "director"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("accounts"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+                React.createElement("div", { style: { fontSize: 34 } }, "\uD83C\uDFE6"),
+                React.createElement("div", { style: { textAlign: "left" } },
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Accounts"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Withdrawal requests \u2014 CEO & Director approval")))),
         React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout"))));
 }
 // ── NEW PARCEL FORM ────────────────────────────────────────────────────────────
@@ -3844,6 +3849,22 @@ function ParcelList({ user }) {
                     React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" } }, statusLabel(p.status)))))));
 }
 // ── TRANSPORT APP (separate module) ───────────────────────────────────────────
+function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
+    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
+        React.createElement("div", { style: { background: C.gold, color: C.navy, textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
+            "\uD83C\uDFE6 ACCOUNTS SYSTEM \u2014 PALIAN MONEY LENDING \u2014 ",
+            user.name),
+        React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                    React.createElement(PalianLogo, { size: 34 }),
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff" } }, "Accounts")),
+                React.createElement("div", { style: { display: "flex", gap: 10 } },
+                    React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Switch"),
+                    React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Logout")))),
+        React.createElement("div", { style: { padding: 14, maxWidth: 900, margin: "0 auto" } },
+            React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }))));
+}
 function TransportApp({ user, onLogout, onSwitch }) {
     const [tab, setTab] = useState("dash");
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
@@ -4214,6 +4235,8 @@ function App() {
         return React.createElement(SystemSelect, { user: user, onSelect: setModule, onLogout: handleLogout });
     if (module === "transport")
         return React.createElement(TransportApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "accounts")
+        return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
     const info = (hoRole || provRole) ? null : gBI(user.branch);
@@ -4229,7 +4252,7 @@ function App() {
     // already exclude these roles too, so this isn't the only guard.
     const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
-    const extraTabs = { accounts: [{ id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
+    const extraTabs = { accounts: [{ id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
@@ -4289,7 +4312,6 @@ function App() {
             tab === "leave" && React.createElement(LeaveRequest, { db: db, setDb: setDb, user: user }),
             tab === "install" && React.createElement(Install, null),
             tab === "funds" && React.createElement(AccountsFunds, { db: db, setDb: setDb, user: user }),
-            tab === "withdrawals" && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }),
             tab === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
             tab === "deletions" && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
             tab === "mgr-funds" && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }))));
