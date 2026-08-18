@@ -32,7 +32,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -62,6 +62,15 @@ function paymentPlanIn(r) { return { id: r.id, loanNo: r.loan_no, requestedBy: r
 function paymentPlanOut(p) { return { id: p.id, loan_no: p.loanNo, requested_by: p.requestedBy, requested_by_role: p.requestedByRole, requested_date: p.requestedDate || null, proposed_amount: p.proposedAmount || 0, reason: p.reason || "", status: p.status, approved_by: p.approvedBy || null, approved_date: p.approvedDate || null }; }
 function messageIn(r) { return { id: r.id, senderId: r.sender_id, senderName: r.sender_name, senderRole: r.sender_role, sentDate: r.sent_date, sentTime: r.sent_time, recipientType: r.recipient_type, recipientPosition: r.recipient_position || "", recipientIds: r.recipient_ids || [], text: r.text || "", attachmentUrl: r.attachment_url || "", attachmentType: r.attachment_type || "", attachmentName: r.attachment_name || "" }; }
 function messageOut(m) { return { id: m.id, sender_id: m.senderId, sender_name: m.senderName, sender_role: m.senderRole, sent_date: m.sentDate, sent_time: m.sentTime, recipient_type: m.recipientType, recipient_position: m.recipientPosition || null, recipient_ids: m.recipientIds || [], text: m.text || "", attachment_url: m.attachmentUrl || null, attachment_type: m.attachmentType || null, attachment_name: m.attachmentName || null }; }
+function withdrawalIn(r) { return { id: r.id, dateSubmitted: r.date_submitted, branch: r.branch, province: r.province, requestedBy: r.requested_by, requestedById: r.requested_by_id || "", category: r.category, amount: r.amount, purpose: r.purpose, status: r.status, ceo: { decision: r.ceo_decision || "pending", by: r.ceo_by || null, date: r.ceo_date || null, comment: r.ceo_comment || "" }, director: { decision: r.director_decision || "pending", by: r.director_by || null, date: r.director_date || null, comment: r.director_comment || "" }, processed: r.processed_date ? { date: r.processed_date, by: r.processed_by || "", method: r.processed_method || "", reference: r.processed_reference || "" } : null, audit: r.audit || [] }; }
+function withdrawalOut(w) { return { id: w.id, date_submitted: w.dateSubmitted || null, branch: w.branch || null, province: w.province || null, requested_by: w.requestedBy, requested_by_id: w.requestedById || null, category: w.category, amount: w.amount, purpose: w.purpose, status: w.status, ceo_decision: w.ceo?.decision || "pending", ceo_by: w.ceo?.by || null, ceo_date: w.ceo?.date || null, ceo_comment: w.ceo?.comment || null, director_decision: w.director?.decision || "pending", director_by: w.director?.by || null, director_date: w.director?.date || null, director_comment: w.director?.comment || null, processed_date: w.processed?.date || null, processed_by: w.processed?.by || null, processed_method: w.processed?.method || null, processed_reference: w.processed?.reference || null, audit: w.audit || [] }; }
+function nextWithdrawalId(list) {
+    const maxNum = (list || []).reduce((max, w) => {
+        const m = /^PWD-(\d+)$/.exec(w.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `PWD-${pad(maxNum + 1)}`;
+}
 function messageAppliesTo(m, user) {
     if (m.recipientType === "all") return true;
     if (m.recipientType === "position") return (m.recipientPosition || "") === user.role;
@@ -116,7 +125,7 @@ function logIn(r) { return { name: r.name, role: r.role, roleLabel: r.role_label
 function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultantName:r.consultant_name,branch:r.branch,province:r.province,reportDate:r.report_date,clientsSeen:r.clients_seen||0,loanAmount:r.loan_amount||0,notes:r.notes||"",status:r.status,approvedBy:r.approved_by,approvedDate:r.approved_date,submittedAt:r.submitted_at};}
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -131,6 +140,7 @@ async function loadDB() {
         sb.from("messages").select("*").order("sent_date", { ascending: false }).limit(300),
         sb.from("message_reads").select("*").limit(3000),
         sb.from("branch_disbursements").select("*").order("date", { ascending: false }).limit(1000),
+        sb.from("withdrawal_requests").select("*").order("date_submitted", { ascending: false }).limit(1000),
     ]);
     return {
         staff: (staffR.data || []).map(staffIn),
@@ -148,6 +158,7 @@ async function loadDB() {
         paymentPlans: (ppR.data || []).map(paymentPlanIn),
         messages: (msgR.data || []).map(messageIn),
         messageReads: (mrR.data || []).map(r => ({ messageId: r.message_id, staffId: r.staff_id })),
+        withdrawalRequests: (wrR.data || []).map(withdrawalIn),
     };
 }
 async function saveDB(db) {
@@ -180,6 +191,7 @@ async function saveDB(db) {
     await tryUpsert("Branch Disbursements", "branch_disbursements", db.branchDisbursements?.length ? db.branchDisbursements.map(d => ({ id: d.id, branch: d.branch, province: d.province, amount: d.amount, category: d.category, note: d.note || null, date: d.date, sent_by: d.sentBy })) : null, { onConflict: "id" });
     await tryUpsert("Payment Plans", "payment_plans", db.paymentPlans?.length ? db.paymentPlans.map(paymentPlanOut) : null);
     await tryUpsert("Messages", "messages", db.messages?.length ? db.messages.map(messageOut) : null);
+    await tryUpsert("Withdrawal Requests", "withdrawal_requests", db.withdrawalRequests?.length ? db.withdrawalRequests.map(withdrawalOut) : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
     await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null);
     const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
@@ -2166,6 +2178,133 @@ function ManagerFunds({ db, setDb, user }) {
                             React.createElement(Btn, { sm: true, color: C.purple, onClick: () => setTgt(s.id, s.name) }, "Set Target")))))))))));
 }
 
+// ── ACCOUNTS WITHDRAWAL (CEO + Director dual-approval) ─────────────────────────
+const WDL_CATEGORIES = ["Operational Expense", "Loan Disbursement", "Payroll", "Capital Expenditure", "Other"];
+const WDL_STATUS_LABEL = { pending_ceo: "Awaiting CEO", pending_director: "Awaiting Director", fully_approved: "Fully Approved", processed: "Processed", rejected: "Rejected" };
+const WDL_STATUS_COLOR = { pending_ceo: C.gold, pending_director: C.gold, fully_approved: C.green, processed: C.blue, rejected: C.red };
+function WBadge({ status }) { return React.createElement("span", { style: { background: (WDL_STATUS_COLOR[status] || C.muted), color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" } }, WDL_STATUS_LABEL[status] || status); }
+function wdlAddAudit(req, action, by, note) { return { ...req, audit: [...(req.audit || []), { action, by, date: today(), note: note || "" }] }; }
+function wdlBranchOptions(db) { return ["Head Office", ...new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office").map(s => s.branch))].sort(); }
+function AccountsWithdrawal({ db, setDb, user }) {
+    const [page, setPage] = useState("dashboard");
+    const [selectedId, setSelectedId] = useState(null);
+    const requests = db.withdrawalRequests || [];
+    const canApply = ["accounts", "admin", "director", "ceo"].includes(user.role);
+    const canDecideCEO = user.role === "ceo" || user.role === "admin";
+    const canDecideDirector = user.role === "director" || user.role === "admin";
+    const canProcess = user.role === "accounts" || user.role === "admin";
+    const NAV = [["dashboard", "\uD83C\uDFE0 Dashboard"], ["apply", "\u2795 Apply"], ["ceo", "\uD83D\uDEE1\uFE0F CEO"], ["director", "\uD83D\uDEE1\uFE0F Director"], ["approved", "\u2705 Approved"], ["process", "\u25B6\uFE0F Process"], ["print", "\uD83D\uDDA8\uFE0F Print"], ["history", "\uD83D\uDD58 History"], ["reports", "\uD83D\uDCCA Reports"], ["audit", "\uD83D\uDCCB Audit"]];
+    function submitRequest(form) {
+        const req = wdlAddAudit({
+            id: nextWithdrawalId(requests), dateSubmitted: today(), branch: form.branch, province: form.branch === "Head Office" ? "Head Office" : gBI(form.branch).province,
+            requestedBy: user.name, requestedById: user.id, category: form.category, amount: parseFloat(form.amount), purpose: form.purpose,
+            status: "pending_ceo", ceo: { decision: "pending", by: null, date: null, comment: "" }, director: { decision: "pending", by: null, date: null, comment: "" }, processed: null, audit: [],
+        }, "Submitted", user.name, "Request created");
+        const nd = { ...db, withdrawalRequests: [req, ...requests] };
+        saveDB(nd); setDb(nd);
+        alert(`\u2705 Request ${req.id} submitted for CEO approval.`);
+        setPage("ceo");
+    }
+    function decide(id, role, decision, comment) {
+        const nd = { ...db, withdrawalRequests: requests.map(r => {
+            if (r.id !== id) return r;
+            let updated = { ...r, [role]: { decision, by: user.name, date: today(), comment: comment || "" } };
+            if (decision === "rejected") { updated.status = "rejected"; updated = wdlAddAudit(updated, `${role === "ceo" ? "CEO" : "Director"} Rejected`, user.name, comment || "No comment"); }
+            else if (role === "ceo") { updated.status = "pending_director"; updated = wdlAddAudit(updated, "CEO Approved", user.name, comment || "Approved"); }
+            else if (role === "director") { updated.status = "fully_approved"; updated = wdlAddAudit(updated, "Director Approved", user.name, comment || "Approved"); }
+            return updated;
+        }) };
+        saveDB(nd); setDb(nd);
+    }
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { background: C.navy, display: "flex", borderBottom: `3px solid ${C.orange}`, overflowX: "auto" } },
+            NAV.map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setPage(id), style: { flex: 1, padding: "11px 8px", background: "none", border: "none", color: page === id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: page === id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap" } }, lb)))),
+        React.createElement("div", { style: { paddingTop: 16 } },
+            page === "apply" && React.createElement(WApplyForm, { db: db, canApply: canApply, onSubmit: submitRequest }),
+            page === "ceo" && React.createElement(WApprovalQueue, { role: "ceo", title: "CEO Approval", can: canDecideCEO, deniedMsg: "\uD83D\uDD12 Only the CEO can act on this queue.", requests: requests.filter(r => r.status === "pending_ceo"), onDecide: decide }),
+            page === "director" && React.createElement(WApprovalQueue, { role: "director", title: "Director Approval", can: canDecideDirector, deniedMsg: "\uD83D\uDD12 Only the Director can act on this queue.", requests: requests.filter(r => r.status === "pending_director"), onDecide: decide }),
+            page === "approved" && React.createElement(WFullyApproved, { requests: requests.filter(r => r.status === "fully_approved"), goto: setPage, setSelectedId: setSelectedId }),
+            !["apply", "ceo", "director", "approved"].includes(page) && React.createElement(Alrt, { type: "info" }, "This screen is being built next \u2014 coming soon."))));
+}
+function WApplyForm({ db, canApply, onSubmit }) {
+    const branches = wdlBranchOptions(db);
+    const [form, setForm] = useState({ branch: branches[0] || "Head Office", category: WDL_CATEGORIES[0], amount: "", purpose: "" });
+    const [error, setError] = useState("");
+    const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+    function submit() {
+        if (!form.amount || Number(form.amount) <= 0 || !form.purpose.trim()) { setError("Enter a valid amount and purpose."); return; }
+        setError("");
+        onSubmit(form);
+        setForm({ branch: branches[0] || "Head Office", category: WDL_CATEGORIES[0], amount: "", purpose: "" });
+    }
+    return (React.createElement(Card, null,
+        React.createElement(ST, null, "Apply for Withdrawal"),
+        !canApply && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Your role can't submit withdrawal requests."),
+        React.createElement(Sel, { label: "Branch / Office", value: form.branch, onChange: e => set("branch", e.target.value) },
+            branches.map(b => React.createElement("option", { key: b, value: b }, b))),
+        React.createElement(Sel, { label: "Category", value: form.category, onChange: e => set("category", e.target.value) },
+            WDL_CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c))),
+        React.createElement(Inp, { label: "Amount (K)", req: true, type: "number", value: form.amount, onChange: e => set("amount", e.target.value), placeholder: "0.00" }),
+        React.createElement("div", { style: { marginBottom: 12 } },
+            React.createElement("label", { style: { fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 } }, "Purpose / description"),
+            React.createElement("textarea", { value: form.purpose, onChange: e => set("purpose", e.target.value), rows: 3, placeholder: "What is this withdrawal for?", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13, fontFamily: "inherit" } })),
+        error && React.createElement(Alrt, { type: "error" }, error),
+        canApply && React.createElement(Btn, { onClick: submit, color: C.navy, full: true }, "\uD83D\uDCE4 Submit for CEO Approval")));
+}
+function WApprovalQueue({ role, title, can, deniedMsg, requests, onDecide }) {
+    const [comments, setComments] = useState({});
+    const cards = requests.map(r => {
+        const header = React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 8 } },
+            React.createElement("strong", { style: { color: C.navy } }, r.id, " \u00B7 ", r.category),
+            React.createElement(WBadge, { status: r.status }));
+        const ceoContext = role === "director" ? React.createElement(Alrt, { type: "info" }, `CEO approved by ${r.ceo.by} on ${r.ceo.date} \u2014 "${r.ceo.comment}"`) : null;
+        const actions = can ? React.createElement("div", { style: { marginTop: 10 } },
+            React.createElement(Inp, { label: "Comment (optional)", value: comments[r.id] || "", onChange: e => setComments(c => ({ ...c, [r.id]: e.target.value })), placeholder: "Add a note with your decision" }),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement(Btn, { color: C.green, sm: true, style: { flex: 1 }, onClick: () => onDecide(r.id, role, "approved", comments[r.id]) }, "\u2705 Approve"),
+                React.createElement(Btn, { color: C.red, sm: true, style: { flex: 1 }, onClick: () => onDecide(r.id, role, "rejected", comments[r.id]) }, "\u274C Reject"))) : null;
+        return React.createElement("div", { key: r.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12 } },
+            header,
+            React.createElement(IR, { label: "Branch / Office", value: r.branch }),
+            React.createElement(IR, { label: "Requested by", value: r.requestedBy }),
+            React.createElement(IR, { label: "Date", value: r.dateSubmitted }),
+            React.createElement(IR, { label: "Amount", value: fmt(r.amount), bold: true }),
+            React.createElement(IR, { label: "Purpose", value: r.purpose }),
+            ceoContext,
+            actions);
+    });
+    return React.createElement(Card, null,
+        React.createElement(ST, null, `${title} (${requests.length} pending)`),
+        !can && React.createElement(Alrt, { type: "warn" }, deniedMsg),
+        requests.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 32 } },
+            React.createElement("div", { style: { fontSize: 40 } }, "\u2705"),
+            React.createElement("p", null, "Nothing waiting in this queue.")) : cards);
+}
+function WFullyApproved({ requests, goto, setSelectedId }) {
+    const rows = requests.map(r => React.createElement(Card, { key: r.id },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 } },
+            React.createElement("div", null,
+                React.createElement("strong", { style: { color: C.navy } }, r.id, " \u2014 ", fmt(r.amount)),
+                React.createElement("div", { style: { fontSize: 12, color: C.muted, marginTop: 2 } }, r.branch, " \u00B7 ", r.purpose)),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14 } },
+                React.createElement(WSealTrack, { ceo: r.ceo, director: r.director }),
+                React.createElement(Btn, { sm: true, color: C.navy, onClick: () => { setSelectedId(r.id); goto("process"); } }, "\u25B6\uFE0F Process")))));
+    return React.createElement("div", null,
+        React.createElement(ST, null, "Fully Approved \u2014 ready to process"),
+        requests.length === 0 ? React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No fully approved requests waiting.") : rows);
+}
+function WSealTrack({ ceo, director }) {
+    function seal(label, decision) {
+        const done = decision === "approved", rejected = decision === "rejected";
+        const bg = rejected ? "#FBE2E2" : done ? "#FBF4DD" : "#F1EFE8";
+        const border = rejected ? C.red : done ? C.gold : C.border;
+        const glyph = rejected ? "\u2715" : done ? "\u2713" : "\u2022";
+        return React.createElement("div", { key: label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } },
+            React.createElement("div", { style: { width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${border}`, background: bg, fontWeight: 800, color: rejected ? C.red : done ? "#8A6D0B" : C.muted } }, glyph),
+            React.createElement("span", { style: { fontSize: 10, color: C.muted } }, label));
+    }
+    return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, seal("CEO", ceo.decision), seal("Director", director.decision));
+}
 function Wizard({ db, setDb, user, onDone }) {
     const [step, setStep] = useState(1);
     const [nrc, setNrc] = useState("");
@@ -4048,7 +4187,7 @@ function App() {
     // already exclude these roles too, so this isn't the only guard.
     const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
-    const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
+    const extraTabs = { accounts: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "funds", lb: "💰 Funds" }, { id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "funds", lb: "💰 Funds" }, { id: "withdrawals", lb: "💵 Withdrawals" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "funds", lb: "💰 Funds" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
@@ -4108,6 +4247,7 @@ function App() {
             tab === "leave" && React.createElement(LeaveRequest, { db: db, setDb: setDb, user: user }),
             tab === "install" && React.createElement(Install, null),
             tab === "funds" && React.createElement(AccountsFunds, { db: db, setDb: setDb, user: user }),
+            tab === "withdrawals" && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }),
             tab === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
             tab === "deletions" && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
             tab === "mgr-funds" && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }))));
