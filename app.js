@@ -3849,21 +3849,59 @@ function ParcelList({ user }) {
                     React.createElement("span", { style: { background: PSC[p.status] || C.muted, color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" } }, statusLabel(p.status)))))));
 }
 // ── TRANSPORT APP (separate module) ───────────────────────────────────────────
+const ACC = { purple: "#5B3FBF", purpleDeep: "#2E2066", violet: "#7C5CFC", blue: "#3A8DFF", bg: "linear-gradient(135deg,#EEECFC 0%,#E6F0FF 55%,#F3EEFD 100%)" };
 function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
-    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh" } },
-        React.createElement("div", { style: { background: C.gold, color: C.navy, textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
+    const [page, setPage] = useState("withdrawals");
+    const canAdmin = user.role === "admin" || user.role === "director";
+    const NAV = [
+        ["withdrawals", "\uD83C\uDFE6", "Withdrawals", ACC.purpleDeep],
+        ["messages", "\uD83D\uDCAC", "Messages", ACC.violet],
+        ["notify", "\uD83D\uDD14", "Alerts", ACC.blue],
+        ["reports", "\uD83D\uDCC4", "Reports", ACC.purple],
+        ["backup", "\uD83D\uDCBE", "Backup", ACC.violet],
+        ["ai", "\uD83E\uDD16", "AI", ACC.blue],
+        ["export", "\u2B07\uFE0F", "Export", ACC.purple],
+        ["leave", "\uD83C\uDFD6\uFE0F", "Leave", ACC.violet],
+        ["install", "\uD83D\uDCF1", "Install", ACC.blue],
+        ["hr", "\uD83D\uDC65", "HR", ACC.purple],
+        ...(canAdmin ? [["mgr-funds", "\uD83D\uDD11", "Branch Funds", ACC.violet]] : []),
+        ...(canAdmin ? [["deletions", "\uD83D\uDDD1\uFE0F", "Deletions", ACC.blue]] : []),
+        ["admin-provinces", "\uD83C\uDFDB\uFE0F", "Provinces", ACC.purple],
+        ["admin-branches", "\uD83C\uDFE2", "Branches", ACC.violet],
+        ...(canAdmin ? [["settings", "\u2699\uFE0F", "Settings", ACC.purpleDeep]] : []),
+    ];
+    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: ACC.bg, minHeight: "100vh" } },
+        React.createElement("div", { style: { background: ACC.purpleDeep, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
             "\uD83C\uDFE6 ACCOUNTS SYSTEM \u2014 PALIAN MONEY LENDING \u2014 ",
             user.name),
-        React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200 } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        React.createElement("div", { style: { background: `linear-gradient(135deg,${ACC.purpleDeep},${ACC.purple})`, padding: "16px" } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     React.createElement(PalianLogo, { size: 34 }),
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff" } }, "Accounts")),
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 15, color: "#fff", letterSpacing: 0.5 } }, "ACCOUNTS SYSTEM")),
                 React.createElement("div", { style: { display: "flex", gap: 10 } },
-                    React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Switch"),
-                    React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Logout")))),
-        React.createElement("div", { style: { padding: 14, maxWidth: 900, margin: "0 auto" } },
-            React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }))));
+                    React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 11, cursor: "pointer" } }, "Switch"),
+                    React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 11, cursor: "pointer" } }, "Logout"))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 8 } },
+                NAV.map(([id, icon, label, color]) => (React.createElement("button", { key: id, onClick: () => setPage(id), style: { background: page === id ? "#fff" : color, color: page === id ? ACC.purpleDeep : "#fff", border: "none", borderRadius: 10, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: 700, fontSize: 11, boxShadow: "0 3px 10px rgba(0,0,0,0.15)" } },
+                    React.createElement("span", { style: { fontSize: 18 } }, icon),
+                    label))))),
+        React.createElement("div", { style: { padding: 14, maxWidth: 1000, margin: "0 auto" } },
+            page === "withdrawals" && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }),
+            page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
+            page === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: () => { } }),
+            page === "reports" && React.createElement(Reports, { db: db, user: user, onReport: () => { } }),
+            page === "backup" && React.createElement(BackupRestore, { db: db, setDb: setDb }),
+            page === "ai" && React.createElement(AIAdviser, { db: db, user: user }),
+            page === "export" && React.createElement(Export, { db: db, user: user }),
+            page === "leave" && React.createElement(LeaveRequest, { db: db, setDb: setDb, user: user }),
+            page === "install" && React.createElement(Install, null),
+            page === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
+            page === "mgr-funds" && canAdmin && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }),
+            page === "deletions" && canAdmin && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
+            page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
+            page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
+            page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
 }
 function TransportApp({ user, onLogout, onSwitch }) {
     const [tab, setTab] = useState("dash");
