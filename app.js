@@ -32,7 +32,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -70,6 +70,24 @@ function nextWithdrawalId(list) {
         return m ? Math.max(max, parseInt(m[1], 10)) : max;
     }, 0);
     return `PWD-${pad(maxNum + 1)}`;
+}
+function moneyAccountIn(r) { return { id: r.id, name: r.name, balance: r.balance }; }
+function moneyAccountOut(a) { return { id: a.id, name: a.name, balance: a.balance }; }
+function moneyTxnIn(r) { return { id: r.id, accountId: r.account_id, type: r.type, amount: r.amount, note: r.note || "", by: r.by || "", date: r.date }; }
+function moneyTxnOut(t) { return { id: t.id, account_id: t.accountId, type: t.type, amount: t.amount, note: t.note || null, by: t.by || null, date: t.date }; }
+function nextMoneyAccountId(list) {
+    const maxNum = (list || []).reduce((max, a) => {
+        const m = /^ACC-(\d+)$/.exec(a.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `ACC-${pad(maxNum + 1)}`;
+}
+function nextMoneyTxnId(list) {
+    const maxNum = (list || []).reduce((max, t) => {
+        const m = /^MTX-(\d+)$/.exec(t.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `MTX-${pad(maxNum + 1)}`;
 }
 function messageAppliesTo(m, user) {
     if (m.recipientType === "all") return true;
@@ -125,7 +143,7 @@ function logIn(r) { return { name: r.name, role: r.role, roleLabel: r.role_label
 function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultantName:r.consultant_name,branch:r.branch,province:r.province,reportDate:r.report_date,clientsSeen:r.clients_seen||0,loanAmount:r.loan_amount||0,notes:r.notes||"",status:r.status,approvedBy:r.approved_by,approvedDate:r.approved_date,submittedAt:r.submitted_at};}
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -141,6 +159,8 @@ async function loadDB() {
         sb.from("message_reads").select("*").limit(3000),
         sb.from("branch_disbursements").select("*").order("date", { ascending: false }).limit(1000),
         sb.from("withdrawal_requests").select("*").order("date_submitted", { ascending: false }).limit(1000),
+        sb.from("money_accounts").select("*"),
+        sb.from("money_account_txns").select("*").order("date", { ascending: false }).limit(1000),
     ]);
     return {
         staff: (staffR.data || []).map(staffIn),
@@ -159,6 +179,8 @@ async function loadDB() {
         messages: (msgR.data || []).map(messageIn),
         messageReads: (mrR.data || []).map(r => ({ messageId: r.message_id, staffId: r.staff_id })),
         withdrawalRequests: (wrR.data || []).map(withdrawalIn),
+        moneyAccounts: (maR.data || []).map(moneyAccountIn),
+        moneyAccountTxns: (mtR.data || []).map(moneyTxnIn),
     };
 }
 async function saveDB(db) {
@@ -192,6 +214,8 @@ async function saveDB(db) {
     await tryUpsert("Payment Plans", "payment_plans", db.paymentPlans?.length ? db.paymentPlans.map(paymentPlanOut) : null);
     await tryUpsert("Messages", "messages", db.messages?.length ? db.messages.map(messageOut) : null);
     await tryUpsert("Withdrawal Requests", "withdrawal_requests", db.withdrawalRequests?.length ? db.withdrawalRequests.map(withdrawalOut) : null, { onConflict: "id" });
+    await tryUpsert("Money Accounts", "money_accounts", db.moneyAccounts?.length ? db.moneyAccounts.map(moneyAccountOut) : null, { onConflict: "id" });
+    await tryUpsert("Money Account Transactions", "money_account_txns", db.moneyAccountTxns?.length ? db.moneyAccountTxns.map(moneyTxnOut) : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
     await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null);
     const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
@@ -2220,24 +2244,28 @@ function AccountsWithdrawal({ db, setDb, user }) {
         React.createElement("div", { style: { background: C.navy, display: "flex", borderBottom: `3px solid ${C.orange}`, overflowX: "auto" } },
             NAV.map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setPage(id), style: { flex: 1, padding: "11px 8px", background: "none", border: "none", color: page === id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: page === id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap" } }, lb)))),
         React.createElement("div", { style: { paddingTop: 16 } },
-            page === "dashboard" && React.createElement(WDashboard, { requests: requests, goto: setPage }),
+            page === "dashboard" && React.createElement(WDashboard, { db: db, requests: requests, goto: setPage }),
             page === "apply" && React.createElement(WApplyForm, { db: db, canApply: canApply, onSubmit: submitRequest }),
             page === "ceo" && React.createElement(WApprovalQueue, { role: "ceo", title: "CEO Approval", can: canDecideCEO, deniedMsg: "\uD83D\uDD12 Only the CEO can act on this queue.", requests: requests.filter(r => r.status === "pending_ceo"), onDecide: decide }),
             page === "director" && React.createElement(WApprovalQueue, { role: "director", title: "Director Approval", can: canDecideDirector, deniedMsg: "\uD83D\uDD12 Only the Director can act on this queue.", requests: requests.filter(r => r.status === "pending_director"), onDecide: decide }),
             page === "approved" && React.createElement(WFullyApproved, { requests: requests.filter(r => r.status === "fully_approved"), goto: setPage, setSelectedId: setSelectedId }),
             !["dashboard", "apply", "ceo", "director", "approved"].includes(page) && React.createElement(Alrt, { type: "info" }, "This screen is being built next \u2014 coming soon."))));
 }
-function WDashboard({ requests, goto }) {
+function WDashboard({ db, requests, goto }) {
     const pendingCeo = requests.filter(r => r.status === "pending_ceo").length;
     const pendingDirector = requests.filter(r => r.status === "pending_director").length;
     const fullyApproved = requests.filter(r => r.status === "fully_approved").length;
     const processed = requests.filter(r => r.status === "processed").length;
     const pendingValue = requests.filter(r => ["pending_ceo", "pending_director", "fully_approved"].includes(r.status)).reduce((s, r) => s + r.amount, 0);
     const recent = requests.slice(0, 6);
+    const totalFunds = totalMoneyBalance(db.moneyAccounts);
+    const hasAccounts = (db.moneyAccounts || []).length > 0;
     return React.createElement("div", null,
         React.createElement("div", { style: { marginBottom: 16 } },
             React.createElement("h2", { style: { color: C.navy, fontSize: 20, fontWeight: 800, margin: 0 } }, "Accounts Dashboard"),
             React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Overview of withdrawal requests and approval pipeline")),
+        hasAccounts && totalFunds <= 0 && React.createElement(Alrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
+        hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 } },
             React.createElement(StatCard, { label: "Awaiting CEO", value: pendingCeo, color: C.gold }),
             React.createElement(StatCard, { label: "Awaiting Director", value: pendingDirector, color: C.gold }),
@@ -2346,6 +2374,86 @@ function WSealTrack({ ceo, director }) {
             React.createElement("span", { style: { fontSize: 10, color: C.muted } }, label));
     }
     return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, seal("CEO", ceo.decision), seal("Director", director.decision));
+}
+const MONEY_LOW_THRESHOLD = 5000;
+function totalMoneyBalance(accounts) { return (accounts || []).reduce((s, a) => s + a.balance, 0); }
+function WAccountsManager({ db, setDb, user }) {
+    const accounts = db.moneyAccounts || [];
+    const txns = db.moneyAccountTxns || [];
+    const total = totalMoneyBalance(accounts);
+    const [newName, setNewName] = useState("");
+    const [amt, setAmt] = useState({});
+    const [note, setNote] = useState({});
+    function addAccount() {
+        if (!newName.trim()) { alert("Enter an account name."); return; }
+        const acc = { id: nextMoneyAccountId(accounts), name: newName.trim(), balance: 0 };
+        const nd = { ...db, moneyAccounts: [...accounts, acc] };
+        saveDB(nd); setDb(nd); setNewName("");
+    }
+    function adjust(accountId, type) {
+        const amount = parseFloat(amt[accountId]);
+        if (!amount || amount <= 0) { alert("Enter a valid amount."); return; }
+        const account = accounts.find(a => a.id === accountId);
+        if (type === "withdrawal" && amount > account.balance) { alert("Amount exceeds this account's balance."); return; }
+        const delta = type === "deposit" ? amount : -amount;
+        const txn = { id: nextMoneyTxnId(txns), accountId, type, amount, note: note[accountId] || "", by: user.name, date: today() };
+        const nd = {
+            ...db,
+            moneyAccounts: accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + delta } : a),
+            moneyAccountTxns: [txn, ...txns],
+        };
+        saveDB(nd); setDb(nd);
+        setAmt(x => ({ ...x, [accountId]: "" }));
+        setNote(x => ({ ...x, [accountId]: "" }));
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { background: total <= 0 ? "#FBE2E2" : total < MONEY_LOW_THRESHOLD ? "#FDF3D9" : "#EAF7EE", borderLeft: `5px solid ${total <= 0 ? C.red : total < MONEY_LOW_THRESHOLD ? C.gold : C.green}` } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted, fontWeight: 700 } }, "TOTAL OUTSTANDING BALANCE"),
+                    React.createElement("div", { style: { fontSize: 26, fontWeight: 900, color: C.navy } }, fmt(total))),
+                total <= 0
+                    ? React.createElement("div", { style: { color: C.red, fontWeight: 800, fontSize: 13 } }, "\u26A0\uFE0F OUT OF FUNDS \u2014 the company may not be able to disburse loans")
+                    : total < MONEY_LOW_THRESHOLD
+                        ? React.createElement("div", { style: { color: "#8A6D0B", fontWeight: 800, fontSize: 13 } }, "\u26A0\uFE0F Funds running low")
+                        : React.createElement("div", { style: { color: C.green, fontWeight: 800, fontSize: 13 } }, "\u2705 Funds healthy"))),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "Add Account"),
+            React.createElement(Inp, { label: "Account name", value: newName, onChange: e => setNewName(e.target.value), placeholder: "e.g. FNB Main Account, Petty Cash, Mobile Money" }),
+            React.createElement(Btn, { onClick: addAccount, color: C.navy }, "\u2795 Add Account")),
+        accounts.length === 0
+            ? React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No accounts yet \u2014 add one above.")
+            : accounts.map(a => React.createElement(Card, { key: a.id },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 } },
+                    React.createElement("strong", { style: { color: C.navy, fontSize: 15 } }, a.name),
+                    React.createElement("span", { style: { fontWeight: 800, fontSize: 16, color: a.balance <= 0 ? C.red : C.navy } }, fmt(a.balance))),
+                React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                    React.createElement(Inp, { label: "Amount (K)", type: "number", value: amt[a.id] || "", onChange: e => setAmt(x => ({ ...x, [a.id]: e.target.value })), placeholder: "0.00" }),
+                    React.createElement(Inp, { label: "Note (optional)", value: note[a.id] || "", onChange: e => setNote(x => ({ ...x, [a.id]: e.target.value })), placeholder: "e.g. Client repayment" })),
+                React.createElement("div", { style: { display: "flex", gap: 8 } },
+                    React.createElement(Btn, { sm: true, color: C.green, style: { flex: 1 }, onClick: () => adjust(a.id, "deposit") }, "\u2795 Deposit"),
+                    React.createElement(Btn, { sm: true, color: C.red, style: { flex: 1 }, onClick: () => adjust(a.id, "withdrawal") }, "\u2796 Withdraw")))),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "Recent Transactions"),
+            React.createElement(WMoneyTxnTable, { txns: txns.slice(0, 15), accounts: accounts })));
+}
+function WMoneyTxnTable({ txns, accounts }) {
+    if (txns.length === 0) return React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No transactions yet.");
+    const nameOf = id => (accounts.find(a => a.id === id) || {}).name || id;
+    const th = { textAlign: "left", padding: "8px 10px", fontSize: 11, color: C.muted, textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+    const td = { padding: "10px", fontSize: 13, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+    return React.createElement("div", { style: { overflowX: "auto" } },
+        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+            React.createElement("thead", null, React.createElement("tr", null,
+                React.createElement("th", { style: th }, "Date"), React.createElement("th", { style: th }, "Account"), React.createElement("th", { style: th }, "Type"),
+                React.createElement("th", { style: th }, "Amount"), React.createElement("th", { style: th }, "Note"), React.createElement("th", { style: th }, "By"))),
+            React.createElement("tbody", null, txns.map(t => React.createElement("tr", { key: t.id },
+                React.createElement("td", { style: td }, t.date),
+                React.createElement("td", { style: td }, nameOf(t.accountId)),
+                React.createElement("td", { style: { ...td, color: t.type === "deposit" ? C.green : C.red, fontWeight: 700, textTransform: "capitalize" } }, t.type),
+                React.createElement("td", { style: { ...td, fontWeight: 600 } }, (t.type === "deposit" ? "+" : "-") + fmt(t.amount)),
+                React.createElement("td", { style: { ...td, whiteSpace: "normal", maxWidth: 200 } }, t.note || "\u2014"),
+                React.createElement("td", { style: td }, t.by))))));
 }
 function Wizard({ db, setDb, user, onDone }) {
     const [step, setStep] = useState(1);
@@ -3854,40 +3962,33 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
     const [page, setPage] = useState("withdrawals");
     const canAdmin = user.role === "admin" || user.role === "director";
     const NAV = [
-        ["withdrawals", "\uD83C\uDFE6", "Withdrawals", ACC.purpleDeep],
-        ["messages", "\uD83D\uDCAC", "Messages", ACC.violet],
-        ["notify", "\uD83D\uDD14", "Alerts", ACC.blue],
-        ["reports", "\uD83D\uDCC4", "Reports", ACC.purple],
-        ["backup", "\uD83D\uDCBE", "Backup", ACC.violet],
-        ["ai", "\uD83E\uDD16", "AI", ACC.blue],
-        ["export", "\u2B07\uFE0F", "Export", ACC.purple],
-        ["leave", "\uD83C\uDFD6\uFE0F", "Leave", ACC.violet],
-        ["install", "\uD83D\uDCF1", "Install", ACC.blue],
-        ["hr", "\uD83D\uDC65", "HR", ACC.purple],
-        ...(canAdmin ? [["mgr-funds", "\uD83D\uDD11", "Branch Funds", ACC.violet]] : []),
-        ...(canAdmin ? [["deletions", "\uD83D\uDDD1\uFE0F", "Deletions", ACC.blue]] : []),
-        ["admin-provinces", "\uD83C\uDFDB\uFE0F", "Provinces", ACC.purple],
-        ["admin-branches", "\uD83C\uDFE2", "Branches", ACC.violet],
-        ...(canAdmin ? [["settings", "\u2699\uFE0F", "Settings", ACC.purpleDeep]] : []),
+        { id: "withdrawals", lb: "\uD83C\uDFE6 Withdrawals" },
+        { id: "accounts", lb: "\uD83D\uDCB0 Accounts" },
+        { id: "messages", lb: "\uD83D\uDCAC Messages" },
+        { id: "notify", lb: "\uD83D\uDD14 Alerts" },
+        { id: "reports", lb: "\uD83D\uDCC4 Reports" },
+        { id: "backup", lb: "\uD83D\uDCBE Backup" },
+        { id: "ai", lb: "\uD83E\uDD16 AI" },
+        { id: "export", lb: "\u2B07\uFE0F Export" },
+        { id: "leave", lb: "\uD83C\uDFD6\uFE0F Leave" },
+        { id: "install", lb: "\uD83D\uDCF1 Install" },
+        { id: "hr", lb: "\uD83D\uDC65 HR" },
+        ...(canAdmin ? [{ id: "mgr-funds", lb: "\uD83D\uDD11 Branch Funds" }] : []),
+        ...(canAdmin ? [{ id: "deletions", lb: "\uD83D\uDDD1\uFE0F Deletions" }] : []),
+        { id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" },
+        { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" },
+        ...(canAdmin ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : []),
     ];
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: ACC.bg, minHeight: "100vh" } },
         React.createElement("div", { style: { background: ACC.purpleDeep, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700 } },
             "\uD83C\uDFE6 ACCOUNTS SYSTEM \u2014 PALIAN MONEY LENDING \u2014 ",
             user.name),
-        React.createElement("div", { style: { background: `linear-gradient(135deg,${ACC.purpleDeep},${ACC.purple})`, padding: "16px" } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-                    React.createElement(PalianLogo, { size: 34 }),
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 15, color: "#fff", letterSpacing: 0.5 } }, "ACCOUNTS SYSTEM")),
-                React.createElement("div", { style: { display: "flex", gap: 10 } },
-                    React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 11, cursor: "pointer" } }, "Switch"),
-                    React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 11, cursor: "pointer" } }, "Logout"))),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 8 } },
-                NAV.map(([id, icon, label, color]) => (React.createElement("button", { key: id, onClick: () => setPage(id), style: { background: page === id ? "#fff" : color, color: page === id ? ACC.purpleDeep : "#fff", border: "none", borderRadius: 10, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", fontWeight: 700, fontSize: 11, boxShadow: "0 3px 10px rgba(0,0,0,0.15)" } },
-                    React.createElement("span", { style: { fontSize: 18 } }, icon),
-                    label))))),
-        React.createElement("div", { style: { padding: 14, maxWidth: 1000, margin: "0 auto" } },
+        React.createElement(AccSidebar, { allTabs: NAV, tab: page, setTab: setPage, user: user, onSwitch: onSwitch, onLogout: onLogout }),
+        React.createElement("div", { className: "pw-topnav-mobile", style: { background: ACC.purpleDeep, display: "flex", overflowX: "auto", borderBottom: `3px solid ${ACC.violet}`, position: "relative", zIndex: 50 } },
+            NAV.map(t => (React.createElement("button", { key: t.id, onClick: () => setPage(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: page === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: page === t.id ? `3px solid ${ACC.violet}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", flexShrink: 0 } }, t.lb)))),
+        React.createElement("div", { className: "pw-main-content", style: { padding: 14, maxWidth: 720, margin: "0 auto", position: "relative", zIndex: 1 } },
             page === "withdrawals" && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }),
+            page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
             page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             page === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: () => { } }),
             page === "reports" && React.createElement(Reports, { db: db, user: user, onReport: () => { } }),
@@ -3902,6 +4003,23 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
+}
+function AccSidebar({ allTabs, tab, setTab, user, onSwitch, onLogout }) {
+    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: ACC.purpleDeep, zIndex: 300, overflowY: "auto" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "20px 18px", borderBottom: "1px solid rgba(255,255,255,0.12)" } },
+            React.createElement(PalianLogo, { size: 32 }),
+            React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "ACCOUNTS"),
+                React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)", letterSpacing: 1 } }, "PALIAN MONEY LENDING"))),
+        React.createElement("div", { style: { flex: 1, padding: "10px 10px", display: "flex", flexDirection: "column", gap: 2 } },
+            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? "rgba(255,255,255,0.16)" : "transparent", borderLeft: tab === t.id ? `3px solid ${ACC.violet}` : "3px solid transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)", fontWeight: tab === t.id ? 700 : 600, fontSize: 12.5 } },
+                React.createElement("span", null, t.lb)))),
+        React.createElement("div", { style: { padding: 14, borderTop: "1px solid rgba(255,255,255,0.12)" } },
+            React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+            React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)", marginBottom: 8 } }, user.roleLabel || user.role),
+            React.createElement("div", { style: { display: "flex", gap: 10 } },
+                React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
+                React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))));
 }
 function TransportApp({ user, onLogout, onSwitch }) {
     const [tab, setTab] = useState("dash");
