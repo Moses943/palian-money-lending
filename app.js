@@ -62,8 +62,8 @@ function paymentPlanIn(r) { return { id: r.id, loanNo: r.loan_no, requestedBy: r
 function paymentPlanOut(p) { return { id: p.id, loan_no: p.loanNo, requested_by: p.requestedBy, requested_by_role: p.requestedByRole, requested_date: p.requestedDate || null, proposed_amount: p.proposedAmount || 0, reason: p.reason || "", status: p.status, approved_by: p.approvedBy || null, approved_date: p.approvedDate || null }; }
 function messageIn(r) { return { id: r.id, senderId: r.sender_id, senderName: r.sender_name, senderRole: r.sender_role, sentDate: r.sent_date, sentTime: r.sent_time, recipientType: r.recipient_type, recipientPosition: r.recipient_position || "", recipientIds: r.recipient_ids || [], text: r.text || "", attachmentUrl: r.attachment_url || "", attachmentType: r.attachment_type || "", attachmentName: r.attachment_name || "" }; }
 function messageOut(m) { return { id: m.id, sender_id: m.senderId, sender_name: m.senderName, sender_role: m.senderRole, sent_date: m.sentDate, sent_time: m.sentTime, recipient_type: m.recipientType, recipient_position: m.recipientPosition || null, recipient_ids: m.recipientIds || [], text: m.text || "", attachment_url: m.attachmentUrl || null, attachment_type: m.attachmentType || null, attachment_name: m.attachmentName || null }; }
-function withdrawalIn(r) { return { id: r.id, dateSubmitted: r.date_submitted, branch: r.branch, province: r.province, requestedBy: r.requested_by, requestedById: r.requested_by_id || "", category: r.category, amount: r.amount, purpose: r.purpose, status: r.status, ceo: { decision: r.ceo_decision || "pending", by: r.ceo_by || null, date: r.ceo_date || null, comment: r.ceo_comment || "" }, director: { decision: r.director_decision || "pending", by: r.director_by || null, date: r.director_date || null, comment: r.director_comment || "" }, processed: r.processed_date ? { date: r.processed_date, by: r.processed_by || "", method: r.processed_method || "", reference: r.processed_reference || "" } : null, audit: r.audit || [] }; }
-function withdrawalOut(w) { return { id: w.id, date_submitted: w.dateSubmitted || null, branch: w.branch || null, province: w.province || null, requested_by: w.requestedBy, requested_by_id: w.requestedById || null, category: w.category, amount: w.amount, purpose: w.purpose, status: w.status, ceo_decision: w.ceo?.decision || "pending", ceo_by: w.ceo?.by || null, ceo_date: w.ceo?.date || null, ceo_comment: w.ceo?.comment || null, director_decision: w.director?.decision || "pending", director_by: w.director?.by || null, director_date: w.director?.date || null, director_comment: w.director?.comment || null, processed_date: w.processed?.date || null, processed_by: w.processed?.by || null, processed_method: w.processed?.method || null, processed_reference: w.processed?.reference || null, audit: w.audit || [] }; }
+function withdrawalIn(r) { return { id: r.id, dateSubmitted: r.date_submitted, branch: r.branch, province: r.province, requestedBy: r.requested_by, requestedById: r.requested_by_id || "", category: r.category, amount: r.amount, purpose: r.purpose, status: r.status, ceo: { decision: r.ceo_decision || "pending", by: r.ceo_by || null, date: r.ceo_date || null, comment: r.ceo_comment || "" }, director: { decision: r.director_decision || "pending", by: r.director_by || null, date: r.director_date || null, comment: r.director_comment || "" }, processed: r.processed_date ? { date: r.processed_date, by: r.processed_by || "", method: r.processed_method || "", reference: r.processed_reference || "" } : null, audit: r.audit || [], comments: r.comments || [] }; }
+function withdrawalOut(w) { return { id: w.id, date_submitted: w.dateSubmitted || null, branch: w.branch || null, province: w.province || null, requested_by: w.requestedBy, requested_by_id: w.requestedById || null, category: w.category, amount: w.amount, purpose: w.purpose, status: w.status, ceo_decision: w.ceo?.decision || "pending", ceo_by: w.ceo?.by || null, ceo_date: w.ceo?.date || null, ceo_comment: w.ceo?.comment || null, director_decision: w.director?.decision || "pending", director_by: w.director?.by || null, director_date: w.director?.date || null, director_comment: w.director?.comment || null, processed_date: w.processed?.date || null, processed_by: w.processed?.by || null, processed_method: w.processed?.method || null, processed_reference: w.processed?.reference || null, audit: w.audit || [], comments: w.comments || [] }; }
 function nextWithdrawalId(list) {
     const maxNum = (list || []).reduce((max, w) => {
         const m = /^PWD-(\d+)$/.exec(w.id || "");
@@ -73,8 +73,8 @@ function nextWithdrawalId(list) {
 }
 function moneyAccountIn(r) { return { id: r.id, name: r.name, balance: r.balance }; }
 function moneyAccountOut(a) { return { id: a.id, name: a.name, balance: a.balance }; }
-function moneyTxnIn(r) { return { id: r.id, accountId: r.account_id, type: r.type, amount: r.amount, note: r.note || "", by: r.by || "", date: r.date }; }
-function moneyTxnOut(t) { return { id: t.id, account_id: t.accountId, type: t.type, amount: t.amount, note: t.note || null, by: t.by || null, date: t.date }; }
+function moneyTxnIn(r) { return { id: r.id, accountId: r.account_id, type: r.type, amount: r.amount, note: r.note || "", by: r.by || "", date: r.date, category: r.category || "General" }; }
+function moneyTxnOut(t) { return { id: t.id, account_id: t.accountId, type: t.type, amount: t.amount, note: t.note || null, by: t.by || null, date: t.date, category: t.category || "General" }; }
 function nextMoneyAccountId(list) {
     const maxNum = (list || []).reduce((max, a) => {
         const m = /^ACC-(\d+)$/.exec(a.id || "");
@@ -2208,26 +2208,26 @@ const WDL_STATUS_LABEL = { pending_ceo: "Awaiting CEO", pending_director: "Await
 const WDL_STATUS_COLOR = { pending_ceo: C.gold, pending_director: C.gold, fully_approved: C.green, processed: C.blue, rejected: C.red };
 function WBadge({ status }) { return React.createElement("span", { style: { background: (WDL_STATUS_COLOR[status] || C.muted), color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" } }, WDL_STATUS_LABEL[status] || status); }
 function wdlAddAudit(req, action, by, note) { return { ...req, audit: [...(req.audit || []), { action, by, date: today(), note: note || "" }] }; }
+function wdlAddComment(req, by, text) { return { ...req, comments: [...(req.comments || []), { by, date: today(), text }] }; }
 function wdlBranchOptions(db) { return ["Head Office", ...new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office").map(s => s.branch))].sort(); }
-function AccountsWithdrawal({ db, setDb, user }) {
-    const [page, setPage] = useState("dashboard");
-    const [selectedId, setSelectedId] = useState(null);
+function AccountsWithdrawal({ db, setDb, user, page, setPage, selectedId, setSelectedId }) {
     const requests = db.withdrawalRequests || [];
-    const canApply = ["accounts", "admin", "director", "ceo"].includes(user.role);
+    const isCEO = user.role === "ceo";
+    const canApply = ["accounts", "admin", "director"].includes(user.role);
     const canDecideCEO = user.role === "ceo" || user.role === "admin";
     const canDecideDirector = user.role === "director" || user.role === "admin";
     const canProcess = user.role === "accounts" || user.role === "admin";
-    const NAV = [["dashboard", "\uD83C\uDFE0 Dashboard"], ["apply", "\u2795 Apply"], ["ceo", "\uD83D\uDEE1\uFE0F CEO"], ["director", "\uD83D\uDEE1\uFE0F Director"], ["approved", "\u2705 Approved"], ["process", "\u25B6\uFE0F Process"], ["print", "\uD83D\uDDA8\uFE0F Print"], ["history", "\uD83D\uDD58 History"], ["reports", "\uD83D\uDCCA Reports"], ["audit", "\uD83D\uDCCB Audit"]];
+    const canEditDelete = user.role === "admin" || user.role === "director";
     function submitRequest(form) {
         const req = wdlAddAudit({
             id: nextWithdrawalId(requests), dateSubmitted: today(), branch: form.branch, province: form.branch === "Head Office" ? "Head Office" : gBI(form.branch).province,
             requestedBy: user.name, requestedById: user.id, category: form.category, amount: parseFloat(form.amount), purpose: form.purpose,
-            status: "pending_ceo", ceo: { decision: "pending", by: null, date: null, comment: "" }, director: { decision: "pending", by: null, date: null, comment: "" }, processed: null, audit: [],
+            status: "pending_ceo", ceo: { decision: "pending", by: null, date: null, comment: "" }, director: { decision: "pending", by: null, date: null, comment: "" }, processed: null, audit: [], comments: [],
         }, "Submitted", user.name, "Request created");
         const nd = { ...db, withdrawalRequests: [req, ...requests] };
         saveDB(nd); setDb(nd);
         alert(`\u2705 Request ${req.id} submitted for CEO approval.`);
-        setPage("ceo");
+        setPage("wceo");
     }
     function decide(id, role, decision, comment) {
         const nd = { ...db, withdrawalRequests: requests.map(r => {
@@ -2240,18 +2240,51 @@ function AccountsWithdrawal({ db, setDb, user }) {
         }) };
         saveDB(nd); setDb(nd);
     }
-    return (React.createElement("div", null,
-        React.createElement("div", { style: { background: C.navy, display: "flex", borderBottom: `3px solid ${C.orange}`, overflowX: "auto" } },
-            NAV.map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setPage(id), style: { flex: 1, padding: "11px 8px", background: "none", border: "none", color: page === id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: page === id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap" } }, lb)))),
-        React.createElement("div", { style: { paddingTop: 16 } },
-            page === "dashboard" && React.createElement(WDashboard, { db: db, requests: requests, goto: setPage }),
-            page === "apply" && React.createElement(WApplyForm, { db: db, canApply: canApply, onSubmit: submitRequest }),
-            page === "ceo" && React.createElement(WApprovalQueue, { role: "ceo", title: "CEO Approval", can: canDecideCEO, deniedMsg: "\uD83D\uDD12 Only the CEO can act on this queue.", requests: requests.filter(r => r.status === "pending_ceo"), onDecide: decide }),
-            page === "director" && React.createElement(WApprovalQueue, { role: "director", title: "Director Approval", can: canDecideDirector, deniedMsg: "\uD83D\uDD12 Only the Director can act on this queue.", requests: requests.filter(r => r.status === "pending_director"), onDecide: decide }),
-            page === "approved" && React.createElement(WFullyApproved, { requests: requests.filter(r => r.status === "fully_approved"), goto: setPage, setSelectedId: setSelectedId }),
-            !["dashboard", "apply", "ceo", "director", "approved"].includes(page) && React.createElement(Alrt, { type: "info" }, "This screen is being built next \u2014 coming soon."))));
+    function processRequest(id, { bank, reference, accountId }) {
+        const req = requests.find(r => r.id === id);
+        if (!req) return;
+        const accounts = db.moneyAccounts || [];
+        const account = accounts.find(a => a.id === accountId);
+        if (accountId && account && req.amount > account.balance) { alert("Amount exceeds the selected account's balance."); return; }
+        const txns = db.moneyAccountTxns || [];
+        const txn = accountId ? { id: nextMoneyTxnId(txns), accountId, type: "withdrawal", amount: req.amount, note: `Withdrawal ${id} processed`, by: user.name, date: today(), category: "Disbursement" } : null;
+        const nd = {
+            ...db,
+            withdrawalRequests: requests.map(r => r.id === id ? wdlAddAudit({ ...r, status: "processed", processed: { date: today(), by: user.name, method: bank, reference } }, "Processed", user.name, `${bank} \u2014 Ref: ${reference || "N/A"}`) : r),
+            ...(accountId ? { moneyAccounts: accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - req.amount } : a), moneyAccountTxns: [txn, ...txns] } : {}),
+        };
+        saveDB(nd); setDb(nd);
+        alert(`\u2705 ${id} marked as processed.`);
+        setSelectedId(id);
+        setPage("wprint");
+    }
+    function updateRequest(id, patch) {
+        const nd = { ...db, withdrawalRequests: requests.map(r => r.id === id ? wdlAddAudit({ ...r, ...patch }, "Edited", user.name, `Updated ${Object.keys(patch).join(", ")}`) : r) };
+        saveDB(nd); setDb(nd);
+    }
+    function deleteRequest(id) {
+        if (!window.confirm("Delete this withdrawal request? This cannot be undone.")) return;
+        const nd = { ...db, withdrawalRequests: requests.filter(r => r.id !== id) };
+        saveDB(nd); setDb(nd);
+    }
+    function addComment(id, text) {
+        if (!text.trim()) return;
+        const nd = { ...db, withdrawalRequests: requests.map(r => r.id === id ? wdlAddComment(r, user.name, text.trim()) : r) };
+        saveDB(nd); setDb(nd);
+    }
+    return (React.createElement(React.Fragment, null,
+        page === "wdash" && React.createElement(WDashboard, { db: db, requests: requests, goto: setPage, isCEO: isCEO }),
+        page === "wapply" && !isCEO && React.createElement(WApplyForm, { db: db, canApply: canApply, onSubmit: submitRequest }),
+        page === "wceo" && !isCEO && React.createElement(WApprovalQueue, { role: "ceo", title: "CEO Approval", can: canDecideCEO, deniedMsg: "\uD83D\uDD12 Only the CEO can act on this queue.", requests: requests.filter(r => r.status === "pending_ceo"), onDecide: decide }),
+        page === "wdirector" && !isCEO && React.createElement(WApprovalQueue, { role: "director", title: "Director Approval", can: canDecideDirector, deniedMsg: "\uD83D\uDD12 Only the Director can act on this queue.", requests: requests.filter(r => r.status === "pending_director"), onDecide: decide }),
+        page === "wapproved" && !isCEO && React.createElement(WFullyApproved, { requests: requests.filter(r => r.status === "fully_approved"), goto: setPage, setSelectedId: setSelectedId }),
+        page === "wprocess" && !isCEO && React.createElement(WProcess, { db: db, requests: requests.filter(r => r.status === "fully_approved"), selectedId: selectedId, setSelectedId: setSelectedId, canProcess: canProcess, onProcess: processRequest }),
+        page === "wprint" && React.createElement(WPrint, { requests: requests.filter(r => ["fully_approved", "processed"].includes(r.status)), selectedId: selectedId, setSelectedId: setSelectedId }),
+        page === "whistory" && React.createElement(WHistory, { requests: requests, canEditDelete: canEditDelete, onUpdate: updateRequest, onDelete: deleteRequest, onComment: addComment }),
+        page === "wreports" && React.createElement(WReports, { requests: requests }),
+        page === "waudit" && React.createElement(WAudit, { requests: requests })));
 }
-function WDashboard({ db, requests, goto }) {
+function WDashboard({ db, requests, goto, isCEO }) {
     const pendingCeo = requests.filter(r => r.status === "pending_ceo").length;
     const pendingDirector = requests.filter(r => r.status === "pending_director").length;
     const fullyApproved = requests.filter(r => r.status === "fully_approved").length;
@@ -2260,24 +2293,43 @@ function WDashboard({ db, requests, goto }) {
     const recent = requests.slice(0, 6);
     const totalFunds = totalMoneyBalance(db.moneyAccounts);
     const hasAccounts = (db.moneyAccounts || []).length > 0;
-    return React.createElement("div", null,
-        React.createElement("div", { style: { marginBottom: 16 } },
-            React.createElement("h2", { style: { color: C.navy, fontSize: 20, fontWeight: 800, margin: 0 } }, "Accounts Dashboard"),
-            React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Overview of withdrawal requests and approval pipeline")),
-        hasAccounts && totalFunds <= 0 && React.createElement(Alrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
-        hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
-        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 } },
-            React.createElement(StatCard, { label: "Awaiting CEO", value: pendingCeo, color: C.gold }),
-            React.createElement(StatCard, { label: "Awaiting Director", value: pendingDirector, color: C.gold }),
-            React.createElement(StatCard, { label: "Fully Approved", value: fullyApproved, color: C.green }),
-            React.createElement(StatCard, { label: "Processed", value: processed, color: C.blue }),
-            React.createElement(StatCard, { label: "Pending Value", value: fmt(pendingValue), color: C.purple, small: true })),
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" } },
-            React.createElement(Btn, { onClick: () => goto("apply"), color: C.navy }, "\u2795 New Withdrawal Request"),
-            React.createElement(Btn, { onClick: () => goto("ceo"), color: C.navy, style: { background: "#fff", color: C.navy, border: `1.5px solid ${C.navy}` } }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
-        React.createElement(Card, null,
-            React.createElement(ST, null, "Recent Requests"),
-            React.createElement(WRequestTable, { requests: recent })));
+    return React.createElement("div", { style: { display: "grid", gridTemplateColumns: window.innerWidth >= 900 ? "1fr 300px" : "1fr", gap: 16, alignItems: "start" } },
+        React.createElement("div", null,
+            React.createElement("div", { style: { marginBottom: 16 } },
+                React.createElement("h2", { style: { color: C.navy, fontSize: 20, fontWeight: 800, margin: 0 } }, "Accounts Dashboard"),
+                React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Overview of withdrawal requests and approval pipeline")),
+            hasAccounts && totalFunds <= 0 && React.createElement(Alrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
+            hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 } },
+                React.createElement(StatCard, { label: "Awaiting CEO", value: pendingCeo, color: C.gold }),
+                React.createElement(StatCard, { label: "Awaiting Director", value: pendingDirector, color: C.gold }),
+                React.createElement(StatCard, { label: "Fully Approved", value: fullyApproved, color: C.green }),
+                React.createElement(StatCard, { label: "Processed", value: processed, color: C.blue }),
+                React.createElement(StatCard, { label: "Pending Value", value: fmt(pendingValue), color: C.purple, small: true })),
+            !isCEO && React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" } },
+                React.createElement(Btn, { onClick: () => goto("wapply"), color: C.navy }, "\u2795 New Withdrawal Request"),
+                React.createElement(Btn, { onClick: () => goto("wceo"), color: C.navy, style: { background: "#fff", color: C.navy, border: `1.5px solid ${C.navy}` } }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "Recent Requests"),
+                React.createElement(WRequestTable, { requests: recent }))),
+        React.createElement(WPhotoSlider, null));
+}
+function WPhotoSlider() {
+    const photos = [
+        "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=500&q=80",
+        "https://images.unsplash.com/photo-1591696331111-ef9586a5b17a?w=500&q=80",
+        "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&q=80",
+        "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?w=500&q=80",
+    ];
+    const [i, setI] = useState(0);
+    useEffect(() => {
+        const t = setInterval(() => setI(x => (x + 1) % photos.length), 4000);
+        return () => clearInterval(t);
+    }, []);
+    return React.createElement("div", { style: { width: "100%", height: 220, borderRadius: 14, overflow: "hidden", position: "relative", boxShadow: "0 4px 16px rgba(0,0,0,0.15)" } },
+        photos.map((src, idx) => React.createElement("img", { key: src, src: src, style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: idx === i ? 1 : 0, transition: "opacity 0.8s ease" } })),
+        React.createElement("div", { style: { position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 } },
+            photos.map((_, idx) => React.createElement("div", { key: idx, style: { width: 6, height: 6, borderRadius: "50%", background: idx === i ? "#fff" : "rgba(255,255,255,0.5)" } }))));
 }
 function WRequestTable({ requests }) {
     if (requests.length === 0) return React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No requests to show.");
@@ -2358,7 +2410,7 @@ function WFullyApproved({ requests, goto, setSelectedId }) {
                 React.createElement("div", { style: { fontSize: 12, color: C.muted, marginTop: 2 } }, r.branch, " \u00B7 ", r.purpose)),
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14 } },
                 React.createElement(WSealTrack, { ceo: r.ceo, director: r.director }),
-                React.createElement(Btn, { sm: true, color: C.navy, onClick: () => { setSelectedId(r.id); goto("process"); } }, "\u25B6\uFE0F Process")))));
+                React.createElement(Btn, { sm: true, color: C.navy, onClick: () => { setSelectedId(r.id); goto("wprocess"); } }, "\u25B6\uFE0F Process")))));
     return React.createElement("div", null,
         React.createElement(ST, null, "Fully Approved \u2014 ready to process"),
         requests.length === 0 ? React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No fully approved requests waiting.") : rows);
@@ -2375,15 +2427,157 @@ function WSealTrack({ ceo, director }) {
     }
     return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, seal("CEO", ceo.decision), seal("Director", director.decision));
 }
+function WProcess({ db, requests, selectedId, setSelectedId, canProcess, onProcess }) {
+    const selected = requests.find(r => r.id === selectedId) || requests[0] || null;
+    const [bank, setBank] = useState(ZM_BANKS[0]);
+    const [customBank, setCustomBank] = useState("");
+    const [reference, setReference] = useState("");
+    const [accountId, setAccountId] = useState("");
+    const accounts = db.moneyAccounts || [];
+    if (requests.length === 0) return React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No fully approved requests waiting to be processed.");
+    return React.createElement("div", null,
+        React.createElement(Card, null,
+            React.createElement(ST, null, "Fully Approved \u2014 select one to process"),
+            requests.map(r => React.createElement("div", { key: r.id, onClick: () => setSelectedId(r.id), style: { padding: "10px 12px", borderRadius: 8, marginBottom: 6, cursor: "pointer", background: selected && selected.id === r.id ? "#EAF1FB" : "#fff", border: `1.5px solid ${selected && selected.id === r.id ? C.navy : C.border}`, display: "flex", justifyContent: "space-between" } },
+                React.createElement("span", null, r.id, " \u2014 ", r.branch), React.createElement("strong", null, fmt(r.amount))))),
+        selected && React.createElement(Card, null,
+            React.createElement(ST, null, `Process ${selected.id}`),
+            React.createElement(IR, { label: "Amount", value: fmt(selected.amount), bold: true }),
+            React.createElement(IR, { label: "Purpose", value: selected.purpose }),
+            React.createElement(Sel, { label: "Send via bank", value: bank, onChange: e => setBank(e.target.value) },
+                ZM_BANKS.map(b => React.createElement("option", { key: b, value: b }, b))),
+            bank === "Other" && React.createElement(Inp, { label: "Specify bank / method", value: customBank, onChange: e => setCustomBank(e.target.value), placeholder: "e.g. Mobile Money, Cash" }),
+            React.createElement(Inp, { label: "Transaction reference (optional)", value: reference, onChange: e => setReference(e.target.value), placeholder: "e.g. bank transfer ref" }),
+            accounts.length > 0 && React.createElement(Sel, { label: "Deduct from account (optional)", value: accountId, onChange: e => setAccountId(e.target.value) },
+                React.createElement("option", { value: "" }, "\u2014 Don't deduct from a tracked account \u2014"),
+                accounts.map(a => React.createElement("option", { key: a.id, value: a.id }, `${a.name} (${fmt(a.balance)})`))),
+            !canProcess && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Your role can't mark requests as processed."),
+            canProcess && React.createElement(Btn, { color: C.navy, full: true, onClick: () => onProcess(selected.id, { bank: bank === "Other" ? customBank || "Other" : bank, reference, accountId }) }, "\u2705 Mark as Processed")));
+}
+function WPrint({ requests, selectedId, setSelectedId }) {
+    const selected = requests.find(r => r.id === selectedId) || requests[0] || null;
+    if (requests.length === 0) return React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No approved or processed requests to print yet.");
+    return React.createElement("div", null,
+        React.createElement(Card, null,
+            React.createElement(Sel, { label: "Select request", value: selected ? selected.id : "", onChange: e => setSelectedId(e.target.value) },
+                requests.map(r => React.createElement("option", { key: r.id, value: r.id }, `${r.id} \u2014 ${fmt(r.amount)} \u2014 ${r.branch}`)))),
+        selected && React.createElement("div", { id: "wprint-doc", style: { background: "#fff", padding: 24, borderRadius: 8, border: `1px solid ${C.border}` } },
+            React.createElement("div", { style: { textAlign: "center", marginBottom: 16 } },
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 16, color: C.navy } }, "PALIAN MONEY LENDING LIMITED"),
+                React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Withdrawal Authorisation")),
+            React.createElement(IR, { label: "Reference", value: selected.id }),
+            React.createElement(IR, { label: "Date Submitted", value: selected.dateSubmitted }),
+            React.createElement(IR, { label: "Branch / Office", value: selected.branch }),
+            React.createElement(IR, { label: "Requested By", value: selected.requestedBy }),
+            React.createElement(IR, { label: "Category", value: selected.category }),
+            React.createElement(IR, { label: "Amount", value: fmt(selected.amount), bold: true }),
+            React.createElement(IR, { label: "Purpose", value: selected.purpose }),
+            React.createElement("div", { style: { marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${C.border}` } },
+                React.createElement(IR, { label: "CEO Approval", value: `${selected.ceo.by || "\u2014"} \u00B7 ${selected.ceo.date || ""}` }),
+                React.createElement(IR, { label: "Director Approval", value: `${selected.director.by || "\u2014"} \u00B7 ${selected.director.date || ""}` })),
+            selected.processed && React.createElement("div", { style: { marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${C.border}` } },
+                React.createElement(IR, { label: "Processed Via", value: selected.processed.method }),
+                React.createElement(IR, { label: "Reference No.", value: selected.processed.reference || "\u2014" }),
+                React.createElement(IR, { label: "Processed By", value: `${selected.processed.by} \u00B7 ${selected.processed.date}` })),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-around", marginTop: 40 } },
+                ["Prepared By", "CEO Signature", "Director Signature"].map(l => React.createElement("div", { key: l, style: { textAlign: "center" } },
+                    React.createElement("div", { style: { borderTop: `1px solid ${C.navy}`, width: 130, marginBottom: 4 } }),
+                    React.createElement("span", { style: { fontSize: 11, color: C.muted } }, l))))),
+        selected && React.createElement(Btn, { color: C.navy, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print"));
+}
+function WHistory({ requests, canEditDelete, onUpdate, onDelete, onComment }) {
+    const [filter, setFilter] = useState("all");
+    const [expandedId, setExpandedId] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editForm, setEditForm] = useState({});
+    const [commentDraft, setCommentDraft] = useState({});
+    const filtered = filter === "all" ? requests : requests.filter(r => r.status === filter);
+    function startEdit(r) { setEditingId(r.id); setEditForm({ amount: r.amount, category: r.category, purpose: r.purpose }); }
+    function saveEdit(id) {
+        onUpdate(id, { amount: parseFloat(editForm.amount), category: editForm.category, purpose: editForm.purpose });
+        setEditingId(null);
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, null,
+            React.createElement(Sel, { label: "Filter by status", value: filter, onChange: e => setFilter(e.target.value) },
+                React.createElement("option", { value: "all" }, "All"),
+                Object.keys(WDL_STATUS_LABEL).map(s => React.createElement("option", { key: s, value: s }, WDL_STATUS_LABEL[s])))),
+        filtered.length === 0 ? React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No requests match this filter.")
+            : filtered.map(r => React.createElement(Card, { key: r.id },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", cursor: "pointer" }, onClick: () => setExpandedId(expandedId === r.id ? null : r.id) },
+                    React.createElement("strong", { style: { color: C.navy } }, r.id, " \u00B7 ", r.branch, " \u00B7 ", fmt(r.amount)),
+                    React.createElement(WBadge, { status: r.status })),
+                editingId === r.id ? React.createElement("div", { style: { marginTop: 10 } },
+                    React.createElement(Inp, { label: "Amount (K)", type: "number", value: editForm.amount, onChange: e => setEditForm(f => ({ ...f, amount: e.target.value })) }),
+                    React.createElement(Sel, { label: "Category", value: editForm.category, onChange: e => setEditForm(f => ({ ...f, category: e.target.value })) },
+                        WDL_CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c))),
+                    React.createElement(Inp, { label: "Purpose", value: editForm.purpose, onChange: e => setEditForm(f => ({ ...f, purpose: e.target.value })) }),
+                    React.createElement("div", { style: { display: "flex", gap: 8 } },
+                        React.createElement(Btn, { sm: true, color: C.green, style: { flex: 1 }, onClick: () => saveEdit(r.id) }, "\u2705 Save"),
+                        React.createElement(Btn, { sm: true, color: C.muted, style: { flex: 1 }, onClick: () => setEditingId(null) }, "Cancel")))
+                    : expandedId === r.id && React.createElement("div", { style: { marginTop: 10 } },
+                        React.createElement(IR, { label: "Requested by", value: r.requestedBy }),
+                        React.createElement(IR, { label: "Category", value: r.category }),
+                        React.createElement(IR, { label: "Purpose", value: r.purpose }),
+                        canEditDelete && r.status === "pending_ceo" && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 8, marginBottom: 12 } },
+                            React.createElement(Btn, { sm: true, color: C.navy, style: { flex: 1 }, onClick: () => startEdit(r) }, "\u270F\uFE0F Edit")),
+                        canEditDelete && r.status !== "processed" && React.createElement(Btn, { sm: true, color: C.red, full: true, onClick: () => onDelete(r.id) }, "\uD83D\uDDD1\uFE0F Delete Request"),
+                        React.createElement("div", { style: { marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.border}` } },
+                            React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6 } }, "Comments"),
+                            (r.comments || []).length === 0 && React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 8 } }, "No comments yet."),
+                            (r.comments || []).map((c, i) => React.createElement("div", { key: i, style: { fontSize: 12, marginBottom: 6, padding: "6px 10px", background: "#F5F6F8", borderRadius: 6 } },
+                                React.createElement("strong", null, c.by), " \u00B7 ", React.createElement("span", { style: { color: C.muted } }, c.date), React.createElement("div", null, c.text))),
+                            React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+                                React.createElement("input", { value: commentDraft[r.id] || "", onChange: e => setCommentDraft(x => ({ ...x, [r.id]: e.target.value })), placeholder: "Add a comment...", style: { flex: 1, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13 } }),
+                                React.createElement(Btn, { sm: true, color: C.navy, onClick: () => { onComment(r.id, commentDraft[r.id] || ""); setCommentDraft(x => ({ ...x, [r.id]: "" })); } }, "Send")))))));
+}
+function WAudit({ requests }) {
+    const entries = requests.flatMap(r => (r.audit || []).map(a => ({ ...a, ref: r.id }))).sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (entries.length === 0) return React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No audit history yet.");
+    const th = { textAlign: "left", padding: "8px 10px", fontSize: 11, color: C.muted, textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+    const td = { padding: "10px", fontSize: 13, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+    return React.createElement(Card, null,
+        React.createElement(ST, null, "Audit Trail"),
+        React.createElement("div", { style: { overflowX: "auto" } },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    React.createElement("th", { style: th }, "Date"), React.createElement("th", { style: th }, "Ref"), React.createElement("th", { style: th }, "Action"), React.createElement("th", { style: th }, "By"), React.createElement("th", { style: th }, "Note"))),
+                React.createElement("tbody", null, entries.map((e, i) => React.createElement("tr", { key: i },
+                    React.createElement("td", { style: td }, e.date),
+                    React.createElement("td", { style: { ...td, fontWeight: 700, color: C.navy } }, e.ref),
+                    React.createElement("td", { style: td }, e.action),
+                    React.createElement("td", { style: td }, e.by),
+                    React.createElement("td", { style: { ...td, whiteSpace: "normal", maxWidth: 240 } }, e.note)))))));
+}
+function WReports({ requests }) {
+    const byCategory = {}, byBranch = {};
+    requests.forEach(r => { byCategory[r.category] = (byCategory[r.category] || 0) + r.amount; byBranch[r.branch] = (byBranch[r.branch] || 0) + r.amount; });
+    const totalProcessed = requests.filter(r => r.status === "processed").reduce((s, r) => s + r.amount, 0);
+    const totalPending = requests.filter(r => ["pending_ceo", "pending_director", "fully_approved"].includes(r.status)).reduce((s, r) => s + r.amount, 0);
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 } },
+            React.createElement(StatCard, { label: "Total Processed", value: fmt(totalProcessed), color: C.blue }),
+            React.createElement(StatCard, { label: "Total Pending", value: fmt(totalPending), color: C.gold }),
+            React.createElement(StatCard, { label: "Total Requests", value: requests.length, color: C.navy })),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "By Category"),
+            Object.entries(byCategory).map(([k, v]) => React.createElement(IR, { key: k, label: k, value: fmt(v) }))),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "By Branch / Office"),
+            Object.entries(byBranch).map(([k, v]) => React.createElement(IR, { key: k, label: k, value: fmt(v) }))));
+}
 const MONEY_LOW_THRESHOLD = 5000;
 function totalMoneyBalance(accounts) { return (accounts || []).reduce((s, a) => s + a.balance, 0); }
 function WAccountsManager({ db, setDb, user }) {
     const accounts = db.moneyAccounts || [];
     const txns = db.moneyAccountTxns || [];
     const total = totalMoneyBalance(accounts);
+    const totalDisbursed = txns.filter(t => t.category === "Disbursement").reduce((s, t) => s + t.amount, 0);
+    const totalCollections = txns.filter(t => t.category === "Collection").reduce((s, t) => s + t.amount, 0);
     const [newName, setNewName] = useState("");
     const [amt, setAmt] = useState({});
     const [note, setNote] = useState({});
+    const [cat, setCat] = useState({});
     function addAccount() {
         if (!newName.trim()) { alert("Enter an account name."); return; }
         const acc = { id: nextMoneyAccountId(accounts), name: newName.trim(), balance: 0 };
@@ -2396,7 +2590,7 @@ function WAccountsManager({ db, setDb, user }) {
         const account = accounts.find(a => a.id === accountId);
         if (type === "withdrawal" && amount > account.balance) { alert("Amount exceeds this account's balance."); return; }
         const delta = type === "deposit" ? amount : -amount;
-        const txn = { id: nextMoneyTxnId(txns), accountId, type, amount, note: note[accountId] || "", by: user.name, date: today() };
+        const txn = { id: nextMoneyTxnId(txns), accountId, type, amount, note: note[accountId] || "", by: user.name, date: today(), category: cat[accountId] || "General" };
         const nd = {
             ...db,
             moneyAccounts: accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + delta } : a),
@@ -2417,6 +2611,10 @@ function WAccountsManager({ db, setDb, user }) {
                     : total < MONEY_LOW_THRESHOLD
                         ? React.createElement("div", { style: { color: "#8A6D0B", fontWeight: 800, fontSize: 13 } }, "\u26A0\uFE0F Funds running low")
                         : React.createElement("div", { style: { color: C.green, fontWeight: 800, fontSize: 13 } }, "\u2705 Funds healthy"))),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 } },
+            React.createElement(StatCard, { label: "Total Disbursed", value: fmt(totalDisbursed), color: C.blue }),
+            React.createElement(StatCard, { label: "Total Collections", value: fmt(totalCollections), color: C.green })),
+        React.createElement(WProvinceRecoveryChart, { db: db }),
         React.createElement(Card, null,
             React.createElement(ST, null, "Add Account"),
             React.createElement(Inp, { label: "Account name", value: newName, onChange: e => setNewName(e.target.value), placeholder: "e.g. FNB Main Account, Petty Cash, Mobile Money" }),
@@ -2429,6 +2627,8 @@ function WAccountsManager({ db, setDb, user }) {
                     React.createElement("span", { style: { fontWeight: 800, fontSize: 16, color: a.balance <= 0 ? C.red : C.navy } }, fmt(a.balance))),
                 React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
                     React.createElement(Inp, { label: "Amount (K)", type: "number", value: amt[a.id] || "", onChange: e => setAmt(x => ({ ...x, [a.id]: e.target.value })), placeholder: "0.00" }),
+                    React.createElement(Sel, { label: "Category", value: cat[a.id] || "General", onChange: e => setCat(x => ({ ...x, [a.id]: e.target.value })) },
+                        ["General", "Disbursement", "Collection"].map(c => React.createElement("option", { key: c, value: c }, c))),
                     React.createElement(Inp, { label: "Note (optional)", value: note[a.id] || "", onChange: e => setNote(x => ({ ...x, [a.id]: e.target.value })), placeholder: "e.g. Client repayment" })),
                 React.createElement("div", { style: { display: "flex", gap: 8 } },
                     React.createElement(Btn, { sm: true, color: C.green, style: { flex: 1 }, onClick: () => adjust(a.id, "deposit") }, "\u2795 Deposit"),
@@ -2436,6 +2636,25 @@ function WAccountsManager({ db, setDb, user }) {
         React.createElement(Card, null,
             React.createElement(ST, null, "Recent Transactions"),
             React.createElement(WMoneyTxnTable, { txns: txns.slice(0, 15), accounts: accounts })));
+}
+function WProvinceRecoveryChart({ db }) {
+    const rows = Object.keys(PROVINCES).map(p => {
+        const towns = PROVINCES[p].towns.map(t => t[0]);
+        const loans = db.loans.filter(l => l.province === p);
+        const payments = db.payments.filter(pm => towns.includes(pm.branch));
+        const collected = payments.reduce((s, pm) => s + pm.amount, 0);
+        const totalDue = loans.reduce((s, l) => s + l.totalDue, 0);
+        const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
+        return { province: p, recovery };
+    }).sort((a, b) => b.recovery - a.recovery);
+    return React.createElement(Card, null,
+        React.createElement(ST, null, "Collection Rate by Province"),
+        rows.map(r => React.createElement("div", { key: r.province, style: { marginBottom: 10 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 } },
+                React.createElement("span", { style: { fontWeight: 600, color: C.navy } }, r.province),
+                React.createElement("span", { style: { fontWeight: 700, color: r.recovery >= 100 ? C.green : r.recovery >= 70 ? C.gold : C.red } }, `${r.recovery.toFixed(1)}%`)),
+            React.createElement("div", { style: { background: "#EEE", borderRadius: 6, height: 10, overflow: "hidden" } },
+                React.createElement("div", { style: { width: `${Math.min(r.recovery, 100)}%`, height: "100%", background: r.recovery >= 100 ? C.green : r.recovery >= 70 ? C.gold : C.red } })))));
 }
 function WMoneyTxnTable({ txns, accounts }) {
     if (txns.length === 0) return React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No transactions yet.");
@@ -3719,7 +3938,7 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "PTDC"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery Courier \u2014 parcels, shifting"))),
-            ["accounts", "admin", "director"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("accounts"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            ["accounts", "admin", "director", "ceo"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("accounts"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83C\uDFE6"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Accounts"),
@@ -3958,11 +4177,29 @@ function ParcelList({ user }) {
 }
 // ── TRANSPORT APP (separate module) ───────────────────────────────────────────
 const ACC = { purple: "#5B3FBF", purpleDeep: "#2E2066", violet: "#7C5CFC", blue: "#3A8DFF", bg: "linear-gradient(135deg,#EEECFC 0%,#E6F0FF 55%,#F3EEFD 100%)" };
+const WDL_PAGE_IDS = ["wdash", "wapply", "wceo", "wdirector", "wapproved", "wprocess", "wprint", "whistory", "wreports", "waudit"];
 function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
-    const [page, setPage] = useState("withdrawals");
+    const [page, setPage] = useState("wdash");
+    const [selectedId, setSelectedId] = useState(null);
     const canAdmin = user.role === "admin" || user.role === "director";
-    const NAV = [
-        { id: "withdrawals", lb: "\uD83C\uDFE6 Withdrawals" },
+    const isCEO = user.role === "ceo";
+    const NAV = isCEO ? [
+        { id: "wdash", lb: "\uD83C\uDFE0 Dashboard" },
+        { id: "wprint", lb: "\uD83D\uDDA8\uFE0F Print" },
+        { id: "whistory", lb: "\uD83D\uDD58 History" },
+        { id: "wreports", lb: "\uD83D\uDCCA Reports" },
+        { id: "waudit", lb: "\uD83D\uDCCB Audit" },
+    ] : [
+        { id: "wdash", lb: "\uD83C\uDFE0 Dashboard" },
+        { id: "wapply", lb: "\u2795 Apply" },
+        { id: "wceo", lb: "\uD83D\uDEE1\uFE0F CEO Approval" },
+        { id: "wdirector", lb: "\uD83D\uDEE1\uFE0F Director Approval" },
+        { id: "wapproved", lb: "\u2705 Approved" },
+        { id: "wprocess", lb: "\u25B6\uFE0F Process" },
+        { id: "wprint", lb: "\uD83D\uDDA8\uFE0F Print" },
+        { id: "whistory", lb: "\uD83D\uDD58 History" },
+        { id: "wreports", lb: "\uD83D\uDCCA W-Reports" },
+        { id: "waudit", lb: "\uD83D\uDCCB Audit" },
         { id: "accounts", lb: "\uD83D\uDCB0 Accounts" },
         { id: "messages", lb: "\uD83D\uDCAC Messages" },
         { id: "notify", lb: "\uD83D\uDD14 Alerts" },
@@ -3998,7 +4235,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         React.createElement("div", { className: "pw-topnav-mobile", style: { background: ACC.purpleDeep, display: "flex", overflowX: "auto", borderBottom: `3px solid ${ACC.violet}`, position: "relative", zIndex: 50 } },
             NAV.map(t => (React.createElement("button", { key: t.id, onClick: () => setPage(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: page === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: page === t.id ? `3px solid ${ACC.violet}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", flexShrink: 0 } }, t.lb)))),
         React.createElement("div", { className: "pw-main-content", style: { padding: 14, maxWidth: 720, margin: "0 auto", position: "relative", zIndex: 1 } },
-            page === "withdrawals" && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user }),
+            WDL_PAGE_IDS.includes(page) && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user, page: page, setPage: setPage, selectedId: selectedId, setSelectedId: setSelectedId }),
             page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
             page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             page === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: () => { } }),
