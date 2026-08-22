@@ -2315,17 +2315,13 @@ function WDashboard({ db, requests, goto, isCEO }) {
         React.createElement(WPhotoSlider, null));
 }
 function WPhotoSlider() {
-    const photos = [
-        "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=500&q=80",
-        "https://images.unsplash.com/photo-1591696331111-ef9586a5b17a?w=500&q=80",
-        "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=500&q=80",
-        "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?w=500&q=80",
-    ];
+    const [photos, setPhotos] = useState(BG_SIDE_IMAGES);
     const [i, setI] = useState(0);
+    useEffect(() => { loadWallpapers().then(w => { if (w.length) setPhotos(w.map(x => x.url)); }); }, []);
     useEffect(() => {
         const t = setInterval(() => setI(x => (x + 1) % photos.length), 4000);
         return () => clearInterval(t);
-    }, []);
+    }, [photos]);
     return React.createElement("div", { style: { width: "100%", height: 220, borderRadius: 14, overflow: "hidden", position: "relative", boxShadow: "0 4px 16px rgba(0,0,0,0.15)" } },
         photos.map((src, idx) => React.createElement("img", { key: src, src: src, style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: idx === i ? 1 : 0, transition: "opacity 0.8s ease" } })),
         React.createElement("div", { style: { position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 } },
