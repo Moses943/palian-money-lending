@@ -1230,6 +1230,27 @@ function HRAlrt({ type, children }) {
 function hrTabBtn(active, onClick, label) {
     return (React.createElement("button", { onClick: onClick, style: { padding: "7px 11px", borderRadius: 6, border: `1px solid ${active ? HRT.gold500 : HRT.line}`, background: active ? HRT.navy800 : "#fff", color: active ? "#fff" : HRT.ink900, fontFamily: HRF.body, fontWeight: 600, fontSize: 11, cursor: "pointer" } }, label));
 }
+function HRBarChart({ data, color, height }) {
+    const h = height || 160;
+    const max = Math.max(1, ...data.map(d => d.value));
+    return React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 10, height: h, padding: "6px 4px 0", borderBottom: `1px solid ${HRT.line}`, overflowX: "auto" } },
+        data.map(d => React.createElement("div", { key: d.label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 34 } },
+            React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 10, color: HRT.ink900 } }, d.value),
+            React.createElement("div", { style: { width: 22, height: Math.max(3, (d.value / max) * (h - 40)), background: color || HRT.navy700, borderRadius: "3px 3px 0 0" } }),
+            React.createElement("div", { style: { fontFamily: HRF.body, fontSize: 9, color: HRT.ink600, transform: "rotate(-30deg)", transformOrigin: "top left", whiteSpace: "nowrap", marginTop: 4 } }, d.label))));
+}
+function HRLineChart({ data, color, height }) {
+    const h = height || 140, w = 320, pad = 24;
+    const max = Math.max(1, ...data.map(d => d.value)), min = Math.min(0, ...data.map(d => d.value));
+    const range = max - min || 1;
+    const step = (w - pad * 2) / Math.max(1, data.length - 1);
+    const pts = data.map((d, i) => [pad + i * step, h - pad - ((d.value - min) / range) * (h - pad * 2)]);
+    const path = pts.map((p, i) => (i === 0 ? "M" : "L") + p[0] + "," + p[1]).join(" ");
+    return React.createElement("svg", { viewBox: `0 0 ${w} ${h}`, style: { width: "100%", height: h } },
+        pts.map((p, i) => React.createElement("circle", { key: i, cx: p[0], cy: p[1], r: 3, fill: color || HRT.garnet700 })),
+        React.createElement("path", { d: path, fill: "none", stroke: color || HRT.garnet700, strokeWidth: 2 }),
+        data.map((d, i) => React.createElement("text", { key: i, x: pts[i][0], y: h - 4, fontSize: 9, fill: HRT.ink600, textAnchor: "middle", fontFamily: HRF.body }, d.label)));
+}
 /* ── PAYSLIP GENERATOR (ledger style) ────────────────────────────────────── */
 function PayslipGenerator({ db }) {
     const [sel, setSel] = useState("");
@@ -1480,6 +1501,9 @@ function HRSystem({ db, setDb, user }) {
     const deptCounts = {};
     db.staff.filter(s => isEffectivelyActive(s)).forEach(s => { const d = s.dept || s.roleLabel || s.role; deptCounts[d] = (deptCounts[d] || 0) + 1; });
     const maxDept = Math.max(1, ...Object.values(deptCounts));
+    const leaveByMonth = {};
+    (db.leaveRequests || []).forEach(r => { if (!r.startDate) return; const m = r.startDate.slice(0, 7); leaveByMonth[m] = (leaveByMonth[m] || 0) + 1; });
+    const leaveMonthData = Object.entries(leaveByMonth).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([m, c]) => ({ label: m.slice(5), value: c }));
     const tabDefs = isAccountsOnly
         ? [["payslips", "Payslips"], ["payroll", "Payroll"], ["finance", "Finance"]]
         : [["dash", "Dashboard"], ["staff", "Staff"], ...(user.role === "admin" || user.role === "hr" || user.role === "director" ? [["grades", "Grades"]] : []), ["payslips", "Payslips"], ["leave", "Leave"], ["payroll", "Payroll"], ["finance", "Finance"], ["org", "Org"], ["audit", "Audit"]];
@@ -1493,12 +1517,10 @@ function HRSystem({ db, setDb, user }) {
                 React.createElement(HRStatCard, { label: "Inactive", value: inactiveStaff, accent: HRT.garnet700 }),
                 React.createElement(HRStatCard, { label: "Leave Pending", value: pendingLeaveCt, accent: HRT.gold500 }),
                 React.createElement(HRStatCard, { label: "Branches", value: branchCt, accent: HRT.navy700 })),
-            React.createElement(HRPanel, { title: "Staff by Department / Role" }, Object.entries(deptCounts).map(([d, c]) => (React.createElement("div", { key: d, style: { marginBottom: 8 } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 } },
-                    React.createElement("span", { style: { color: HRT.ink600 } }, d),
-                    React.createElement("span", { style: { fontFamily: HRF.mono, color: HRT.ink900 } }, c)),
-                React.createElement("div", { style: { background: HRT.parchment100, borderRadius: 4, height: 8, overflow: "hidden" } },
-                    React.createElement("div", { style: { background: HRT.navy700, height: "100%", width: `${(c / maxDept * 100)}%` } })))))))),
+            React.createElement(HRPanel, { title: "Staff by Department / Role" },
+                React.createElement(HRBarChart, { data: Object.entries(deptCounts).map(([d, c]) => ({ label: d, value: c })), color: HRT.navy700 })),
+            leaveMonthData.length > 0 && React.createElement(HRPanel, { title: "Leave Requests by Month" },
+                React.createElement(HRLineChart, { data: leaveMonthData, color: HRT.garnet700 })))),
         tab === "staff" && (React.createElement("div", null,
             React.createElement(HRHeading, { eyebrow: "Register \u2014 Personnel", title: "Employee Directory" }),
             React.createElement(HRPanel, { title: "New Ledger Entry" },
@@ -2306,27 +2328,23 @@ function WDashboard({ db, requests, goto, isCEO }) {
     const collected = (db.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
     return React.createElement("div", { style: { display: "grid", gridTemplateColumns: window.innerWidth >= 900 ? "1fr 300px" : "1fr", gap: 16, alignItems: "start" } },
         React.createElement("div", null,
-            React.createElement("div", { style: { marginBottom: 16 } },
-                React.createElement("h2", { style: { color: C.navy, fontSize: 20, fontWeight: 800, margin: 0 } }, "Accounts Dashboard"),
-                React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Balances, disbursements, collections and the approval pipeline \u2014 all in one place")),
-            hasAccounts && totalFunds <= 0 && React.createElement(Alrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
-            hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 10 } },
-                React.createElement(StatCard, { label: "Total Balance", value: fmt(totalFunds), color: totalFunds <= 0 ? C.red : C.navy, small: true }),
-                React.createElement(StatCard, { label: "Disbursed", value: fmt(disbursed), color: C.blue, small: true }),
-                React.createElement(StatCard, { label: "Collections", value: fmt(collected), color: C.green, small: true })),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 } },
-                React.createElement(StatCard, { label: "Awaiting CEO", value: pendingCeo, color: C.gold }),
-                React.createElement(StatCard, { label: "Awaiting Director", value: pendingDirector, color: C.gold }),
-                React.createElement(StatCard, { label: "Fully Approved", value: fullyApproved, color: C.green }),
-                React.createElement(StatCard, { label: "Processed", value: processed, color: C.blue }),
-                React.createElement(StatCard, { label: "Pending Value", value: fmt(pendingValue), color: C.purple, small: true })),
+            React.createElement(HRHeading, { eyebrow: "Accounts \u2014 Overview", title: "Accounts Dashboard" }),
+            hasAccounts && totalFunds <= 0 && React.createElement(HRAlrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
+            hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(HRAlrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 16 } },
+                React.createElement(HRStatCard, { label: "Total Balance", value: fmt(totalFunds), accent: totalFunds <= 0 ? HRT.garnet700 : HRT.gold500 }),
+                React.createElement(HRStatCard, { label: "Disbursed", value: fmt(disbursed), accent: HRT.navy700 }),
+                React.createElement(HRStatCard, { label: "Collections", value: fmt(collected), accent: HRT.green700 }),
+                React.createElement(HRStatCard, { label: "Awaiting CEO", value: pendingCeo, accent: HRT.gold500 }),
+                React.createElement(HRStatCard, { label: "Awaiting Director", value: pendingDirector, accent: HRT.gold500 }),
+                React.createElement(HRStatCard, { label: "Fully Approved", value: fullyApproved, accent: HRT.green700 }),
+                React.createElement(HRStatCard, { label: "Processed", value: processed, accent: HRT.navy700 }),
+                React.createElement(HRStatCard, { label: "Pending Value", value: fmt(pendingValue), accent: HRT.garnet700 })),
             !isCEO && React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" } },
-                React.createElement(Btn, { onClick: () => goto("wapply"), color: C.navy }, "\u2795 New Withdrawal Request"),
-                React.createElement(Btn, { onClick: () => goto("wceo"), color: C.navy, style: { background: "#fff", color: C.navy, border: `1.5px solid ${C.navy}` } }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
+                React.createElement(HRBtn, { onClick: () => goto("wapply") }, "\u2795 New Withdrawal Request"),
+                React.createElement(HRGBtn, { onClick: () => goto("wceo") }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
             React.createElement(WProvinceRecoveryChart, { db: db }),
-            React.createElement(Card, null,
-                React.createElement(ST, null, "Recent Requests"),
+            React.createElement(HRPanel, { title: "Recent Requests" },
                 React.createElement(WRequestTable, { requests: recent }))),
         React.createElement(WPhotoSlider, null));
 }
@@ -2613,40 +2631,30 @@ function WAccountsManager({ db, setDb, user }) {
         setNote(x => ({ ...x, [accountId]: "" }));
     }
     return React.createElement("div", null,
-        React.createElement(Card, { style: { background: total <= 0 ? "#FBE2E2" : total < MONEY_LOW_THRESHOLD ? "#FDF3D9" : "#EAF7EE", borderLeft: `5px solid ${total <= 0 ? C.red : total < MONEY_LOW_THRESHOLD ? C.gold : C.green}` } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 } },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted, fontWeight: 700 } }, "TOTAL OUTSTANDING BALANCE"),
-                    React.createElement("div", { style: { fontSize: 26, fontWeight: 900, color: C.navy } }, fmt(total))),
-                total <= 0
-                    ? React.createElement("div", { style: { color: C.red, fontWeight: 800, fontSize: 13 } }, "\u26A0\uFE0F OUT OF FUNDS \u2014 the company may not be able to disburse loans")
-                    : total < MONEY_LOW_THRESHOLD
-                        ? React.createElement("div", { style: { color: "#8A6D0B", fontWeight: 800, fontSize: 13 } }, "\u26A0\uFE0F Funds running low")
-                        : React.createElement("div", { style: { color: C.green, fontWeight: 800, fontSize: 13 } }, "\u2705 Funds healthy"))),
+        React.createElement(HRHeading, { eyebrow: "Accounts", title: "Money Accounts" }),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 } },
-            React.createElement(StatCard, { label: "Total Disbursed", value: fmt(totalDisbursed), color: C.blue }),
-            React.createElement(StatCard, { label: "Total Collections", value: fmt(totalCollections), color: C.green })),
+            React.createElement(HRStatCard, { label: "Total Outstanding Balance", value: fmt(total), accent: total <= 0 ? HRT.garnet700 : total < MONEY_LOW_THRESHOLD ? HRT.gold500 : HRT.green700, sub: total <= 0 ? "\u26A0\uFE0F Out of funds" : total < MONEY_LOW_THRESHOLD ? "\u26A0\uFE0F Funds running low" : "\u2705 Funds healthy" }),
+            React.createElement(HRStatCard, { label: "Total Disbursed", value: fmt(totalDisbursed), accent: HRT.navy700 }),
+            React.createElement(HRStatCard, { label: "Total Collections", value: fmt(totalCollections), accent: HRT.green700 })),
         React.createElement(WProvinceRecoveryChart, { db: db }),
-        React.createElement(Card, null,
-            React.createElement(ST, null, "Add Account"),
-            React.createElement(Inp, { label: "Account name", value: newName, onChange: e => setNewName(e.target.value), placeholder: "e.g. FNB Main Account, Petty Cash, Mobile Money" }),
-            React.createElement(Btn, { onClick: addAccount, color: C.navy }, "\u2795 Add Account")),
+        React.createElement(HRPanel, { title: "Add Account" },
+            React.createElement(HRInp, { label: "Account name", value: newName, onChange: e => setNewName(e.target.value), placeholder: "e.g. FNB Main Account, Petty Cash, Mobile Money" }),
+            React.createElement(HRBtn, { onClick: addAccount }, "\u2795 Add Account")),
         accounts.length === 0
-            ? React.createElement(Card, { style: { textAlign: "center", color: C.muted, padding: 32 } }, "No accounts yet \u2014 add one above.")
-            : accounts.map(a => React.createElement(Card, { key: a.id },
+            ? React.createElement(HRPanel, null, React.createElement("div", { style: { textAlign: "center", color: HRT.ink600, padding: 24 } }, "No accounts yet \u2014 add one above."))
+            : accounts.map(a => React.createElement(HRPanel, { key: a.id },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 } },
-                    React.createElement("strong", { style: { color: C.navy, fontSize: 15 } }, a.name),
-                    React.createElement("span", { style: { fontWeight: 800, fontSize: 16, color: a.balance <= 0 ? C.red : C.navy } }, fmt(a.balance))),
+                    React.createElement("strong", { style: { fontFamily: HRF.display, color: HRT.ink900, fontSize: 15 } }, a.name),
+                    React.createElement("span", { style: { fontFamily: HRF.mono, fontWeight: 700, fontSize: 16, color: a.balance <= 0 ? HRT.garnet700 : HRT.ink900 } }, fmt(a.balance))),
                 React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
-                    React.createElement(Inp, { label: "Amount (K)", type: "number", value: amt[a.id] || "", onChange: e => setAmt(x => ({ ...x, [a.id]: e.target.value })), placeholder: "0.00" }),
-                    React.createElement(Sel, { label: "Category", value: cat[a.id] || "General", onChange: e => setCat(x => ({ ...x, [a.id]: e.target.value })) },
+                    React.createElement(HRInp, { label: "Amount (K)", type: "number", value: amt[a.id] || "", onChange: e => setAmt(x => ({ ...x, [a.id]: e.target.value })), placeholder: "0.00" }),
+                    React.createElement(HRSel, { label: "Category", value: cat[a.id] || "General", onChange: e => setCat(x => ({ ...x, [a.id]: e.target.value })) },
                         ["General", "Disbursement", "Collection"].map(c => React.createElement("option", { key: c, value: c }, c))),
-                    React.createElement(Inp, { label: "Note (optional)", value: note[a.id] || "", onChange: e => setNote(x => ({ ...x, [a.id]: e.target.value })), placeholder: "e.g. Client repayment" })),
+                    React.createElement(HRInp, { label: "Note (optional)", value: note[a.id] || "", onChange: e => setNote(x => ({ ...x, [a.id]: e.target.value })), placeholder: "e.g. Client repayment" })),
                 React.createElement("div", { style: { display: "flex", gap: 8 } },
-                    React.createElement(Btn, { sm: true, color: C.green, style: { flex: 1 }, onClick: () => adjust(a.id, "deposit") }, "\u2795 Deposit"),
-                    React.createElement(Btn, { sm: true, color: C.red, style: { flex: 1 }, onClick: () => adjust(a.id, "withdrawal") }, "\u2796 Withdraw")))),
-        React.createElement(Card, null,
-            React.createElement(ST, null, "Recent Transactions"),
+                    React.createElement(HRBtn, { sm: true, bg: HRT.green700, style: { flex: 1 }, onClick: () => adjust(a.id, "deposit") }, "\u2795 Deposit"),
+                    React.createElement(HRBtn, { sm: true, bg: HRT.garnet700, style: { flex: 1 }, onClick: () => adjust(a.id, "withdrawal") }, "\u2796 Withdraw")))),
+        React.createElement(HRPanel, { title: "Recent Transactions" },
             React.createElement(WMoneyTxnTable, { txns: txns.slice(0, 15), accounts: accounts })));
 }
 function WProvinceRecoveryChart({ db }) {
@@ -2659,14 +2667,10 @@ function WProvinceRecoveryChart({ db }) {
         const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
         return { province: p, recovery };
     }).sort((a, b) => b.recovery - a.recovery);
-    return React.createElement(Card, null,
-        React.createElement(ST, null, "Collection Rate by Province"),
-        rows.map(r => React.createElement("div", { key: r.province, style: { marginBottom: 10 } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 } },
-                React.createElement("span", { style: { fontWeight: 600, color: C.navy } }, r.province),
-                React.createElement("span", { style: { fontWeight: 700, color: r.recovery >= 100 ? C.green : r.recovery >= 70 ? C.gold : C.red } }, `${r.recovery.toFixed(1)}%`)),
-            React.createElement("div", { style: { background: "#EEE", borderRadius: 6, height: 10, overflow: "hidden" } },
-                React.createElement("div", { style: { width: `${Math.min(r.recovery, 100)}%`, height: "100%", background: r.recovery >= 100 ? C.green : r.recovery >= 70 ? C.gold : C.red } })))));
+    return React.createElement(HRPanel, { title: "Collection Rate by Province" },
+        React.createElement(HRBarChart, { data: rows.map(r => ({ label: r.province, value: Math.round(r.recovery) })), color: HRT.navy700 }),
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 10 } },
+            rows.map(r => React.createElement("div", { key: r.province, style: { fontFamily: HRF.mono, fontSize: 10, color: r.recovery >= 100 ? HRT.green700 : r.recovery >= 70 ? HRT.gold500 : HRT.garnet700 } }, `${r.province}: ${r.recovery.toFixed(1)}%`))));
 }
 function WMoneyTxnTable({ txns, accounts }) {
     if (txns.length === 0) return React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No transactions yet.");
@@ -4229,24 +4233,25 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" },
         ...(canAdmin ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : []),
     ];
-    return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: ACC.bg, minHeight: "100vh" } },
-        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: ACC.purpleDeep, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50 } },
-            "\uD83C\uDFE6 ACCOUNTS SYSTEM \u2014 PALIAN MONEY LENDING \u2014 ",
+    return (React.createElement("div", { style: { fontFamily: HRF.body, background: HRT.parchment50, minHeight: "100vh" } },
+        React.createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" }),
+        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: HRT.navy950, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50, fontFamily: HRF.mono, letterSpacing: "0.06em" } },
+            "ACCOUNTS SYSTEM \u2014 PALIAN MONEY LENDING \u2014 ",
             user.name),
         React.createElement(AccSidebar, { allTabs: NAV, tab: page, setTab: setPage, user: user, onSwitch: onSwitch, onLogout: onLogout }),
-        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: `linear-gradient(135deg,${ACC.purpleDeep},${ACC.purple})`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(0,0,0,0.25)" } },
+        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: HRT.navy800, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(0,0,0,0.25)" } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     React.createElement(PalianLogo, { size: 34 }),
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "ACCOUNTS SYSTEM")),
+                    React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 15, color: HRT.gold500, letterSpacing: 0.5 } }, "Accounts System")),
                 React.createElement("div", { style: { textAlign: "right" } },
                     React.createElement("div", { style: { fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 700 } }, user.name),
-                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)" } }, user.roleLabel || user.role),
+                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)" } }, user.roleLabel || user.role),
                     React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
-                        React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
-                        React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))))),
-        React.createElement("div", { className: "pw-topnav-mobile", style: { background: ACC.purpleDeep, display: "flex", overflowX: "auto", borderBottom: `3px solid ${ACC.violet}`, position: "relative", zIndex: 50 } },
-            NAV.map(t => (React.createElement("button", { key: t.id, onClick: () => setPage(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: page === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: page === t.id ? `3px solid ${ACC.violet}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", flexShrink: 0 } }, t.lb)))),
+                        React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
+                        React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))))),
+        React.createElement("div", { className: "pw-topnav-mobile", style: { background: HRT.navy950, display: "flex", overflowX: "auto", borderBottom: `3px solid ${HRT.gold500}`, position: "relative", zIndex: 50 } },
+            NAV.map(t => (React.createElement("button", { key: t.id, onClick: () => setPage(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: page === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: page === t.id ? `3px solid ${HRT.gold500}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", flexShrink: 0 } }, t.lb)))),
         React.createElement("div", { className: "pw-main-content", style: { padding: 14, maxWidth: 720, margin: "0 auto", position: "relative", zIndex: 1 } },
             WDL_PAGE_IDS.includes(page) && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user, page: page, setPage: setPage, selectedId: selectedId, setSelectedId: setSelectedId }),
             page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
@@ -4266,16 +4271,14 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
 }
 function AccSidebar({ allTabs, tab, setTab, user, onSwitch, onLogout }) {
-    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: "#0C1730", zIndex: 300, overflowY: "auto" } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "20px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)" } },
-            React.createElement(PalianLogo, { size: 32 }),
-            React.createElement("div", null,
-                React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "PALIAN"),
-                React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 1 } }, "MONEY LENDING"))),
-        React.createElement("div", { style: { flex: 1, padding: "10px 10px", display: "flex", flexDirection: "column", gap: 2 } },
-            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? "rgba(255,111,0,0.16)" : "transparent", borderLeft: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.6)", fontWeight: tab === t.id ? 700 : 600, fontSize: 12.5 } },
+    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: HRT.navy950, zIndex: 300, overflowY: "auto", fontFamily: HRF.body } },
+        React.createElement("div", { style: { padding: "22px 20px 16px" } },
+            React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 22, color: HRT.gold500 } }, "Palian"),
+            React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 } }, "Money Lending")),
+        React.createElement("div", { style: { flex: 1, padding: "6px 12px", display: "flex", flexDirection: "column", gap: 4 } },
+            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", textAlign: "left", padding: "11px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? HRT.navy700 : "transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.55)", fontWeight: tab === t.id ? 700 : 500, fontSize: 13, fontFamily: HRF.body } },
                 React.createElement("span", null, t.lb)))),
-        React.createElement("div", { style: { padding: 14, borderTop: "1px solid rgba(255,255,255,0.08)" } },
+        React.createElement("div", { style: { padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.1)" } },
             React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
             React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", marginBottom: 8 } }, user.roleLabel || user.role),
             React.createElement("div", { style: { display: "flex", gap: 10 } },
