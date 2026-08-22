@@ -1922,6 +1922,131 @@ function AdminBranchView({ db }) {
                 React.createElement("div", { style: { fontWeight: 700, color: l === "Defaulted" && r.defaulted > 0 ? C.red : C.text } }, v))))))))
     );
 }
+// ── EXECUTIVE COMMAND CENTER (CEO & Director) ───────────────────────────────
+// Aggregates existing data (loans, payments, staff, clients, withdrawal
+// requests, daily reports, payment plans, deletions) into one CEO/Director
+// view. Does NOT duplicate any records or tables — reads the same `db`
+// object already loaded by loadDB(). Financial dual-approval (Director →
+// CEO) is enforced by the existing Accounts Withdrawal system; this screen
+// surfaces it and links straight into it rather than re-implementing it.
+function ExecKPI({ label, value, color, icon }) { return React.createElement(StatCard, { label: label, value: value, color: color, icon: icon }); }
+function ExecAttention({ items }) {
+    return React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}`, background: "#FAF5FF" } },
+        React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Attention Required"),
+        items.length === 0
+            ? React.createElement(Alrt, { type: "success" }, "\u2705 Nothing critical right now \u2014 all monitored areas are within range.")
+            : React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                items.map((it, i) => React.createElement("div", {
+                    key: i, onClick: it.onClick,
+                    style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 10px", background: "#fff", borderRadius: 8, cursor: it.onClick ? "pointer" : "default", borderLeft: `3px solid ${it.level === "critical" ? C.red : C.amber}` }
+                },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, (it.level === "critical" ? "\uD83D\uDD34 " : "\uD83D\uDFE1 ") + it.label),
+                    React.createElement("span", { style: { background: it.level === "critical" ? C.red : C.amber, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, it.value)))));
+}
+function execTabBtn(active, onClick, label) {
+    return React.createElement("button", { onClick: onClick, style: { padding: "8px 14px", borderRadius: 20, border: `1.5px solid ${active ? C.navy : C.border}`, background: active ? C.navy : "#fff", color: active ? "#fff" : C.text, fontWeight: 700, fontSize: 12, cursor: "pointer", marginRight: 8, marginBottom: 8 } }, label);
+}
+function ExecutiveCommandCenter({ db, user, onSwitch, page, setPage }) {
+    const isCEO = user.role === "ceo";
+    const isDirector = user.role === "director";
+    const { loans, payments, clients, staff } = db;
+    const allPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const allDue = loans.reduce((s, l) => s + l.totalDue, 0);
+    const allOut = loans.reduce((s, l) => s + getBal(l, payments), 0);
+    const rec = allDue > 0 ? (allPaid / allDue * 100) : 0;
+    const countSt = s => loans.filter(l => getSt(l, payments) === s).length;
+    const activeStaff = staff.filter(isEffectivelyActive).length;
+    const branchesActive = new Set(staff.filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch)).size;
+    const provincesActive = new Set(loans.map(l => l.province).filter(Boolean)).size;
+    const wdl = db.withdrawalRequests || [];
+    const wdlAwaitingCEO = wdl.filter(w => w.status === "pending_ceo");
+    const wdlAwaitingDirector = wdl.filter(w => w.status === "pending_director");
+    const wdlAwaitingCEOAmt = wdlAwaitingCEO.reduce((s, w) => s + (w.amount || 0), 0);
+    const wdlAwaitingDirectorAmt = wdlAwaitingDirector.reduce((s, w) => s + (w.amount || 0), 0);
+    const myQueue = isCEO ? wdlAwaitingCEO : isDirector ? wdlAwaitingDirector : [];
+    const pendingLoans = loans.filter(l => l.approvalStatus === "Pending").length;
+    const pendingReports = (db.dailyReports || []).filter(r => r.status === "Pending").length;
+    const pendingDeletions = (clients || []).filter(c => c.deletionRequested).length;
+    const pendingPlans = (db.paymentPlans || []).filter(p => p.status === "Pending").length;
+    const provinceRows = Object.keys(PROVINCES).map(p => {
+        const towns = PROVINCES[p].towns.map(t => t[0]);
+        const pLoans = loans.filter(l => l.province === p);
+        const pPayments = payments.filter(pm => towns.includes(pm.branch));
+        const collected = pPayments.reduce((s, pm) => s + pm.amount, 0);
+        const totalDue = pLoans.reduce((s, l) => s + l.totalDue, 0);
+        const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
+        return { province: p, recovery, loans: pLoans.length };
+    });
+    const provincesBelowTarget = provinceRows.filter(r => r.loans > 0 && r.recovery < 50);
+    const allBranches = [...new Set(staff.filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch))];
+    const branchRows = allBranches.map(b => branchStats(db, b));
+    const branchesBelowTarget = branchRows.filter(r => r.loans > 0 && r.recovery < 50);
+    const attentionItems = [
+        myQueue.length > 0 && { label: `Financial request${myQueue.length !== 1 ? "s" : ""} awaiting your ${isCEO ? "CEO" : "Director"} approval`, value: myQueue.length, level: "critical", onClick: () => setPage("approvals") },
+        provincesBelowTarget.length > 0 && { label: "Province(s) below 50% recovery", value: provincesBelowTarget.length, level: "critical", onClick: () => setPage("provinces") },
+        branchesBelowTarget.length > 0 && { label: "Branch(es) below 50% recovery", value: branchesBelowTarget.length, level: "warn", onClick: () => setPage("branches") },
+        countSt("Defaulted") > 0 && { label: "Defaulted loans company-wide", value: countSt("Defaulted"), level: "critical" },
+        pendingLoans > 0 && { label: "Loans awaiting approval (operational)", value: pendingLoans, level: "warn" },
+        pendingReports > 0 && { label: "Daily reports awaiting approval", value: pendingReports, level: "warn" },
+        pendingDeletions > 0 && { label: "Client deletion requests", value: pendingDeletions, level: "warn" },
+        pendingPlans > 0 && { label: "Payment plan requests", value: pendingPlans, level: "warn" },
+    ].filter(Boolean);
+    return React.createElement("div", null,
+        React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
+                React.createElement(PalianLogo, { size: 30 }),
+                React.createElement("span", { style: { fontSize: 12, fontWeight: 800, letterSpacing: 0.5 } }, isCEO ? "CEO EXECUTIVE COMMAND CENTER" : "DIRECTOR OPERATIONS CENTER")),
+            React.createElement("div", { style: { fontSize: 11, opacity: 0.7 } }, `Good day, ${user.name.split(" ")[0]} \u00B7 ${new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`)),
+        React.createElement("div", { style: { marginBottom: 10 } },
+            execTabBtn(page === "home", () => setPage("home"), "\uD83C\uDFE0 Overview"),
+            execTabBtn(page === "approvals", () => setPage("approvals"), `\u2705 Approvals (${myQueue.length})`),
+            execTabBtn(page === "provinces", () => setPage("provinces"), "\uD83C\uDFDB\uFE0F Provinces"),
+            execTabBtn(page === "branches", () => setPage("branches"), "\uD83C\uDFE2 Branches")),
+        page === "home" && React.createElement(React.Fragment, null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [
+                ["Portfolio Due", fmt(allDue), C.navy, "\uD83D\uDCB0"],
+                ["Outstanding", fmt(allOut), C.orange, "\uD83D\uDCE4"],
+                ["Recovery Rate", rec.toFixed(1) + "%", rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red, "\uD83D\uDCC8"],
+                ["Active Clients", clients.length, C.blue, "\uD83D\uDC65"],
+                ["Staff", activeStaff, C.purple, "\uD83D\uDC64"],
+                ["Provinces / Branches", `${provincesActive}/${branchesActive}`, C.teal, "\uD83C\uDFDB\uFE0F"],
+            ].map(([l, v, c, i]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c, icon: i }))),
+            React.createElement(ExecAttention, { items: attentionItems }),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.blue }, "\uD83D\uDCB3 Pending Financial Authorizations"),
+                React.createElement(IR, { label: "Awaiting CEO Approval", value: `${wdlAwaitingCEO.length} \u00B7 ${fmt(wdlAwaitingCEOAmt)}` }),
+                React.createElement(IR, { label: "Awaiting Director Approval", value: `${wdlAwaitingDirector.length} \u00B7 ${fmt(wdlAwaitingDirectorAmt)}` }),
+                React.createElement(Alrt, { type: "info" }, "Payments are LOCKED until both Director and CEO approve \u2014 enforced by the Accounts Withdrawal system."),
+                React.createElement(Btn, { color: C.navy, full: true, onClick: onSwitch }, "Open Accounts \u2192 Withdrawal Approvals")),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.teal }, "\uD83D\uDCCA Loan Book Snapshot"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 } }, [
+                    ["Active", countSt("Active"), C.green],
+                    ["Overdue", countSt("Overdue"), C.orange],
+                    ["Defaulted", countSt("Defaulted"), C.red],
+                ].map(([l, v, c]) => React.createElement("div", { key: l, style: { textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 10, color: C.muted } }, l),
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 16, color: c } }, v))))),
+            React.createElement(TrustBadge, null)),
+        page === "approvals" && React.createElement(Card, null,
+            React.createElement(ST, null, "\u2705 Executive Approval Center"),
+            React.createElement(Alrt, { type: "info" }, "Financial (withdrawal) requests are decided in the Accounts module, which already enforces Director \u2192 CEO dual sign-off before Finance can release funds. Listed here for visibility."),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 } },
+                myQueue.map(w => React.createElement("div", { key: w.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
+                    React.createElement("div", { style: { fontSize: 11, color: C.muted } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`))),
+                myQueue.length === 0 && React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "Nothing pending your approval right now.")),
+            React.createElement(Btn, { color: C.navy, full: true, onClick: onSwitch }, "Open Accounts \u2192 Decide on Requests"),
+            React.createElement("div", { style: { marginTop: 16 } },
+                React.createElement(ST, { color: C.purple }, "Other Operational Approvals (for awareness)"),
+                React.createElement(IR, { label: "Loans pending approval", value: pendingLoans }),
+                React.createElement(IR, { label: "Daily reports pending approval", value: pendingReports }),
+                React.createElement(IR, { label: "Client deletion requests", value: pendingDeletions }),
+                React.createElement(IR, { label: "Payment plan requests", value: pendingPlans }))),
+        page === "provinces" && React.createElement(AdminProvincialView, { db: db }),
+        page === "branches" && React.createElement(AdminBranchView, { db: db }));
+}
+
 function HODashboard({ db, user, onReport, onViewOverdue }) {
     const [showBal, setShowBal] = useState(true);
     const { loans, payments, branchFunds, bankBalance } = db;
@@ -4580,6 +4705,7 @@ function App() {
     const [sessionLogId, setSessionLogId] = useState(null);
     const [module, setModule] = useState(null); // 'loans' | 'transport'
     const [tab, setTab] = useState("dashboard");
+    const [execPage, setExecPage] = useState("home");
     const [prefNrc, setPrefNrc] = useState("");
     const [finReport, setFinReport] = useState(null); // {loan, client}
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -4672,7 +4798,7 @@ function App() {
     // already exclude these roles too, so this isn't the only guard.
     const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
-    const extraTabs = { accounts: [{ id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
+    const extraTabs = { accounts: [{ id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "exec", lb: "🎯 Executive" }, { id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "exec", lb: "🎯 Executive" }, { id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
@@ -4718,6 +4844,7 @@ function App() {
             tab === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             tab === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             tab === "settings" && (user.role === "admin" || user.role === "director") && React.createElement(SettingsTab, { user: user }),
+            tab === "exec" && (user.role === "ceo" || user.role === "director") && React.createElement(ExecutiveCommandCenter, { db: db, user: user, onSwitch: () => setModule(null), page: execPage, setPage: setExecPage }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
