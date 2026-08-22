@@ -1929,31 +1929,99 @@ function AdminBranchView({ db }) {
 // object already loaded by loadDB(). Financial dual-approval (Director →
 // CEO) is enforced by the existing Accounts Withdrawal system; this screen
 // surfaces it and links straight into it rather than re-implementing it.
-function ExecKPI({ label, value, color, icon }) { return React.createElement(StatCard, { label: label, value: value, color: color, icon: icon }); }
+// ── EXECUTIVE COMMAND CENTER (CEO & Director) ───────────────────────────────
+// Dedicated wide desktop-sidebar console for the ceo/director roles. Reads
+// the same `db` object already loaded by loadDB() — no new tables, no
+// duplicated records. Financial dual-approval (Director -> CEO) is enforced
+// by the existing Accounts Withdrawal system; this console surfaces it and
+// links straight into it rather than re-implementing the approve/reject.
+// Sections marked ready:false are structural placeholders for modules that
+// don't exist yet in the system (Projects, M&E, Risks, Executive Tasks,
+// Decisions Register, Documents) — they need new Supabase tables, built on
+// request rather than guessed at.
+const EXEC_NAV = [
+    { id: "ceo-dash", label: "CEO Dashboard", icon: "\uD83D\uDCCA", ready: true },
+    { id: "dir-dash", label: "Director Dashboard", icon: "\uD83E\uDDED", ready: true },
+    { id: "approvals", label: "Approval Center", icon: "\u2705", ready: true, badge: true },
+    { id: "company", label: "Company Overview", icon: "\uD83C\uDFE2", ready: true },
+    { id: "provinces", label: "Provinces", icon: "\uD83C\uDFDB\uFE0F", ready: true },
+    { id: "branches", label: "Branches", icon: "\uD83C\uDFE6", ready: true },
+    { id: "performance", label: "Performance", icon: "\uD83D\uDCC8", ready: true },
+    { id: "loans", label: "Loans Overview", icon: "\uD83D\uDCC4", ready: true },
+    { id: "recovery", label: "Recovery Overview", icon: "\u267B\uFE0F", ready: true },
+    { id: "projects", label: "Projects Overview", icon: "\uD83D\uDCC1", ready: false },
+    { id: "hr", label: "HR Overview", icon: "\uD83D\uDC65", ready: true },
+    { id: "me", label: "M&E Overview", icon: "\uD83D\uDCD0", ready: false },
+    { id: "finance", label: "Finance Overview", icon: "\uD83D\uDCB3", ready: true },
+    { id: "risks", label: "Risks & Compliance", icon: "\u26A0\uFE0F", ready: false },
+    { id: "tasks", label: "Executive Tasks", icon: "\uD83D\uDDC2\uFE0F", ready: false },
+    { id: "decisions", label: "Decisions Register", icon: "\uD83D\uDCDD", ready: false },
+    { id: "reports", label: "Reports", icon: "\uD83D\uDCD1", ready: false },
+    { id: "documents", label: "Documents", icon: "\uD83D\uDDC4\uFE0F", ready: false },
+    { id: "notifications", label: "Notifications", icon: "\uD83D\uDD14", ready: true },
+    { id: "audit", label: "Audit Trail", icon: "\uD83D\uDD75\uFE0F", ready: true },
+    { id: "settings", label: "System Settings", icon: "\u2699\uFE0F", ready: false },
+];
+function ExecSoon({ label }) {
+    return React.createElement(Card, { style: { textAlign: "center", padding: 40 } },
+        React.createElement("div", { style: { fontSize: 34, marginBottom: 10 } }, "\uD83D\uDEA7"),
+        React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: C.navy, marginBottom: 6 } }, `${label} \u2014 Coming Soon`),
+        React.createElement("div", { style: { fontSize: 12, color: C.muted, maxWidth: 420, margin: "0 auto" } }, `This section needs its own database module before it can show real data. It will connect here once built \u2014 ask any time to have it added.`));
+}
+function ExecBarChart({ data, height }) {
+    const h = height || 160;
+    const max = Math.max(1, ...data.map(d => d.value));
+    return React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 16, height: h, padding: "6px 4px 0", borderBottom: `1px solid ${C.border}`, overflowX: "auto" } },
+        data.map(d => React.createElement("div", { key: d.label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 60 } },
+            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: C.navy } }, d.display || d.value),
+            React.createElement("div", { style: { width: 34, height: Math.max(3, (d.value / max) * (h - 40)), background: d.color || C.blue, borderRadius: "4px 4px 0 0" } }),
+            React.createElement("div", { style: { fontSize: 10, color: C.muted, whiteSpace: "nowrap", marginTop: 2 } }, d.label))));
+}
+function ExecProgressRow({ label, pct, sub }) {
+    const status = pct >= 85 ? ["Good", C.green] : pct >= 70 ? ["Needs Attention", C.amber] : pct >= 50 ? ["At Risk", C.orange] : ["Critical", C.red];
+    return React.createElement("div", { style: { marginBottom: 12 } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 } },
+            React.createElement("span", { style: { fontWeight: 700, color: C.text } }, label),
+            React.createElement("span", { style: { color: status[1], fontWeight: 800 } }, status[0])),
+        React.createElement("div", { style: { background: C.light, borderRadius: 8, height: 10, overflow: "hidden" } },
+            React.createElement("div", { style: { width: `${Math.min(100, Math.max(2, pct))}%`, height: "100%", background: status[1], borderRadius: 8 } })),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted, marginTop: 2 } },
+            React.createElement("span", null, sub || ""),
+            React.createElement("span", null, pct.toFixed(1) + "%")));
+}
 function ExecAttention({ items }) {
     return React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}`, background: "#FAF5FF" } },
         React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Attention Required"),
         items.length === 0
-            ? React.createElement(Alrt, { type: "success" }, "\u2705 Nothing critical right now \u2014 all monitored areas are within range.")
+            ? React.createElement(Alrt, { type: "success" }, "\u2705 Nothing critical right now.")
             : React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
                 items.map((it, i) => React.createElement("div", {
                     key: i, onClick: it.onClick,
                     style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 10px", background: "#fff", borderRadius: 8, cursor: it.onClick ? "pointer" : "default", borderLeft: `3px solid ${it.level === "critical" ? C.red : C.amber}` }
                 },
-                    React.createElement("span", { style: { fontSize: 13, fontWeight: 600 } }, (it.level === "critical" ? "\uD83D\uDD34 " : "\uD83D\uDFE1 ") + it.label),
-                    React.createElement("span", { style: { background: it.level === "critical" ? C.red : C.amber, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 12 } }, it.value)))));
+                    React.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, (it.level === "critical" ? "\uD83D\uDD34 " : "\uD83D\uDFE1 ") + it.label),
+                    React.createElement("span", { style: { background: it.level === "critical" ? C.red : C.amber, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 11 } }, it.value)))));
 }
-function execTabBtn(active, onClick, label) {
-    return React.createElement("button", { onClick: onClick, style: { padding: "8px 14px", borderRadius: 20, border: `1.5px solid ${active ? C.navy : C.border}`, background: active ? C.navy : "#fff", color: active ? "#fff" : C.text, fontWeight: 700, fontSize: 12, cursor: "pointer", marginRight: 8, marginBottom: 8 } }, label);
+function ExecKPI({ label, value, sub, color, icon }) {
+    return React.createElement("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 2px 8px rgba(15,45,92,0.08)", borderTop: `4px solid ${color || C.navy}`, minWidth: 130 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, color: C.muted, fontSize: 10, fontWeight: 700, marginBottom: 6 } }, icon, " ", label.toUpperCase()),
+        React.createElement("div", { style: { fontSize: 18, fontWeight: 900, color: C.navy } }, value),
+        sub && React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 2 } }, sub));
 }
-function ExecutiveCommandCenter({ db, user, onSwitch, page, setPage }) {
+function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
-    const isDirector = user.role === "director";
+    const [page, setPage] = useState(isCEO ? "ceo-dash" : "dir-dash");
+    const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
+    useEffect(() => { const h = () => setIsWide(window.innerWidth >= 1000); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
     const { loans, payments, clients, staff } = db;
     const allPaid = payments.reduce((s, p) => s + p.amount, 0);
     const allDue = loans.reduce((s, l) => s + l.totalDue, 0);
     const allOut = loans.reduce((s, l) => s + getBal(l, payments), 0);
+    const allApplied = loans.reduce((s, l) => s + (l.principal || 0), 0);
+    const allDisbursed = loans.filter(l => l.approvalStatus === "Approved" || l.disburseDate).reduce((s, l) => s + (l.principal || 0), 0);
+    const interestExpected = loans.reduce((s, l) => s + (l.interest || 0), 0);
     const rec = allDue > 0 ? (allPaid / allDue * 100) : 0;
+    const collRate = allApplied > 0 ? (allPaid / allApplied * 100) : 0;
     const countSt = s => loans.filter(l => getSt(l, payments) === s).length;
     const activeStaff = staff.filter(isEffectivelyActive).length;
     const branchesActive = new Set(staff.filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch)).size;
@@ -1963,11 +2031,12 @@ function ExecutiveCommandCenter({ db, user, onSwitch, page, setPage }) {
     const wdlAwaitingDirector = wdl.filter(w => w.status === "pending_director");
     const wdlAwaitingCEOAmt = wdlAwaitingCEO.reduce((s, w) => s + (w.amount || 0), 0);
     const wdlAwaitingDirectorAmt = wdlAwaitingDirector.reduce((s, w) => s + (w.amount || 0), 0);
-    const myQueue = isCEO ? wdlAwaitingCEO : isDirector ? wdlAwaitingDirector : [];
+    const myQueue = isCEO ? wdlAwaitingCEO : wdlAwaitingDirector;
     const pendingLoans = loans.filter(l => l.approvalStatus === "Pending").length;
     const pendingReports = (db.dailyReports || []).filter(r => r.status === "Pending").length;
     const pendingDeletions = (clients || []).filter(c => c.deletionRequested).length;
     const pendingPlans = (db.paymentPlans || []).filter(p => p.status === "Pending").length;
+    const pendingLeave = (db.leaveRequests || []).filter(l => l.status === "Pending").length;
     const provinceRows = Object.keys(PROVINCES).map(p => {
         const towns = PROVINCES[p].towns.map(t => t[0]);
         const pLoans = loans.filter(l => l.province === p);
@@ -1975,78 +2044,254 @@ function ExecutiveCommandCenter({ db, user, onSwitch, page, setPage }) {
         const collected = pPayments.reduce((s, pm) => s + pm.amount, 0);
         const totalDue = pLoans.reduce((s, l) => s + l.totalDue, 0);
         const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
-        return { province: p, recovery, loans: pLoans.length };
+        return { province: p, recovery, loans: pLoans.length, collected, portfolio: pLoans.reduce((s, l) => s + (l.principal || 0), 0) };
     });
-    const provincesBelowTarget = provinceRows.filter(r => r.loans > 0 && r.recovery < 50);
+    const activeProvinceRows = provinceRows.filter(r => r.loans > 0).sort((a, b) => a.recovery - b.recovery);
+    const provincesBelowTarget = activeProvinceRows.filter(r => r.recovery < 65);
     const allBranches = [...new Set(staff.filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch))];
     const branchRows = allBranches.map(b => branchStats(db, b));
-    const branchesBelowTarget = branchRows.filter(r => r.loans > 0 && r.recovery < 50);
+    const activeBranchRows = branchRows.filter(r => r.loans > 0).sort((a, b) => b.outstanding + b.collected - (a.outstanding + a.collected));
+    const branchesBelowTarget = branchRows.filter(r => r.loans > 0 && r.recovery < 65);
     const attentionItems = [
         myQueue.length > 0 && { label: `Financial request${myQueue.length !== 1 ? "s" : ""} awaiting your ${isCEO ? "CEO" : "Director"} approval`, value: myQueue.length, level: "critical", onClick: () => setPage("approvals") },
-        provincesBelowTarget.length > 0 && { label: "Province(s) below 50% recovery", value: provincesBelowTarget.length, level: "critical", onClick: () => setPage("provinces") },
-        branchesBelowTarget.length > 0 && { label: "Branch(es) below 50% recovery", value: branchesBelowTarget.length, level: "warn", onClick: () => setPage("branches") },
-        countSt("Defaulted") > 0 && { label: "Defaulted loans company-wide", value: countSt("Defaulted"), level: "critical" },
-        pendingLoans > 0 && { label: "Loans awaiting approval (operational)", value: pendingLoans, level: "warn" },
+        provincesBelowTarget.length > 0 && { label: "Province(s) below target (65% recovery)", value: provincesBelowTarget.length, level: "critical", onClick: () => setPage("provinces") },
+        branchesBelowTarget.length > 0 && { label: "Branch(es) below target (65% recovery)", value: branchesBelowTarget.length, level: "warn", onClick: () => setPage("branches") },
+        countSt("Defaulted") > 0 && { label: "Defaulted loans company-wide", value: countSt("Defaulted"), level: "critical", onClick: () => setPage("recovery") },
+        pendingLoans > 0 && { label: "Loans awaiting operational approval", value: pendingLoans, level: "warn", onClick: () => setPage("loans") },
         pendingReports > 0 && { label: "Daily reports awaiting approval", value: pendingReports, level: "warn" },
         pendingDeletions > 0 && { label: "Client deletion requests", value: pendingDeletions, level: "warn" },
         pendingPlans > 0 && { label: "Payment plan requests", value: pendingPlans, level: "warn" },
+        pendingLeave > 0 && { label: "Leave requests pending", value: pendingLeave, level: "warn", onClick: () => setPage("hr") },
     ].filter(Boolean);
-    return React.createElement("div", null,
-        React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
-            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
-                React.createElement(PalianLogo, { size: 30 }),
-                React.createElement("span", { style: { fontSize: 12, fontWeight: 800, letterSpacing: 0.5 } }, isCEO ? "CEO EXECUTIVE COMMAND CENTER" : "DIRECTOR OPERATIONS CENTER")),
-            React.createElement("div", { style: { fontSize: 11, opacity: 0.7 } }, `Good day, ${user.name.split(" ")[0]} \u00B7 ${new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`)),
-        React.createElement("div", { style: { marginBottom: 10 } },
-            execTabBtn(page === "home", () => setPage("home"), "\uD83C\uDFE0 Overview"),
-            execTabBtn(page === "approvals", () => setPage("approvals"), `\u2705 Approvals (${myQueue.length})`),
-            execTabBtn(page === "provinces", () => setPage("provinces"), "\uD83C\uDFDB\uFE0F Provinces"),
-            execTabBtn(page === "branches", () => setPage("branches"), "\uD83C\uDFE2 Branches")),
-        page === "home" && React.createElement(React.Fragment, null,
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 } }, [
-                ["Portfolio Due", fmt(allDue), C.navy, "\uD83D\uDCB0"],
-                ["Outstanding", fmt(allOut), C.orange, "\uD83D\uDCE4"],
-                ["Recovery Rate", rec.toFixed(1) + "%", rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red, "\uD83D\uDCC8"],
-                ["Active Clients", clients.length, C.blue, "\uD83D\uDC65"],
-                ["Staff", activeStaff, C.purple, "\uD83D\uDC64"],
-                ["Provinces / Branches", `${provincesActive}/${branchesActive}`, C.teal, "\uD83C\uDFDB\uFE0F"],
-            ].map(([l, v, c, i]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c, icon: i }))),
+    const disbByCategory = (db.branchDisbursements || []).reduce((acc, d) => { acc[d.category || "Other"] = (acc[d.category || "Other"] || 0) + (d.amount || 0); return acc; }, {});
+    const staffByRole = staff.filter(isEffectivelyActive).reduce((acc, s) => { const k = s.roleLabel || s.role; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+    const majorRecoveryCases = loans.filter(l => ["Overdue", "Defaulted"].includes(getSt(l, payments))).map(l => ({ ...l, bal: getBal(l, payments) })).sort((a, b) => b.bal - a.bal).slice(0, 8);
+
+    function SideCol() {
+        return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
             React.createElement(ExecAttention, { items: attentionItems }),
             React.createElement(Card, null,
-                React.createElement(ST, { color: C.blue }, "\uD83D\uDCB3 Pending Financial Authorizations"),
-                React.createElement(IR, { label: "Awaiting CEO Approval", value: `${wdlAwaitingCEO.length} \u00B7 ${fmt(wdlAwaitingCEOAmt)}` }),
-                React.createElement(IR, { label: "Awaiting Director Approval", value: `${wdlAwaitingDirector.length} \u00B7 ${fmt(wdlAwaitingDirectorAmt)}` }),
-                React.createElement(Alrt, { type: "info" }, "Payments are LOCKED until both Director and CEO approve \u2014 enforced by the Accounts Withdrawal system."),
-                React.createElement(Btn, { color: C.navy, full: true, onClick: onSwitch }, "Open Accounts \u2192 Withdrawal Approvals")),
+                React.createElement(ST, { color: C.blue }, `\uD83D\uDCB3 Pending ${isCEO ? "CEO" : "Director"} Approval`),
+                React.createElement("div", { style: { fontSize: 24, fontWeight: 900, color: C.navy } }, myQueue.length, React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: C.muted } }, " requests")),
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.orange, marginBottom: 10 } }, fmt(isCEO ? wdlAwaitingCEOAmt : wdlAwaitingDirectorAmt), " total"),
+                React.createElement(Btn, { color: C.navy, full: true, sm: true, onClick: () => setPage("approvals") }, "Go to Approval Center")),
             React.createElement(Card, null,
-                React.createElement(ST, { color: C.teal }, "\uD83D\uDCCA Loan Book Snapshot"),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 } }, [
-                    ["Active", countSt("Active"), C.green],
-                    ["Overdue", countSt("Overdue"), C.orange],
-                    ["Defaulted", countSt("Defaulted"), C.red],
-                ].map(([l, v, c]) => React.createElement("div", { key: l, style: { textAlign: "center" } },
-                    React.createElement("div", { style: { fontSize: 10, color: C.muted } }, l),
-                    React.createElement("div", { style: { fontWeight: 900, fontSize: 16, color: c } }, v))))),
-            React.createElement(TrustBadge, null)),
-        page === "approvals" && React.createElement(Card, null,
-            React.createElement(ST, null, "\u2705 Executive Approval Center"),
-            React.createElement(Alrt, { type: "info" }, "Financial (withdrawal) requests are decided in the Accounts module, which already enforces Director \u2192 CEO dual sign-off before Finance can release funds. Listed here for visibility."),
-            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 } },
-                myQueue.map(w => React.createElement("div", { key: w.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10 } },
-                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
-                    React.createElement("div", { style: { fontSize: 11, color: C.muted } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`))),
-                myQueue.length === 0 && React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "Nothing pending your approval right now.")),
-            React.createElement(Btn, { color: C.navy, full: true, onClick: onSwitch }, "Open Accounts \u2192 Decide on Requests"),
-            React.createElement("div", { style: { marginTop: 16 } },
-                React.createElement(ST, { color: C.purple }, "Other Operational Approvals (for awareness)"),
+                React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Notifications"),
+                attentionItems.slice(0, 4).map((it, i) => React.createElement("div", { key: i, style: { fontSize: 11, padding: "7px 0", borderBottom: i < 3 ? `1px solid ${C.border}` : "none" } },
+                    React.createElement("span", null, (it.level === "critical" ? "\uD83D\uDD34 " : "\uD83D\uDFE1 "), it.label))),
+                attentionItems.length === 0 && React.createElement("div", { style: { fontSize: 11, color: C.muted } }, "No notifications.")));
+    }
+
+    function DashboardPage({ variant }) {
+        const label = variant === "ceo" ? "CEO EXECUTIVE COMMAND CENTER" : "DIRECTOR OPERATIONS CENTER";
+        const focus = variant === "ceo"
+            ? ["Strategic Oversight", "Company Performance", "Risk Management", "Final Approvals", "Executive Decisions", "Strategic Projects"]
+            : ["Operational Oversight", "Implementation", "First-Level Approvals", "Provincial Management", "Branch Supervision", "Daily Operations"];
+        return React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "2.2fr 1fr" : "1fr", gap: 16 } },
+            React.createElement("div", null,
+                React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 14, padding: "16px 18px", marginBottom: 14, color: "#fff" } },
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: C.amber } }, label),
+                    React.createElement("div", { style: { fontSize: 11, opacity: 0.75, marginTop: 2 } }, `Good day, ${user.name.split(" ")[0]} \u00B7 ${new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`)),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
+                    ["Total Portfolio", fmt(allApplied), C.navy, "\uD83D\uDCB0"],
+                    ["Collection Rate", collRate.toFixed(1) + "%", C.blue, "\uD83D\uDCC8"],
+                    ["Recovery Rate", rec.toFixed(1) + "%", rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red, "\u267B\uFE0F"],
+                    ["Interest Expected", fmt(interestExpected), C.gold, "\uD83D\uDCB5"],
+                    ["Bank Balance", fmt(db.bankBalance || 0), C.teal, "\uD83C\uDFE6"],
+                    ["Active Clients", clients.length, C.purple, "\uD83D\uDC65"],
+                ].map(([l, v, c, i]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c, icon: i }))),
+                React.createElement(Card, null,
+                    React.createElement(ST, { color: C.blue }, "\uD83D\uDCCA Company Performance"),
+                    React.createElement(ExecBarChart, { data: [
+                        { label: "Applied", value: allApplied, display: fmt(allApplied), color: C.navy },
+                        { label: "Disbursed", value: allDisbursed, display: fmt(allDisbursed), color: C.blue },
+                        { label: "Collected", value: allPaid, display: fmt(allPaid), color: C.green },
+                        { label: "Outstanding", value: allOut, display: fmt(allOut), color: C.orange },
+                    ] })),
+                React.createElement(Card, null,
+                    React.createElement(ST, { color: C.teal }, "\uD83C\uDFDB\uFE0F Provincial Performance"),
+                    activeProvinceRows.slice(0, 5).map(r => React.createElement(ExecProgressRow, { key: r.province, label: r.province, pct: r.recovery, sub: `${r.loans} loans \u00B7 ${fmt(r.portfolio)}` })),
+                    React.createElement(Btn, { sm: true, color: C.teal, onClick: () => setPage("provinces") }, "View All Provinces \u2192")),
+                React.createElement(Card, null,
+                    React.createElement(ST, { color: C.purple }, `${isCEO ? "CEO" : "DIRECTOR"} FOCUS`),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 } },
+                        focus.map(f => React.createElement("div", { key: f, style: { fontSize: 12, padding: "6px 0", color: C.text } }, "\u2022 " + f))))),
+            isWide && React.createElement(SideCol, null));
+    }
+
+    function ApprovalsPage() {
+        return React.createElement("div", null,
+            React.createElement(Card, null,
+                React.createElement(ST, null, "\u2705 Executive Approval Center"),
+                React.createElement(Alrt, { type: "info" }, "Financial (withdrawal) requests are decided in the Accounts module, which already enforces Director \u2192 CEO dual sign-off before Finance can release funds. Shown here for full visibility."),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "1fr 1fr" : "1fr", gap: 16 } },
+                    React.createElement("div", null,
+                        React.createElement(ST, { color: C.blue }, `Awaiting CEO (${wdlAwaitingCEO.length} \u00B7 ${fmt(wdlAwaitingCEOAmt)})`),
+                        wdlAwaitingCEO.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "None pending.") :
+                            wdlAwaitingCEO.map(w => React.createElement("div", { key: w.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
+                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
+                                React.createElement("div", { style: { fontSize: 11, color: C.muted } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`)))),
+                    React.createElement("div", null,
+                        React.createElement(ST, { color: C.orange }, `Awaiting Director (${wdlAwaitingDirector.length} \u00B7 ${fmt(wdlAwaitingDirectorAmt)})`),
+                        wdlAwaitingDirector.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "None pending.") :
+                            wdlAwaitingDirector.map(w => React.createElement("div", { key: w.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
+                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
+                                React.createElement("div", { style: { fontSize: 11, color: C.muted } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`))))),
+                React.createElement(Btn, { color: C.navy, full: true, onClick: onSwitch, style: { marginTop: 14 } }, "Open Accounts \u2192 Decide on Requests")),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.muted }, "Other Operational Approvals (for awareness)"),
                 React.createElement(IR, { label: "Loans pending approval", value: pendingLoans }),
                 React.createElement(IR, { label: "Daily reports pending approval", value: pendingReports }),
                 React.createElement(IR, { label: "Client deletion requests", value: pendingDeletions }),
-                React.createElement(IR, { label: "Payment plan requests", value: pendingPlans }))),
-        page === "provinces" && React.createElement(AdminProvincialView, { db: db }),
-        page === "branches" && React.createElement(AdminBranchView, { db: db }));
-}
+                React.createElement(IR, { label: "Payment plan requests", value: pendingPlans }),
+                React.createElement(IR, { label: "Leave requests pending", value: pendingLeave })));
+    }
 
+    function CompanyPage() {
+        return React.createElement("div", null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
+                ["Total Portfolio", fmt(allApplied), C.navy, "\uD83D\uDCB0"],
+                ["Outstanding", fmt(allOut), C.orange, "\uD83D\uDCE4"],
+                ["Collected", fmt(allPaid), C.green, "\uD83D\uDCE5"],
+                ["Recovery Rate", rec.toFixed(1) + "%", C.teal, "\u267B\uFE0F"],
+                ["Staff (Active)", activeStaff, C.purple, "\uD83D\uDC64"],
+                ["Provinces Active", provincesActive, C.blue, "\uD83C\uDFDB\uFE0F"],
+                ["Branches Active", branchesActive, C.gold, "\uD83C\uDFE6"],
+                ["Active Clients", clients.length, C.navy, "\uD83D\uDC65"],
+            ].map(([l, v, c, i]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c, icon: i }))),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "\uD83D\uDCCA Loan Book Summary"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 } },
+                    [["Number of Loans", loans.length], ["Amount Applied", fmt(allApplied)], ["Amount Disbursed", fmt(allDisbursed)]].map(([l, v]) => React.createElement("div", { key: l },
+                        React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Branch Disbursements by Category"),
+                Object.keys(disbByCategory).length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "No disbursements recorded yet.") :
+                    Object.entries(disbByCategory).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => React.createElement(IR, { key: cat, label: cat, value: fmt(amt) }))));
+    }
+
+    function LoansPage() {
+        return React.createElement("div", null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(5,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
+                ["Active", countSt("Active"), C.green], ["Overdue", countSt("Overdue"), C.orange], ["Defaulted", countSt("Defaulted"), C.red], ["Cleared", countSt("Cleared"), C.blue], ["Pending", countSt("Pending"), C.gold],
+            ].map(([l, v, c]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c }))),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "\uD83D\uDCC4 Portfolio at a Glance"),
+                React.createElement(IR, { label: "Amount Applied", value: fmt(allApplied) }),
+                React.createElement(IR, { label: "Amount Disbursed", value: fmt(allDisbursed) }),
+                React.createElement(IR, { label: "Outstanding", value: fmt(allOut) }),
+                React.createElement(IR, { label: "Collected to Date", value: fmt(allPaid) }),
+                React.createElement(IR, { label: "Interest Expected (portfolio)", value: fmt(interestExpected) }),
+                React.createElement(IR, { label: "Collection Rate", value: collRate.toFixed(1) + "%" })));
+    }
+
+    function RecoveryPage() {
+        return React.createElement("div", null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
+                ["Recovery Rate", rec.toFixed(1) + "%", rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red],
+                ["Outstanding", fmt(allOut), C.orange],
+                ["Overdue Loans", countSt("Overdue"), C.amber],
+                ["Defaulted Loans", countSt("Defaulted"), C.red],
+            ].map(([l, v, c]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c }))),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.red }, "\uD83D\uDEA8 Major Recovery Cases (largest outstanding)"),
+                majorRecoveryCases.length === 0 ? React.createElement(Alrt, { type: "success" }, "No overdue or defaulted loans right now.") :
+                    majorRecoveryCases.map(l => React.createElement("div", { key: l.loanNo, style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 } },
+                        React.createElement("span", null, l.name, " \u00B7 ", l.branch), React.createElement(Badge, { s: getSt(l, payments) }), React.createElement("strong", null, fmt(l.bal))))),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.orange }, "Provinces / Branches Below Target (65%)"),
+                provincesBelowTarget.map(r => React.createElement(IR, { key: r.province, label: r.province, value: r.recovery.toFixed(1) + "%" })),
+                branchesBelowTarget.map(r => React.createElement(IR, { key: r.branch, label: r.branch, value: r.recovery.toFixed(1) + "%" })),
+                provincesBelowTarget.length + branchesBelowTarget.length === 0 && React.createElement(Alrt, { type: "success" }, "Everyone is at or above target.")));
+    }
+
+    function HRPage() {
+        const pendingLeaveList = (db.leaveRequests || []).filter(l => l.status === "Pending").slice(0, 8);
+        return React.createElement("div", null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
+                ["Total Staff", staff.length, C.navy], ["Active Staff", activeStaff, C.green], ["Pending Leave", pendingLeave, C.amber],
+            ].map(([l, v, c]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c }))),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "\uD83D\uDC65 Staff by Role"),
+                Object.entries(staffByRole).sort((a, b) => b[1] - a[1]).map(([r, n]) => React.createElement(IR, { key: r, label: r, value: n }))),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.amber }, "\uD83C\uDFD6\uFE0F Pending Leave Requests"),
+                pendingLeaveList.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "None pending.") :
+                    pendingLeaveList.map(l => React.createElement(IR, { key: l.id, label: `${l.staffName} \u00B7 ${l.type}`, value: `${l.from} \u2192 ${l.to}` }))));
+    }
+
+    function FinancePage() {
+        const accounts = db.moneyAccounts || [];
+        const recentTxns = (db.moneyAccountTxns || []).slice(0, 10);
+        return React.createElement("div", null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
+                ["Bank Balance", fmt(db.bankBalance || 0), C.teal], ["Money Accounts Total", fmt(totalMoneyBalance(accounts)), C.navy], ["Accounts Tracked", accounts.length, C.purple],
+            ].map(([l, v, c]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c }))),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "\uD83C\uDFE6 Money Accounts"),
+                accounts.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "No accounts recorded yet.") :
+                    accounts.map(a => React.createElement(IR, { key: a.id, label: a.name, value: fmt(a.balance) }))),
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.blue }, "Recent Transactions"),
+                recentTxns.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "No transactions recorded yet.") :
+                    recentTxns.map(t => React.createElement("div", { key: t.id, style: { display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 } },
+                        React.createElement("span", null, t.category, " \u00B7 ", t.date), React.createElement("strong", { style: { color: t.type === "in" ? C.green : C.red } }, (t.type === "in" ? "+" : "-") + fmt(t.amount))))));
+    }
+
+    function AuditPage() {
+        const logs = (db.loginLogs || []).slice().reverse().slice(0, 60);
+        return React.createElement(Card, null,
+            React.createElement(ST, null, "\uD83D\uDD75\uFE0F Login Activity (most recent)"),
+            logs.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "No login activity recorded yet.") :
+                logs.map((l, i) => React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 } },
+                    React.createElement("span", null, l.name, " \u00B7 ", l.roleLabel || l.role, " \u00B7 ", l.branch || l.province || "Head Office"),
+                    React.createElement("span", { style: { color: C.muted } }, l.date, " ", l.time))));
+    }
+
+    const PAGES = {
+        "ceo-dash": () => React.createElement(DashboardPage, { variant: "ceo" }),
+        "dir-dash": () => React.createElement(DashboardPage, { variant: "director" }),
+        approvals: () => React.createElement(ApprovalsPage, null),
+        company: () => React.createElement(CompanyPage, null),
+        performance: () => React.createElement(CompanyPage, null),
+        provinces: () => React.createElement(AdminProvincialView, { db: db }),
+        branches: () => React.createElement(AdminBranchView, { db: db }),
+        loans: () => React.createElement(LoansPage, null),
+        recovery: () => React.createElement(RecoveryPage, null),
+        hr: () => React.createElement(HRPage, null),
+        finance: () => React.createElement(FinancePage, null),
+        notifications: () => React.createElement(ExecAttention, { items: attentionItems }),
+        audit: () => React.createElement(AuditPage, null),
+    };
+    const navItem = EXEC_NAV.find(n => n.id === page);
+    const badgeCount = myQueue.length;
+
+    return React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", minHeight: "100vh", background: "#F0F3F8" } },
+        React.createElement("style", null, `.exec-sb{display:none}.exec-sb-mobile{display:flex}@media(min-width:1000px){.exec-sb{display:flex !important}.exec-sb-mobile{display:none !important}.exec-main{margin-left:250px !important}}`),
+        React.createElement("div", { className: "exec-main", style: { padding: isWide ? "20px 28px" : 12 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: C.navy, borderRadius: 14, padding: "14px 20px", marginBottom: 18, color: "#fff" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                    React.createElement(PalianLogo, { size: 36 }),
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontWeight: 900, fontSize: isWide ? 16 : 13, letterSpacing: 0.5 } }, "PALIAN MONEY LENDING LIMITED"),
+                        React.createElement("div", { style: { fontSize: 11, color: C.amber, fontWeight: 700 } }, "CEO & DIRECTOR EXECUTIVE COMMAND CENTER"))),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14 } },
+                    React.createElement("div", { style: { textAlign: "right" } },
+                        React.createElement("div", { style: { fontSize: 12, fontWeight: 700 } }, "Welcome, ", user.name),
+                        React.createElement("div", { style: { fontSize: 10, opacity: 0.7 } }, user.roleLabel || user.role)),
+                    React.createElement("button", { onClick: onBack, style: { background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "\u2190 Back to App"))),
+            React.createElement("div", { className: "exec-sb-mobile", style: { display: "flex", overflowX: "auto", gap: 6, marginBottom: 14, paddingBottom: 4 } },
+                EXEC_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => n.ready && setPage(n.id), style: { flexShrink: 0, padding: "7px 12px", borderRadius: 20, border: `1.5px solid ${page === n.id ? C.navy : C.border}`, background: page === n.id ? C.navy : "#fff", color: page === n.id ? "#fff" : n.ready ? C.text : C.muted, fontWeight: 700, fontSize: 11, cursor: n.ready ? "pointer" : "default", opacity: n.ready ? 1 : 0.5 } }, n.icon, " ", n.label, n.badge && badgeCount > 0 ? ` (${badgeCount})` : ""))),
+            React.createElement("div", { className: "exec-sb", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 232, background: "#101C33", padding: "18px 10px", overflowY: "auto", zIndex: 10 } },
+                React.createElement("div", { style: { color: "#fff", fontWeight: 900, fontSize: 13, padding: "0 10px 14px", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 10 } }, "\uD83D\uDD37 PALIAN"),
+                EXEC_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => n.ready && setPage(n.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: page === n.id ? C.amber : "transparent", color: page === n.id ? C.navy : n.ready ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.35)", border: "none", borderRadius: 8, padding: "9px 10px", marginBottom: 3, fontWeight: 700, fontSize: 12, cursor: n.ready ? "pointer" : "default" } },
+                    React.createElement("span", null, n.icon, " ", n.label),
+                    n.badge && badgeCount > 0 ? React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 7px", fontWeight: 800 } }, badgeCount) : null)),
+                React.createElement("button", { onClick: onLogout, style: { marginTop: "auto", background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 11, textAlign: "left", padding: "10px", cursor: "pointer" } }, "Logout")),
+            React.createElement("div", null,
+                navItem && !navItem.ready ? React.createElement(ExecSoon, { label: navItem.label }) : (PAGES[page] ? PAGES[page]() : React.createElement(ExecSoon, { label: navItem ? navItem.label : "This section" })))));
+}
 function HODashboard({ db, user, onReport, onViewOverdue }) {
     const [showBal, setShowBal] = useState(true);
     const { loans, payments, branchFunds, bankBalance } = db;
@@ -4705,7 +4950,6 @@ function App() {
     const [sessionLogId, setSessionLogId] = useState(null);
     const [module, setModule] = useState(null); // 'loans' | 'transport'
     const [tab, setTab] = useState("dashboard");
-    const [execPage, setExecPage] = useState("home");
     const [prefNrc, setPrefNrc] = useState("");
     const [finReport, setFinReport] = useState(null); // {loan, client}
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -4783,6 +5027,8 @@ function App() {
         return React.createElement(TransportApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "accounts")
         return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (tab === "exec" && (user.role === "ceo" || user.role === "director"))
+        return React.createElement(ExecutiveCommandCenter, { db: db, user: user, onBack: () => setTab("dashboard"), onLogout: handleLogout, onSwitch: () => setModule(null) });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
     const info = (hoRole || provRole) ? null : gBI(user.branch);
@@ -4844,7 +5090,6 @@ function App() {
             tab === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             tab === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             tab === "settings" && (user.role === "admin" || user.role === "director") && React.createElement(SettingsTab, { user: user }),
-            tab === "exec" && (user.role === "ceo" || user.role === "director") && React.createElement(ExecutiveCommandCenter, { db: db, user: user, onSwitch: () => setModule(null), page: execPage, setPage: setExecPage }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
