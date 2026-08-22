@@ -2217,19 +2217,28 @@ function AccountsWithdrawal({ db, setDb, user, page, setPage, selectedId, setSel
     const canDecideCEO = user.role === "ceo" || user.role === "admin";
     const canDecideDirector = user.role === "director" || user.role === "admin";
     const canProcess = user.role === "accounts" || user.role === "admin";
-    const canEditDelete = user.role === "admin" || user.role === "director";
+    const canEditDelete = user.role === "admin" || user.role === "director" || user.role === "accounts";
+    function notify(position, text) {
+        return { id: `MSG-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, senderId: user.id, senderName: user.name, senderRole: user.roleLabel || user.role, sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: "position", recipientPosition: position, recipientIds: [], text, attachmentUrl: "", attachmentType: "", attachmentName: "" };
+    }
     function submitRequest(form) {
         const req = wdlAddAudit({
             id: nextWithdrawalId(requests), dateSubmitted: today(), branch: form.branch, province: form.branch === "Head Office" ? "Head Office" : gBI(form.branch).province,
             requestedBy: user.name, requestedById: user.id, category: form.category, amount: parseFloat(form.amount), purpose: form.purpose,
             status: "pending_ceo", ceo: { decision: "pending", by: null, date: null, comment: "" }, director: { decision: "pending", by: null, date: null, comment: "" }, processed: null, audit: [], comments: [],
         }, "Submitted", user.name, "Request created");
-        const nd = { ...db, withdrawalRequests: [req, ...requests] };
+        const notice = notify("ceo", `\uD83D\uDCB0 New withdrawal request ${req.id} (${fmt(req.amount)}) from ${user.name} needs your approval.`);
+        const nd = { ...db, withdrawalRequests: [req, ...requests], messages: [notice, ...(db.messages || [])] };
         saveDB(nd); setDb(nd);
         alert(`\u2705 Request ${req.id} submitted for CEO approval.`);
         setPage("wceo");
     }
     function decide(id, role, decision, comment) {
+        const req = requests.find(r => r.id === id);
+        let notice = null;
+        if (req && decision !== "rejected" && role === "ceo") {
+            notice = notify("director", `\uD83D\uDEE1\uFE0F Withdrawal ${id} (${fmt(req.amount)}) was approved by CEO and now needs your approval.`);
+        }
         const nd = { ...db, withdrawalRequests: requests.map(r => {
             if (r.id !== id) return r;
             let updated = { ...r, [role]: { decision, by: user.name, date: today(), comment: comment || "" } };
@@ -2237,7 +2246,7 @@ function AccountsWithdrawal({ db, setDb, user, page, setPage, selectedId, setSel
             else if (role === "ceo") { updated.status = "pending_director"; updated = wdlAddAudit(updated, "CEO Approved", user.name, comment || "Approved"); }
             else if (role === "director") { updated.status = "fully_approved"; updated = wdlAddAudit(updated, "Director Approved", user.name, comment || "Approved"); }
             return updated;
-        }) };
+        }), ...(notice ? { messages: [notice, ...(db.messages || [])] } : {}) };
         saveDB(nd); setDb(nd);
     }
     function processRequest(id, { bank, reference, accountId }) {
@@ -2275,7 +2284,7 @@ function AccountsWithdrawal({ db, setDb, user, page, setPage, selectedId, setSel
     return (React.createElement(React.Fragment, null,
         page === "wdash" && React.createElement(WDashboard, { db: db, requests: requests, goto: setPage, isCEO: isCEO }),
         page === "wapply" && !isCEO && React.createElement(WApplyForm, { db: db, canApply: canApply, onSubmit: submitRequest }),
-        page === "wceo" && !isCEO && React.createElement(WApprovalQueue, { role: "ceo", title: "CEO Approval", can: canDecideCEO, deniedMsg: "\uD83D\uDD12 Only the CEO can act on this queue.", requests: requests.filter(r => r.status === "pending_ceo"), onDecide: decide }),
+        page === "wceo" && React.createElement(WApprovalQueue, { role: "ceo", title: "CEO Approval", can: canDecideCEO, deniedMsg: "\uD83D\uDD12 Only the CEO can act on this queue.", requests: requests.filter(r => r.status === "pending_ceo"), onDecide: decide }),
         page === "wdirector" && !isCEO && React.createElement(WApprovalQueue, { role: "director", title: "Director Approval", can: canDecideDirector, deniedMsg: "\uD83D\uDD12 Only the Director can act on this queue.", requests: requests.filter(r => r.status === "pending_director"), onDecide: decide }),
         page === "wapproved" && !isCEO && React.createElement(WFullyApproved, { requests: requests.filter(r => r.status === "fully_approved"), goto: setPage, setSelectedId: setSelectedId }),
         page === "wprocess" && !isCEO && React.createElement(WProcess, { db: db, requests: requests.filter(r => r.status === "fully_approved"), selectedId: selectedId, setSelectedId: setSelectedId, canProcess: canProcess, onProcess: processRequest }),
@@ -2515,9 +2524,9 @@ function WHistory({ requests, canEditDelete, onUpdate, onDelete, onComment }) {
                         React.createElement(IR, { label: "Requested by", value: r.requestedBy }),
                         React.createElement(IR, { label: "Category", value: r.category }),
                         React.createElement(IR, { label: "Purpose", value: r.purpose }),
-                        canEditDelete && r.status === "pending_ceo" && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 8, marginBottom: 12 } },
+                        canEditDelete && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 8, marginBottom: 12 } },
                             React.createElement(Btn, { sm: true, color: C.navy, style: { flex: 1 }, onClick: () => startEdit(r) }, "\u270F\uFE0F Edit")),
-                        canEditDelete && r.status !== "processed" && React.createElement(Btn, { sm: true, color: C.red, full: true, onClick: () => onDelete(r.id) }, "\uD83D\uDDD1\uFE0F Delete Request"),
+                        canEditDelete && React.createElement(Btn, { sm: true, color: C.red, full: true, onClick: () => onDelete(r.id) }, "\uD83D\uDDD1\uFE0F Delete Request"),
                         React.createElement("div", { style: { marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.border}` } },
                             React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6 } }, "Comments"),
                             (r.comments || []).length === 0 && React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 8 } }, "No comments yet."),
@@ -4181,6 +4190,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
     const NAV = isCEO ? [
         { id: "wdash", lb: "\uD83C\uDFE0 Dashboard" },
+        { id: "wceo", lb: "\uD83D\uDEE1\uFE0F CEO Approval" },
         { id: "wprint", lb: "\uD83D\uDDA8\uFE0F Print" },
         { id: "whistory", lb: "\uD83D\uDD58 History" },
         { id: "wreports", lb: "\uD83D\uDCCA Reports" },
