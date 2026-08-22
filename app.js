@@ -2302,13 +2302,19 @@ function WDashboard({ db, requests, goto, isCEO }) {
     const recent = requests.slice(0, 6);
     const totalFunds = totalMoneyBalance(db.moneyAccounts);
     const hasAccounts = (db.moneyAccounts || []).length > 0;
+    const disbursed = (db.loans || []).filter(l => l.approvalStatus === "Approved" || l.disburseDate).reduce((s, l) => s + (l.principal || 0), 0);
+    const collected = (db.payments || []).reduce((s, p) => s + (p.amount || 0), 0);
     return React.createElement("div", { style: { display: "grid", gridTemplateColumns: window.innerWidth >= 900 ? "1fr 300px" : "1fr", gap: 16, alignItems: "start" } },
         React.createElement("div", null,
             React.createElement("div", { style: { marginBottom: 16 } },
                 React.createElement("h2", { style: { color: C.navy, fontSize: 20, fontWeight: 800, margin: 0 } }, "Accounts Dashboard"),
-                React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Overview of withdrawal requests and approval pipeline")),
+                React.createElement("p", { style: { color: C.muted, fontSize: 13, margin: "4px 0 0" } }, "Balances, disbursements, collections and the approval pipeline \u2014 all in one place")),
             hasAccounts && totalFunds <= 0 && React.createElement(Alrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
             hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 10 } },
+                React.createElement(StatCard, { label: "Total Balance", value: fmt(totalFunds), color: totalFunds <= 0 ? C.red : C.navy, small: true }),
+                React.createElement(StatCard, { label: "Disbursed", value: fmt(disbursed), color: C.blue, small: true }),
+                React.createElement(StatCard, { label: "Collections", value: fmt(collected), color: C.green, small: true })),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 10, marginBottom: 16 } },
                 React.createElement(StatCard, { label: "Awaiting CEO", value: pendingCeo, color: C.gold }),
                 React.createElement(StatCard, { label: "Awaiting Director", value: pendingDirector, color: C.gold }),
@@ -2318,6 +2324,7 @@ function WDashboard({ db, requests, goto, isCEO }) {
             !isCEO && React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" } },
                 React.createElement(Btn, { onClick: () => goto("wapply"), color: C.navy }, "\u2795 New Withdrawal Request"),
                 React.createElement(Btn, { onClick: () => goto("wceo"), color: C.navy, style: { background: "#fff", color: C.navy, border: `1.5px solid ${C.navy}` } }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
+            React.createElement(WProvinceRecoveryChart, { db: db }),
             React.createElement(Card, null,
                 React.createElement(ST, null, "Recent Requests"),
                 React.createElement(WRequestTable, { requests: recent }))),
@@ -4259,21 +4266,21 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
 }
 function AccSidebar({ allTabs, tab, setTab, user, onSwitch, onLogout }) {
-    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: ACC.purpleDeep, zIndex: 300, overflowY: "auto" } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "20px 18px", borderBottom: "1px solid rgba(255,255,255,0.12)" } },
+    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: "#0C1730", zIndex: 300, overflowY: "auto" } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "20px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)" } },
             React.createElement(PalianLogo, { size: 32 }),
             React.createElement("div", null,
-                React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "ACCOUNTS"),
-                React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)", letterSpacing: 1 } }, "PALIAN MONEY LENDING"))),
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 13, color: "#fff", letterSpacing: 0.5 } }, "PALIAN"),
+                React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 1 } }, "MONEY LENDING"))),
         React.createElement("div", { style: { flex: 1, padding: "10px 10px", display: "flex", flexDirection: "column", gap: 2 } },
-            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? "rgba(255,255,255,0.16)" : "transparent", borderLeft: tab === t.id ? `3px solid ${ACC.violet}` : "3px solid transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.65)", fontWeight: tab === t.id ? 700 : 600, fontSize: 12.5 } },
+            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? "rgba(255,111,0,0.16)" : "transparent", borderLeft: tab === t.id ? `3px solid ${C.orange}` : "3px solid transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.6)", fontWeight: tab === t.id ? 700 : 600, fontSize: 12.5 } },
                 React.createElement("span", null, t.lb)))),
-        React.createElement("div", { style: { padding: 14, borderTop: "1px solid rgba(255,255,255,0.12)" } },
+        React.createElement("div", { style: { padding: 14, borderTop: "1px solid rgba(255,255,255,0.08)" } },
             React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
-            React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)", marginBottom: 8 } }, user.roleLabel || user.role),
+            React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", marginBottom: 8 } }, user.roleLabel || user.role),
             React.createElement("div", { style: { display: "flex", gap: 10 } },
-                React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
-                React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))));
+                React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
+                React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))));
 }
 function TransportApp({ user, onLogout, onSwitch }) {
     const [tab, setTab] = useState("dash");
