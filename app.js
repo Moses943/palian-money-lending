@@ -2191,11 +2191,7 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
                     React.createElement(ExecComboChart, { labels: activeProvinceRows.slice(0, 5).map(r => r.province), bars: { label: "Portfolio (K)", values: activeProvinceRows.slice(0, 5).map(r => r.portfolio), color: C.teal }, line: { label: "Recovery %", values: activeProvinceRows.slice(0, 5).map(r => r.recovery) }, height: 200 }),
                     activeProvinceRows.slice(0, 5).map(r => React.createElement(ExecProgressRow, { key: r.province, label: r.province, pct: r.recovery, sub: `${r.loans} loans \u00B7 ${fmt(r.portfolio)}` })),
                     React.createElement(Btn, { sm: true, color: C.teal, onClick: () => setPage("provinces") }, "View All Provinces \u2192")),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 12, marginBottom: 12 } },
-                    React.createElement(Card, null, React.createElement(ST, { color: C.navy }, "SYSTEM ARCHITECTURE"), React.createElement(ExecArchDiagram, null)),
-                    React.createElement(Card, null, React.createElement(ST, { color: C.blue }, "FINANCIAL APPROVAL WORKFLOW"), React.createElement(ExecWorkflowDiagram, null)),
-                    React.createElement(Card, null, React.createElement(ST, { color: C.purple }, "CEO vs DIRECTOR \u2014 KEY DIFFERENCE"), React.createElement(ExecCompareCard, null))),
-                React.createElement(ExecFeatureStrip, null)),
+            ),
             isWide && React.createElement(SideCol, null));
     }
 
