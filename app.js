@@ -1051,7 +1051,7 @@ function BackupRestore({ db, setDb }) {
         db.payments.forEach(p => rows.push([p.id, p.loanNo, p.name, p.branch, p.amount, p.date, p.method, p.recordedBy, p.newBalance]));
         rows.push([], ["=== STAFF ==="], ["ID", "Name", "Role", "Dept", "Salary", "Branch", "Province", "Start Date", "NRC", "Bank", "Account", "Grade"]);
         db.staff.forEach(s => rows.push([s.id, s.name, s.roleLabel || s.role, s.dept, s.salary, s.branch, s.province, s.startDate, s.nrc, s.bank, s.accountNo, s.grade]));
-        rows.push([], ["=== BANK & FUNDS ==="], ["Bank Balance", "Branch", "Fund Amount"]);
+        rows.push([], ["=== ACCOUNTS BALANCE & FUNDS ==="], ["Accounts Balance", "Branch", "Fund Amount"]);
         rows.push([db.bankBalance || 0, "", ""]);
         Object.entries(db.branchFunds || {}).forEach(([b, v]) => rows.push(["", b, v]));
         const csv = "\uFEFF" + rows.map(r => r.map(v => `"${String(v || "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -2192,7 +2192,7 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
                     { l: "Collection Rate", v: collRate.toFixed(1) + "%", c: C.blue, d: collRate },
                     { l: "Recovery Rate", v: rec.toFixed(1) + "%", c: rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red, d: rec },
                     { l: "Interest Expected", v: fmt(interestExpected), c: C.gold, i: "\uD83D\uDCB5" },
-                    { l: "Bank Balance", v: fmt(db.bankBalance || 0), c: C.teal, i: "\uD83C\uDFE6" },
+                    { l: "Accounts Balance", v: fmt(db.bankBalance || 0), c: C.teal, i: "\uD83C\uDFE6" },
                     { l: "Active Clients", v: clients.length, c: C.purple, i: "\uD83D\uDC65" },
                 ].map(k => React.createElement(ExecKPI, { key: k.l, label: k.l, value: k.v, color: k.c, icon: k.i, donut: k.d }))),
                 React.createElement(Card, null,
@@ -2314,7 +2314,7 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
         const recentTxns = (db.moneyAccountTxns || []).slice(0, 10);
         return React.createElement("div", null,
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
-                ["Bank Balance", fmt(db.bankBalance || 0), C.teal], ["Money Accounts Total", fmt(totalMoneyBalance(accounts)), C.navy], ["Accounts Tracked", accounts.length, C.purple],
+                ["Accounts Balance", fmt(db.bankBalance || 0), C.teal], ["Money Accounts Total", fmt(totalMoneyBalance(accounts)), C.navy], ["Accounts Tracked", accounts.length, C.purple],
             ].map(([l, v, c]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c }))),
             React.createElement(Card, null,
                 React.createElement(ST, null, "\uD83C\uDFE6 Money Accounts"),
@@ -2414,7 +2414,7 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                 user.roleLabel,
                 " \u00B7 ",
                 new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 } }, [["💰 BANK", showBal ? fmt(bankBalance || 0) : "•••••", C.gold], ["📤 OUTSTANDING", fmt(allOut), "#FF8A80"], ["📥 COLLECTED", fmt(allPaid), "#A5D6A7"]].map(([l, v, c], i) => (React.createElement("div", { key: l, style: { background: "#3A3A3A", borderRadius: 10, padding: 10, textAlign: "center", position: "relative" } },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 } }, [["\uD83D\uDCB0 ACCOUNTS BALANCE", showBal ? fmt(bankBalance || 0) : "\u2022\u2022\u2022\u2022\u2022", C.gold], ["\uD83D\uDCE4 OUTSTANDING", fmt(allOut), "#FF8A80"], ["\uD83D\uDCE5 COLLECTED", fmt(allPaid), "#A5D6A7"]].map(([l, v, c], i) => (React.createElement("div", { key: l, style: { background: "#3A3A3A", borderRadius: 10, padding: 10, textAlign: "center", position: "relative" } },
                 i === 0 && React.createElement("span", { onClick: () => setShowBal(!showBal), style: { position: "absolute", top: 6, right: 8, cursor: "pointer", fontSize: 11, opacity: 0.8 } }, showBal ? "\uD83D\uDC41\uFE0F" : "\uD83D\uDE48"),
                 React.createElement("div", { style: { fontSize: 9, opacity: 0.75, marginBottom: 3 } }, l),
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 900, color: c } }, v))))),
@@ -2610,13 +2610,13 @@ function AccountsFunds({ db, setDb, user }) {
             React.createElement("div", { style: { fontSize: 14, fontWeight: 800, marginBottom: 10 } }, "\uD83D\uDCB0 Fund Management"),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
                 React.createElement("div", { style: { background: "#3A3A3A", borderRadius: 10, padding: 10 } },
-                    React.createElement("div", { style: { fontSize: 10, opacity: 0.75 } }, "Bank Balance"),
+                    React.createElement("div", { style: { fontSize: 10, opacity: 0.75 } }, "Accounts Balance"),
                     React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: C.gold } }, fmt(bankBalance || 0))),
                 React.createElement("div", { style: { background: "#3A3A3A", borderRadius: 10, padding: 10 } },
                     React.createElement("div", { style: { fontSize: 10, opacity: 0.75 } }, "Deployed"),
                     React.createElement("div", { style: { fontSize: 16, fontWeight: 800 } }, fmt(Object.values(branchFunds || {}).reduce((s, v) => s + v, 0)))))),
         canEditBalance && React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}` } },
-            React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Set Bank Balance (Admin/CEO)"),
+            React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Set Accounts Balance (Admin/CEO)"),
             React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F This overwrites the balance directly \u2014 use for corrections, not routine deposits."),
             React.createElement(Inp, { label: "New Balance (K)", type: "number", value: setAmt, onChange: e => setSetAmt(e.target.value), placeholder: String(bankBalance || 0) }),
             React.createElement(Btn, { onClick: setBalance, color: C.purple, full: true }, "\uD83D\uDD27 Set Balance")),
@@ -2724,14 +2724,18 @@ function AccountsWithdrawal({ db, setDb, user, page, setPage, selectedId, setSel
         if (req && decision !== "rejected" && role === "ceo") {
             notice = notify("director", `\uD83D\uDEE1\uFE0F Withdrawal ${id} (${fmt(req.amount)}) was approved by CEO and now needs your approval.`);
         }
+        const isFinalApproval = req && decision !== "rejected" && role === "director";
+        if (isFinalApproval && req.amount > (db.bankBalance || 0)) {
+            alert(`\u26A0\uFE0F Heads up: this approval (${fmt(req.amount)}) exceeds the current Accounts Balance of ${fmt(db.bankBalance || 0)}. Approving anyway \u2014 the balance will go negative until topped up.`);
+        }
         const nd = { ...db, withdrawalRequests: requests.map(r => {
             if (r.id !== id) return r;
             let updated = { ...r, [role]: { decision, by: user.name, date: today(), comment: comment || "" } };
             if (decision === "rejected") { updated.status = "rejected"; updated = wdlAddAudit(updated, `${role === "ceo" ? "CEO" : "Director"} Rejected`, user.name, comment || "No comment"); }
             else if (role === "ceo") { updated.status = "pending_director"; updated = wdlAddAudit(updated, "CEO Approved", user.name, comment || "Approved"); }
-            else if (role === "director") { updated.status = "fully_approved"; updated = wdlAddAudit(updated, "Director Approved", user.name, comment || "Approved"); }
+            else if (role === "director") { updated.status = "fully_approved"; updated = wdlAddAudit(updated, "Director Approved \u2014 Accounts Balance updated", user.name, comment || "Approved"); }
             return updated;
-        }), ...(notice ? { messages: [notice, ...(db.messages || [])] } : {}) };
+        }), ...(notice ? { messages: [notice, ...(db.messages || [])] } : {}), ...(isFinalApproval ? { bankBalance: (db.bankBalance || 0) - req.amount } : {}) };
         saveDB(nd); setDb(nd);
     }
     function processRequest(id, { bank, reference, accountId }) {
