@@ -143,6 +143,7 @@ function logIn(r) { return { name: r.name, role: r.role, roleLabel: r.role_label
 function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultantName:r.consultant_name,branch:r.branch,province:r.province,reportDate:r.report_date,clientsSeen:r.clients_seen||0,loanAmount:r.loan_amount||0,notes:r.notes||"",status:r.status,approvedBy:r.approved_by,approvedDate:r.approved_date,submittedAt:r.submitted_at};}
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
+    const results = { staff: null, clients: null, loans: null, payments: null, leaveRequests: null, loginLogs: null, branchFunds: null, consultantFunds: null, bankBalance: null, dailyReports: null, paymentPlans: null, messages: null, messageReads: null, branchDisbursements: null, withdrawalRequests: null, moneyAccounts: null, moneyAccountTxns: null };
     const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
@@ -162,6 +163,17 @@ async function loadDB() {
         sb.from("money_accounts").select("*"),
         sb.from("money_account_txns").select("*").order("date", { ascending: false }).limit(1000),
     ]);
+    // Supabase-js returns { data, error } and does NOT throw on failure (bad
+    // RLS policy, expired key, paused project, etc.) — checking .error here
+    // is what stops a failed fetch from silently rendering as an empty/zero
+    // dashboard with no indication anything went wrong.
+    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR]];
+    const errors = labeled.filter(([, r]) => r && r.error).map(([label, r]) => `${label}: ${r.error.message}`);
+    if (errors.length) {
+        const err = new Error("Failed to load data from the database:\n\n" + errors.join("\n") + "\n\nThis is a connection/permissions problem, not missing data — check your Supabase project status and API key.");
+        err.isLoadDBError = true;
+        throw err;
+    }
     return {
         staff: (staffR.data || []).map(staffIn),
         clients: (clientsR.data || []).map(clientIn),
@@ -5032,6 +5044,7 @@ function RoutePrices({ user }) {
 function App() {
     const [db, setDb] = useState(() => MDB || defDB());
     const [dbLoaded, setDbLoaded] = useState(false);
+    const [dbError, setDbError] = useState(null);
     const [user, setUser] = useState(null);
     const [sessionLogId, setSessionLogId] = useState(null);
     const [module, setModule] = useState(null); // 'loans' | 'transport'
@@ -5073,6 +5086,7 @@ function App() {
             }
             catch (e) {
                 console.error("loadDB error", e);
+                setDbError(e && e.message ? e.message : "Failed to load data from the database.");
             }
             setDbLoaded(true);
         })();
@@ -5105,6 +5119,14 @@ function App() {
             React.createElement(PalianLogo, { size: 60 }),
             React.createElement("div", { style: { fontWeight: 800, fontSize: 18 } }, "PALIAN MONEY LENDING"),
             React.createElement("div", { style: { fontSize: 13, opacity: 0.7 } }, "Loading saved data...")));
+    if (dbError)
+        return (React.createElement("div", { style: { minHeight: "100vh", background: "#FFF3F0", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 } },
+            React.createElement("div", { style: { maxWidth: 480, background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 8px 30px rgba(0,0,0,0.12)" } },
+                React.createElement("div", { style: { fontSize: 30, marginBottom: 8 } }, "\u26A0\uFE0F"),
+                React.createElement("div", { style: { fontWeight: 900, fontSize: 16, color: "#C62828", marginBottom: 10 } }, "Could not load data from the database"),
+                React.createElement("pre", { style: { whiteSpace: "pre-wrap", fontSize: 12, color: "#333", background: "#F7F7F7", padding: 12, borderRadius: 8, marginBottom: 14, fontFamily: "monospace" } }, dbError),
+                React.createElement("div", { style: { fontSize: 12, color: "#666", marginBottom: 14 } }, "This is a connection or permissions problem \u2014 your data is very likely still safe in Supabase. Check that the Supabase project is active (not paused) and that the API key in config.js is still valid, then reload."),
+                React.createElement("button", { onClick: () => window.location.reload(), style: { background: C.navy, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 700, cursor: "pointer" } }, "Reload"))));
     if (!user)
         return React.createElement(Login, { db: db, onLogin: handleLogin });
     if (!module)
