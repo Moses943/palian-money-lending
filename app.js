@@ -1968,14 +1968,41 @@ function ExecSoon({ label }) {
         React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: C.navy, marginBottom: 6 } }, `${label} \u2014 Coming Soon`),
         React.createElement("div", { style: { fontSize: 12, color: C.muted, maxWidth: 420, margin: "0 auto" } }, `This section needs its own database module before it can show real data. It will connect here once built \u2014 ask any time to have it added.`));
 }
-function ExecBarChart({ data, height }) {
-    const h = height || 160;
-    const max = Math.max(1, ...data.map(d => d.value));
-    return React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 16, height: h, padding: "6px 4px 0", borderBottom: `1px solid ${C.border}`, overflowX: "auto" } },
-        data.map(d => React.createElement("div", { key: d.label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 60 } },
-            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: C.navy } }, d.display || d.value),
-            React.createElement("div", { style: { width: 34, height: Math.max(3, (d.value / max) * (h - 40)), background: d.color || C.blue, borderRadius: "4px 4px 0 0" } }),
-            React.createElement("div", { style: { fontSize: 10, color: C.muted, whiteSpace: "nowrap", marginTop: 2 } }, d.label))));
+function ExecComboChart({ labels, bars, line, height }) {
+    const canvasRef = useRef(null);
+    const chartRef = useRef(null);
+    useEffect(() => {
+        if (!canvasRef.current || typeof Chart === "undefined") return;
+        if (chartRef.current) chartRef.current.destroy();
+        const datasets = [{ type: "bar", label: bars.label, data: bars.values, backgroundColor: bars.color || C.blue, borderRadius: 5, maxBarThickness: 40, yAxisID: "y" }];
+        if (line) datasets.push({ type: "line", label: line.label, data: line.values, borderColor: C.amber, backgroundColor: C.amber, tension: 0.35, yAxisID: "y1", pointRadius: 4, pointBackgroundColor: C.amber, borderWidth: 2 });
+        chartRef.current = new Chart(canvasRef.current, {
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: !!line, position: "bottom", labels: { boxWidth: 10, font: { size: 10 }, color: C.text } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { size: 9 }, color: C.muted, callback: v => "K" + (v / 1000).toFixed(0) + "k" }, grid: { color: "#EEF1F7" } },
+                    y1: line ? { position: "right", beginAtZero: true, max: 100, ticks: { font: { size: 9 }, color: C.muted, callback: v => v + "%" }, grid: { display: false } } : { display: false },
+                    x: { ticks: { font: { size: 10 }, color: C.text }, grid: { display: false } },
+                },
+            },
+        });
+        return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+    }, [JSON.stringify(labels), JSON.stringify(bars.values), line ? JSON.stringify(line.values) : "none"]);
+    return React.createElement("div", { style: { height: height || 230, position: "relative" } },
+        React.createElement("canvas", { ref: canvasRef }));
+}
+function ExecDonut({ pct, color, size, label }) {
+    const s = size || 56;
+    const r = s / 2 - 6;
+    const c = 2 * Math.PI * r;
+    const off = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+    return React.createElement("div", { style: { position: "relative", width: s, height: s, flexShrink: 0 } },
+        React.createElement("svg", { width: s, height: s, style: { transform: "rotate(-90deg)" } },
+            React.createElement("circle", { cx: s / 2, cy: s / 2, r: r, stroke: "#E7ECF3", strokeWidth: 6, fill: "none" }),
+            React.createElement("circle", { cx: s / 2, cy: s / 2, r: r, stroke: color || C.blue, strokeWidth: 6, fill: "none", strokeDasharray: c, strokeDashoffset: off, strokeLinecap: "round" })),
+        React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: s > 44 ? 12 : 10, fontWeight: 900, color: C.navy } }, pct.toFixed(0) + "%"));
 }
 function ExecProgressRow({ label, pct, sub }) {
     const status = pct >= 85 ? ["Good", C.green] : pct >= 70 ? ["Needs Attention", C.amber] : pct >= 50 ? ["At Risk", C.orange] : ["Critical", C.red];
@@ -2007,9 +2034,10 @@ function ExecAttention({ items }) {
                     React.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, (it.level === "critical" ? "\uD83D\uDD34 " : "\uD83D\uDFE1 ") + it.label),
                     React.createElement("span", { style: { background: it.level === "critical" ? C.red : C.amber, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 11 } }, it.value)))));
 }
-function ExecKPI({ label, value, sub, color, icon }) {
+function ExecKPI({ label, value, sub, color, icon, donut }) {
     return React.createElement("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 2px 8px rgba(15,45,92,0.08)", display: "flex", alignItems: "center", gap: 12, minWidth: 130 } },
-        React.createElement("div", { style: { width: 38, height: 38, borderRadius: 10, background: (color || C.navy) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 } }, icon),
+        donut ? React.createElement(ExecDonut, { pct: donut, color: color, size: 40 }) :
+            React.createElement("div", { style: { width: 38, height: 38, borderRadius: 10, background: (color || C.navy) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 } }, icon),
         React.createElement("div", null,
             React.createElement("div", { style: { color: C.muted, fontSize: 9, fontWeight: 800, letterSpacing: 0.4 } }, label.toUpperCase()),
             React.createElement("div", { style: { fontSize: 17, fontWeight: 900, color: C.navy, lineHeight: 1.25 } }, value),
@@ -2105,23 +2133,19 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
                     React.createElement("div", { style: { fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: C.amber } }, label),
                     React.createElement("div", { style: { fontSize: 11, opacity: 0.75, marginTop: 2 } }, `Good day, ${user.name.split(" ")[0]} \u00B7 ${new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`)),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
-                    ["Total Portfolio", fmt(allApplied), C.navy, "\uD83D\uDCB0"],
-                    ["Collection Rate", collRate.toFixed(1) + "%", C.blue, "\uD83D\uDCC8"],
-                    ["Recovery Rate", rec.toFixed(1) + "%", rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red, "\u267B\uFE0F"],
-                    ["Interest Expected", fmt(interestExpected), C.gold, "\uD83D\uDCB5"],
-                    ["Bank Balance", fmt(db.bankBalance || 0), C.teal, "\uD83C\uDFE6"],
-                    ["Active Clients", clients.length, C.purple, "\uD83D\uDC65"],
-                ].map(([l, v, c, i]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c, icon: i }))),
+                    { l: "Total Portfolio", v: fmt(allApplied), c: C.navy, i: "\uD83D\uDCB0" },
+                    { l: "Collection Rate", v: collRate.toFixed(1) + "%", c: C.blue, d: collRate },
+                    { l: "Recovery Rate", v: rec.toFixed(1) + "%", c: rec >= 70 ? C.green : rec >= 50 ? C.amber : C.red, d: rec },
+                    { l: "Interest Expected", v: fmt(interestExpected), c: C.gold, i: "\uD83D\uDCB5" },
+                    { l: "Bank Balance", v: fmt(db.bankBalance || 0), c: C.teal, i: "\uD83C\uDFE6" },
+                    { l: "Active Clients", v: clients.length, c: C.purple, i: "\uD83D\uDC65" },
+                ].map(k => React.createElement(ExecKPI, { key: k.l, label: k.l, value: k.v, color: k.c, icon: k.i, donut: k.d }))),
                 React.createElement(Card, null,
                     React.createElement(ST, { color: C.blue }, "\uD83D\uDCCA Company Performance"),
-                    React.createElement(ExecBarChart, { data: [
-                        { label: "Applied", value: allApplied, display: fmt(allApplied), color: C.navy },
-                        { label: "Disbursed", value: allDisbursed, display: fmt(allDisbursed), color: C.blue },
-                        { label: "Collected", value: allPaid, display: fmt(allPaid), color: C.green },
-                        { label: "Outstanding", value: allOut, display: fmt(allOut), color: C.orange },
-                    ] })),
+                    React.createElement(ExecComboChart, { labels: ["Applied", "Disbursed", "Collected", "Outstanding"], bars: { label: "Amount (K)", values: [allApplied, allDisbursed, allPaid, allOut] } })),
                 React.createElement(Card, null,
                     React.createElement(ST, { color: C.teal }, "\uD83C\uDFDB\uFE0F Provincial Performance"),
+                    React.createElement(ExecComboChart, { labels: activeProvinceRows.slice(0, 5).map(r => r.province), bars: { label: "Portfolio (K)", values: activeProvinceRows.slice(0, 5).map(r => r.portfolio), color: C.teal }, line: { label: "Recovery %", values: activeProvinceRows.slice(0, 5).map(r => r.recovery) }, height: 200 }),
                     activeProvinceRows.slice(0, 5).map(r => React.createElement(ExecProgressRow, { key: r.province, label: r.province, pct: r.recovery, sub: `${r.loans} loans \u00B7 ${fmt(r.portfolio)}` })),
                     React.createElement(Btn, { sm: true, color: C.teal, onClick: () => setPage("provinces") }, "View All Provinces \u2192")),
                 React.createElement(Card, null,
