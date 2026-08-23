@@ -2849,6 +2849,7 @@ function WApplyForm({ db, canApply, onSubmit }) {
     const branches = wdlBranchOptions(db);
     const [form, setForm] = useState({ branch: branches[0] || "Head Office", category: WDL_CATEGORIES[0], amount: "", purpose: "" });
     const [error, setError] = useState("");
+    const compactSt = { width: "100%", padding: "7px 10px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", background: "#FAFBFD" };
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
     function submit() {
         if (!form.amount || Number(form.amount) <= 0 || !form.purpose.trim()) { setError("Enter a valid amount and purpose."); return; }
@@ -2859,14 +2860,14 @@ function WApplyForm({ db, canApply, onSubmit }) {
     return (React.createElement(Card, null,
         React.createElement(ST, null, "Apply for Withdrawal"),
         !canApply && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Your role can't submit withdrawal requests."),
-        React.createElement(Sel, { label: "Branch / Office", value: form.branch, onChange: e => set("branch", e.target.value) },
+        React.createElement(Sel, { label: "Branch / Office", value: form.branch, onChange: e => set("branch", e.target.value), style: compactSt },
             branches.map(b => React.createElement("option", { key: b, value: b }, b))),
-        React.createElement(Sel, { label: "Category", value: form.category, onChange: e => set("category", e.target.value) },
+        React.createElement(Sel, { label: "Category", value: form.category, onChange: e => set("category", e.target.value), style: compactSt },
             WDL_CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c))),
-        React.createElement(Inp, { label: "Amount (K)", req: true, type: "number", value: form.amount, onChange: e => set("amount", e.target.value), placeholder: "0.00" }),
+        React.createElement(Inp, { label: "Amount (K)", req: true, type: "number", value: form.amount, onChange: e => set("amount", e.target.value), placeholder: "0.00", style: compactSt }),
         React.createElement("div", { style: { marginBottom: 12 } },
             React.createElement("label", { style: { fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 } }, "Purpose / description"),
-            React.createElement("textarea", { value: form.purpose, onChange: e => set("purpose", e.target.value), rows: 3, placeholder: "What is this withdrawal for?", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13, fontFamily: "inherit" } })),
+            React.createElement("textarea", { value: form.purpose, onChange: e => set("purpose", e.target.value), rows: 2, placeholder: "What is this withdrawal for?", style: { ...compactSt, fontSize: 13 } })),
         error && React.createElement(Alrt, { type: "error" }, error),
         canApply && React.createElement(Btn, { onClick: submit, color: C.navy, full: true }, "\uD83D\uDCE4 Submit for CEO Approval")));
 }
