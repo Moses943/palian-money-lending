@@ -4669,6 +4669,8 @@ const WDL_PAGE_IDS = ["wdash", "wapply", "wceo", "wdirector", "wapproved", "wpro
 function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
     const [page, setPage] = useState("wdash");
     const [selectedId, setSelectedId] = useState(null);
+    const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
+    useEffect(() => { const h = () => setIsWide(window.innerWidth >= 1000); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
     const canAdmin = user.role === "admin" || user.role === "director";
     const isCEO = user.role === "ceo";
     const NAV = isCEO ? [
@@ -4706,25 +4708,20 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         ...(canAdmin ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : []),
     ];
     return (React.createElement("div", { style: { fontFamily: HRF.body, background: HRT.parchment50, minHeight: "100vh" } },
-        React.createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" }),
-        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: HRT.navy950, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50, fontFamily: HRF.mono, letterSpacing: "0.06em" } },
+        React.createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" }),
+        React.createElement("div", { style: { background: HRT.navy950, color: "#fff", textAlign: "center", padding: "5px 8px", fontSize: 11, fontWeight: 700, position: "relative", zIndex: 50, fontFamily: HRF.mono, letterSpacing: "0.06em", marginLeft: isWide ? 240 : 100 } },
             "ACCOUNTS SYSTEM \u2014 PALIAN MONEY LENDING \u2014 ",
             user.name),
-        React.createElement(AccSidebar, { allTabs: NAV, tab: page, setTab: setPage, user: user, onSwitch: onSwitch, onLogout: onLogout }),
-        React.createElement("div", { className: "pw-shift-for-sidebar", style: { background: HRT.navy800, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(0,0,0,0.25)" } },
+        React.createElement(AccSidebar, { allTabs: NAV, tab: page, setTab: setPage, user: user, onSwitch: onSwitch, onLogout: onLogout, isWide: isWide }),
+        React.createElement("div", { style: { background: HRT.navy800, padding: "12px 16px", position: "sticky", top: 0, zIndex: 200, boxShadow: "0 2px 12px rgba(0,0,0,0.25)", marginLeft: isWide ? 240 : 100 } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     React.createElement(PalianLogo, { size: 34 }),
-                    React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 15, color: HRT.gold500, letterSpacing: 0.5 } }, "Accounts System")),
+                    isWide && React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 15, color: HRT.gold500, letterSpacing: 0.5 } }, "Accounts System")),
                 React.createElement("div", { style: { textAlign: "right" } },
                     React.createElement("div", { style: { fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 700 } }, user.name),
-                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)" } }, user.roleLabel || user.role),
-                    React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
-                        React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
-                        React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))))),
-        React.createElement("div", { className: "pw-topnav-mobile", style: { background: HRT.navy950, display: "flex", overflowX: "auto", borderBottom: `3px solid ${HRT.gold500}`, position: "relative", zIndex: 50 } },
-            NAV.map(t => (React.createElement("button", { key: t.id, onClick: () => setPage(t.id), style: { padding: "9px 10px", background: "none", border: "none", color: page === t.id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 10, cursor: "pointer", borderBottom: page === t.id ? `3px solid ${HRT.gold500}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap", flexShrink: 0 } }, t.lb)))),
-        React.createElement("div", { className: "pw-main-content", style: { padding: 14, maxWidth: 720, margin: "0 auto", position: "relative", zIndex: 1 } },
+                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)" } }, user.roleLabel || user.role)))),
+        React.createElement("div", { style: { padding: 14, maxWidth: 720, position: "relative", zIndex: 1, marginLeft: isWide ? 250 : 104 } },
             WDL_PAGE_IDS.includes(page) && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user, page: page, setPage: setPage, selectedId: selectedId, setSelectedId: setSelectedId }),
             page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
             page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
@@ -4742,20 +4739,23 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
 }
-function AccSidebar({ allTabs, tab, setTab, user, onSwitch, onLogout }) {
-    return React.createElement("div", { className: "pw-sidebar-desktop", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 240, background: HRT.navy950, zIndex: 300, overflowY: "auto", fontFamily: HRF.body } },
-        React.createElement("div", { style: { padding: "22px 20px 16px" } },
-            React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 22, color: HRT.gold500 } }, "Palian"),
-            React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 } }, "Money Lending")),
-        React.createElement("div", { style: { flex: 1, padding: "6px 12px", display: "flex", flexDirection: "column", gap: 4 } },
-            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", textAlign: "left", padding: "11px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? HRT.navy700 : "transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.55)", fontWeight: tab === t.id ? 700 : 500, fontSize: 13, fontFamily: HRF.body } },
-                React.createElement("span", null, t.lb)))),
-        React.createElement("div", { style: { padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.1)" } },
-            React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
-            React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", marginBottom: 8 } }, user.roleLabel || user.role),
-            React.createElement("div", { style: { display: "flex", gap: 10 } },
-                React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
-                React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))));
+function AccSidebar({ allTabs, tab, setTab, user, onSwitch, onLogout, isWide }) {
+    const w = isWide ? 240 : 100;
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: w, background: HRT.navy950, zIndex: 300, overflowY: "auto", fontFamily: HRF.body } },
+        React.createElement("div", { style: { padding: isWide ? "22px 20px 16px" : "14px 8px 10px", textAlign: isWide ? "left" : "center" } },
+            React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: isWide ? 22 : 15, color: HRT.gold500 } }, "Palian"),
+            isWide && React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 } }, "Money Lending")),
+        React.createElement("div", { style: { flex: 1, padding: isWide ? "6px 12px" : "4px 4px", display: "flex", flexDirection: "column", gap: 3 } },
+            allTabs.map(t => React.createElement("button", { key: t.id, onClick: () => setTab(t.id), style: { display: "flex", alignItems: "center", justifyContent: isWide ? "flex-start" : "center", flexDirection: isWide ? "row" : "column", gap: isWide ? 6 : 1, textAlign: isWide ? "left" : "center", padding: isWide ? "11px 14px" : "7px 2px", borderRadius: 8, border: "none", cursor: "pointer", background: tab === t.id ? HRT.navy700 : "transparent", color: tab === t.id ? "#fff" : "rgba(255,255,255,0.55)", fontWeight: tab === t.id ? 700 : 500, fontSize: isWide ? 13 : 8.5, fontFamily: HRF.body, lineHeight: 1.15, position: "relative" } },
+                React.createElement("span", { style: { fontSize: isWide ? 13 : 13 } }, isWide ? t.lb : t.lb.split(" ")[0]),
+                !isWide && React.createElement("span", { style: { wordBreak: "break-word" } }, t.lb.split(" ").slice(1).join(" ")),
+                t.badge > 0 && React.createElement("span", { style: { position: isWide ? "static" : "absolute", top: isWide ? "auto" : 2, right: isWide ? "auto" : 2, marginLeft: isWide ? "auto" : 0, background: "#C62828", color: "#fff", borderRadius: 10, fontSize: 8, padding: "1px 5px", fontWeight: 800 } }, t.badge)))),
+        React.createElement("div", { style: { padding: isWide ? "16px 20px" : "8px 6px", borderTop: "1px solid rgba(255,255,255,0.1)" } },
+            isWide && React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+            isWide && React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.45)", marginBottom: 8 } }, user.roleLabel || user.role),
+            React.createElement("div", { style: { display: "flex", flexDirection: isWide ? "row" : "column", gap: isWide ? 10 : 4, alignItems: "center" } },
+                React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: isWide ? 10 : 8, cursor: "pointer", padding: 0 } }, "Switch"),
+                React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: isWide ? 10 : 8, cursor: "pointer", padding: 0 } }, "Logout"))));
 }
 function TransportApp({ user, onLogout, onSwitch }) {
     const [tab, setTab] = useState("dash");
