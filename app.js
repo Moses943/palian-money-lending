@@ -2043,6 +2043,49 @@ function ExecKPI({ label, value, sub, color, icon, donut }) {
             React.createElement("div", { style: { fontSize: 17, fontWeight: 900, color: C.navy, lineHeight: 1.25 } }, value),
             sub && React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 1 } }, sub)));
 }
+function ExecArchDiagram() {
+    const boxes = [["HR SYSTEM", C.teal], ["M&E SYSTEM", C.purple], ["PROJECT SYSTEM", C.blue], ["RECOVERY SYSTEM", C.orange], ["FINANCE SYSTEM", C.green], ["LOAN SYSTEM", C.navy]];
+    return React.createElement("div", null,
+        React.createElement("div", { style: { background: C.navy, color: "#fff", borderRadius: 8, padding: "10px 8px", textAlign: "center", fontWeight: 800, fontSize: 10, marginBottom: 8 } }, "\uD83C\uDFE2 CEO & DIRECTOR \u2014 EXECUTIVE COMMAND CENTER"),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5, marginBottom: 8 } },
+            boxes.map(([b, c]) => React.createElement("div", { key: b, style: { background: c, color: "#fff", borderRadius: 6, padding: "8px 3px", textAlign: "center", fontSize: 8, fontWeight: 800, lineHeight: 1.2 } }, b))),
+        ["PROVINCIAL SYSTEM", "BRANCH SYSTEM", "LOAN OPERATIONS"].map((b, i) => React.createElement("div", { key: b, style: { background: i === 0 ? C.blue : i === 1 ? C.teal : C.gold, color: "#fff", borderRadius: 6, padding: "7px 4px", textAlign: "center", fontSize: 9, fontWeight: 800, marginBottom: 5 } }, b)));
+}
+function ExecWorkflowDiagram() {
+    const steps = [["\uD83D\uDCCB", "ACCOUNTS", "Submit Request", C.muted], ["\uD83D\uDC64", "DIRECTOR", "Review & Approve", C.gold], ["\uD83D\uDC51", "CEO", "Review & Approve", C.blue], ["\uD83C\uDFE6", "FINANCE", "Release Payment", C.green]];
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 } },
+            steps.map((s, i) => React.createElement(React.Fragment, { key: s[1] },
+                React.createElement("div", { style: { textAlign: "center", flex: 1 } },
+                    React.createElement("div", { style: { width: 34, height: 34, borderRadius: "50%", background: s[3], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 4px", fontSize: 14 } }, s[0]),
+                    React.createElement("div", { style: { fontSize: 8, fontWeight: 800, color: C.navy } }, s[1]),
+                    React.createElement("div", { style: { fontSize: 7, color: C.muted } }, s[2])),
+                i < steps.length - 1 && React.createElement("div", { style: { color: C.border, fontSize: 14, marginTop: 8 } }, "\u2192")))),
+        React.createElement("div", { style: { background: C.light, borderRadius: 8, padding: "10px 12px", textAlign: "center" } },
+            React.createElement("div", { style: { fontWeight: 800, fontSize: 10, color: C.navy, marginBottom: 4 } }, "CONTROL RULE"),
+            React.createElement("div", { style: { fontSize: 10, color: C.text, marginBottom: 4 } }, "Payment releases only when Director Approval = APPROVED and CEO Approval = APPROVED"),
+            React.createElement("div", { style: { fontSize: 10, fontWeight: 800, color: C.red } }, "\uD83D\uDD12 Otherwise payment is LOCKED")));
+}
+function ExecCompareCard() {
+    const ceoList = ["Strategic Oversight", "Company Performance", "Risk Management", "Final Approvals", "Executive Decisions", "Strategic Projects"];
+    const dirList = ["Operational Oversight", "Implementation", "First-Level Approvals", "Provincial Management", "Branch Supervision", "Daily Operations"];
+    return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+        React.createElement("div", { style: { background: C.navy, borderRadius: 8, padding: 10 } },
+            React.createElement("div", { style: { color: "#fff", fontWeight: 800, fontSize: 10, marginBottom: 6, textAlign: "center" } }, "CEO FOCUS"),
+            ceoList.map(f => React.createElement("div", { key: f, style: { color: "rgba(255,255,255,0.85)", fontSize: 9, padding: "3px 0" } }, "\u2022 " + f))),
+        React.createElement("div", { style: { background: C.gold, borderRadius: 8, padding: 10 } },
+            React.createElement("div", { style: { color: C.navy, fontWeight: 800, fontSize: 10, marginBottom: 6, textAlign: "center" } }, "DIRECTOR FOCUS"),
+            dirList.map(f => React.createElement("div", { key: f, style: { color: C.navy, fontSize: 9, padding: "3px 0" } }, "\u2022 " + f))));
+}
+function ExecFeatureStrip() {
+    const feats = [["\uD83D\uDCCA", "Executive Dashboards"], ["\u2705", "Approval Center"], ["\uD83D\uDCC8", "Performance Monitoring"], ["\uD83D\uDD0D", "Drill-Down Analytics"], ["\uD83D\uDD14", "Alerts & Notifications"], ["\uD83D\uDCDD", "Tasks & Decisions"], ["\uD83D\uDCD1", "Reports & Documents"], ["\u26A0\uFE0F", "Risk Management"], ["\uD83D\uDD75\uFE0F", "Audit Trail"], ["\uD83D\uDCF1", "Mobile Responsive"], ["\uD83D\uDD10", "Secure & Role Based"]];
+    return React.createElement(Card, null,
+        React.createElement(ST, null, "KEY SYSTEM FEATURES"),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))", gap: 8 } },
+            feats.map(([icon, label]) => React.createElement("div", { key: label, style: { textAlign: "center", padding: "10px 4px", background: C.light, borderRadius: 8 } },
+                React.createElement("div", { style: { fontSize: 18, marginBottom: 4 } }, icon),
+                React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: C.text } }, label)))));
+}
 function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
     const [page, setPage] = useState(isCEO ? "ceo-dash" : "dir-dash");
@@ -2148,10 +2191,11 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
                     React.createElement(ExecComboChart, { labels: activeProvinceRows.slice(0, 5).map(r => r.province), bars: { label: "Portfolio (K)", values: activeProvinceRows.slice(0, 5).map(r => r.portfolio), color: C.teal }, line: { label: "Recovery %", values: activeProvinceRows.slice(0, 5).map(r => r.recovery) }, height: 200 }),
                     activeProvinceRows.slice(0, 5).map(r => React.createElement(ExecProgressRow, { key: r.province, label: r.province, pct: r.recovery, sub: `${r.loans} loans \u00B7 ${fmt(r.portfolio)}` })),
                     React.createElement(Btn, { sm: true, color: C.teal, onClick: () => setPage("provinces") }, "View All Provinces \u2192")),
-                React.createElement(Card, null,
-                    React.createElement(ST, { color: C.purple }, `${isCEO ? "CEO" : "DIRECTOR"} FOCUS`),
-                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 } },
-                        focus.map(f => React.createElement("div", { key: f, style: { fontSize: 12, padding: "6px 0", color: C.text } }, "\u2022 " + f))))),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 12, marginBottom: 12 } },
+                    React.createElement(Card, null, React.createElement(ST, { color: C.navy }, "SYSTEM ARCHITECTURE"), React.createElement(ExecArchDiagram, null)),
+                    React.createElement(Card, null, React.createElement(ST, { color: C.blue }, "FINANCIAL APPROVAL WORKFLOW"), React.createElement(ExecWorkflowDiagram, null)),
+                    React.createElement(Card, null, React.createElement(ST, { color: C.purple }, "CEO vs DIRECTOR \u2014 KEY DIFFERENCE"), React.createElement(ExecCompareCard, null))),
+                React.createElement(ExecFeatureStrip, null)),
             isWide && React.createElement(SideCol, null));
     }
 
