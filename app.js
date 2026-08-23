@@ -1979,19 +1979,24 @@ function ExecBarChart({ data, height }) {
 }
 function ExecProgressRow({ label, pct, sub }) {
     const status = pct >= 85 ? ["Good", C.green] : pct >= 70 ? ["Needs Attention", C.amber] : pct >= 50 ? ["At Risk", C.orange] : ["Critical", C.red];
-    return React.createElement("div", { style: { marginBottom: 12 } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 } },
-            React.createElement("span", { style: { fontWeight: 700, color: C.text } }, label),
-            React.createElement("span", { style: { color: status[1], fontWeight: 800 } }, status[0])),
-        React.createElement("div", { style: { background: C.light, borderRadius: 8, height: 10, overflow: "hidden" } },
-            React.createElement("div", { style: { width: `${Math.min(100, Math.max(2, pct))}%`, height: "100%", background: status[1], borderRadius: 8 } })),
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted, marginTop: 2 } },
-            React.createElement("span", null, sub || ""),
-            React.createElement("span", null, pct.toFixed(1) + "%")));
+    return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${C.border}` } },
+        React.createElement("div", { style: { width: 84, fontSize: 12, fontWeight: 800, color: C.text, flexShrink: 0 } }, label),
+        React.createElement("div", { style: { flex: 1 } },
+            React.createElement("div", { style: { background: C.light, borderRadius: 8, height: 9, overflow: "hidden" } },
+                React.createElement("div", { style: { width: `${Math.min(100, Math.max(2, pct))}%`, height: "100%", background: C.blue, borderRadius: 8 } })),
+            sub && React.createElement("div", { style: { fontSize: 9, color: C.muted, marginTop: 2 } }, sub)),
+        React.createElement("div", { style: { width: 40, textAlign: "right", fontWeight: 800, fontSize: 12, color: C.navy, flexShrink: 0 } }, pct.toFixed(0) + "%"),
+        React.createElement("div", { style: { width: 100, textAlign: "right", fontWeight: 800, fontSize: 11, color: status[1], flexShrink: 0 } }, status[0]));
 }
 function ExecAttention({ items }) {
+    const critical = items.filter(it => it.level === "critical").length;
+    const warn = items.filter(it => it.level === "warn").length;
     return React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}`, background: "#FAF5FF" } },
         React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Attention Required"),
+        React.createElement("div", { style: { display: "flex", gap: 14, marginBottom: 10, flexWrap: "wrap" } },
+            React.createElement("span", { style: { fontSize: 11, fontWeight: 800, color: C.red } }, "\uD83D\uDD34 ", critical, " Critical"),
+            React.createElement("span", { style: { fontSize: 11, fontWeight: 800, color: C.amber } }, "\uD83D\uDFE1 ", warn, " Issues"),
+            React.createElement("span", { style: { fontSize: 11, fontWeight: 800, color: C.green } }, "\uD83D\uDFE2 ", Math.max(0, EXEC_NAV.filter(n => n.ready).length - critical - warn), " Areas Performing Well")),
         items.length === 0
             ? React.createElement(Alrt, { type: "success" }, "\u2705 Nothing critical right now.")
             : React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
@@ -2003,10 +2008,12 @@ function ExecAttention({ items }) {
                     React.createElement("span", { style: { background: it.level === "critical" ? C.red : C.amber, color: "#fff", borderRadius: 12, padding: "2px 10px", fontWeight: 800, fontSize: 11 } }, it.value)))));
 }
 function ExecKPI({ label, value, sub, color, icon }) {
-    return React.createElement("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 2px 8px rgba(15,45,92,0.08)", borderTop: `4px solid ${color || C.navy}`, minWidth: 130 } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, color: C.muted, fontSize: 10, fontWeight: 700, marginBottom: 6 } }, icon, " ", label.toUpperCase()),
-        React.createElement("div", { style: { fontSize: 18, fontWeight: 900, color: C.navy } }, value),
-        sub && React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 2 } }, sub));
+    return React.createElement("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 2px 8px rgba(15,45,92,0.08)", display: "flex", alignItems: "center", gap: 12, minWidth: 130 } },
+        React.createElement("div", { style: { width: 38, height: 38, borderRadius: 10, background: (color || C.navy) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 } }, icon),
+        React.createElement("div", null,
+            React.createElement("div", { style: { color: C.muted, fontSize: 9, fontWeight: 800, letterSpacing: 0.4 } }, label.toUpperCase()),
+            React.createElement("div", { style: { fontSize: 17, fontWeight: 900, color: C.navy, lineHeight: 1.25 } }, value),
+            sub && React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 1 } }, sub)));
 }
 function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
@@ -2070,11 +2077,16 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
     function SideCol() {
         return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
             React.createElement(ExecAttention, { items: attentionItems }),
-            React.createElement(Card, null,
-                React.createElement(ST, { color: C.blue }, `\uD83D\uDCB3 Pending ${isCEO ? "CEO" : "Director"} Approval`),
-                React.createElement("div", { style: { fontSize: 24, fontWeight: 900, color: C.navy } }, myQueue.length, React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: C.muted } }, " requests")),
-                React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.orange, marginBottom: 10 } }, fmt(isCEO ? wdlAwaitingCEOAmt : wdlAwaitingDirectorAmt), " total"),
-                React.createElement(Btn, { color: C.navy, full: true, sm: true, onClick: () => setPage("approvals") }, "Go to Approval Center")),
+            React.createElement(Card, { style: { background: C.navy, color: "#fff" } },
+                React.createElement("div", { style: { fontSize: 10, fontWeight: 800, letterSpacing: 0.5, opacity: 0.7, marginBottom: 10 } }, `PENDING ${isCEO ? "CEO" : "DIRECTOR"} APPROVAL`),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 12 } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontSize: 22, fontWeight: 900 } }, myQueue.length),
+                        React.createElement("div", { style: { fontSize: 9, opacity: 0.6, fontWeight: 700 } }, "REQUESTS")),
+                    React.createElement("div", { style: { textAlign: "right" } },
+                        React.createElement("div", { style: { fontSize: 16, fontWeight: 900, color: C.amber } }, fmt(isCEO ? wdlAwaitingCEOAmt : wdlAwaitingDirectorAmt)),
+                        React.createElement("div", { style: { fontSize: 9, opacity: 0.6, fontWeight: 700 } }, "TOTAL AMOUNT"))),
+                React.createElement("button", { onClick: () => setPage("approvals"), style: { width: "100%", background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 800, fontSize: 12, cursor: "pointer" } }, "Go to Approval Center")),
             React.createElement(Card, null,
                 React.createElement(ST, { color: C.purple }, "\uD83D\uDD14 Notifications"),
                 attentionItems.slice(0, 4).map((it, i) => React.createElement("div", { key: i, style: { fontSize: 11, padding: "7px 0", borderBottom: i < 3 ? `1px solid ${C.border}` : "none" } },
@@ -2284,7 +2296,9 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
             React.createElement("div", { className: "exec-sb-mobile", style: { display: "flex", overflowX: "auto", gap: 6, marginBottom: 14, paddingBottom: 4 } },
                 EXEC_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => n.ready && setPage(n.id), style: { flexShrink: 0, padding: "7px 12px", borderRadius: 20, border: `1.5px solid ${page === n.id ? C.navy : C.border}`, background: page === n.id ? C.navy : "#fff", color: page === n.id ? "#fff" : n.ready ? C.text : C.muted, fontWeight: 700, fontSize: 11, cursor: n.ready ? "pointer" : "default", opacity: n.ready ? 1 : 0.5 } }, n.icon, " ", n.label, n.badge && badgeCount > 0 ? ` (${badgeCount})` : ""))),
             React.createElement("div", { className: "exec-sb", style: { display: "none", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: 232, background: "#101C33", padding: "18px 10px", overflowY: "auto", zIndex: 10 } },
-                React.createElement("div", { style: { color: "#fff", fontWeight: 900, fontSize: 13, padding: "0 10px 14px", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 10 } }, "\uD83D\uDD37 PALIAN"),
+                React.createElement("div", { style: { padding: "0 10px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 10 } },
+                    React.createElement("div", { style: { color: "#fff", fontWeight: 900, fontSize: 15, letterSpacing: 0.5 } }, "\uD83D\uDD37 PALIAN"),
+                    React.createElement("div", { style: { color: "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 9, letterSpacing: 1 } }, "MONEY LENDING LIMITED")),
                 EXEC_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => n.ready && setPage(n.id), style: { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: page === n.id ? C.amber : "transparent", color: page === n.id ? C.navy : n.ready ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.35)", border: "none", borderRadius: 8, padding: "9px 10px", marginBottom: 3, fontWeight: 700, fontSize: 12, cursor: n.ready ? "pointer" : "default" } },
                     React.createElement("span", null, n.icon, " ", n.label),
                     n.badge && badgeCount > 0 ? React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 7px", fontWeight: 800 } }, badgeCount) : null)),
