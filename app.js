@@ -2945,7 +2945,7 @@ function WProcess({ db, requests, selectedId, setSelectedId, canProcess, onProce
                 ZM_BANKS.map(b => React.createElement("option", { key: b, value: b }, b))),
             bank === "Other" && React.createElement(Inp, { label: "Specify bank / method", value: customBank, onChange: e => setCustomBank(e.target.value), placeholder: "e.g. Mobile Money, Cash" }),
             React.createElement(Inp, { label: "Transaction reference (optional)", value: reference, onChange: e => setReference(e.target.value), placeholder: "e.g. bank transfer ref" }),
-            accounts.length > 0 && React.createElement(Sel, { label: "Deduct from account (optional)", value: accountId, onChange: e => setAccountId(e.target.value) },
+            accounts.length > 0 && React.createElement(Sel, { label: `Deduct from account (optional) \u2014 Total Balance: ${fmt(totalMoneyBalance(accounts))}`, value: accountId, onChange: e => setAccountId(e.target.value) },
                 React.createElement("option", { value: "" }, "\u2014 Don't deduct from a tracked account \u2014"),
                 accounts.map(a => React.createElement("option", { key: a.id, value: a.id }, `${a.name} (${fmt(a.balance)})`))),
             !canProcess && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Your role can't mark requests as processed."),
