@@ -4676,6 +4676,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
     const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
     useEffect(() => { const h = () => setIsWide(window.innerWidth >= 1000); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
     const canAdmin = user.role === "admin" || user.role === "director";
+    const canFunds = canAdmin || user.role === "accounts";
     const isCEO = user.role === "ceo";
     const NAV = isCEO ? [
         { id: "wdash", lb: "\uD83C\uDFE0 Dashboard" },
@@ -4705,7 +4706,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "leave", lb: "\uD83C\uDFD6\uFE0F Leave" },
         { id: "install", lb: "\uD83D\uDCF1 Install" },
         { id: "hr", lb: "\uD83D\uDC65 HR" },
-        ...(canAdmin ? [{ id: "mgr-funds", lb: "\uD83D\uDD11 Branch Funds" }] : []),
+        ...(canFunds ? [{ id: "mgr-funds", lb: "\uD83D\uDD11 Branch Funds" }] : []),
         ...(canAdmin ? [{ id: "deletions", lb: "\uD83D\uDDD1\uFE0F Deletions" }] : []),
         { id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" },
         { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" },
@@ -4737,7 +4738,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "leave" && React.createElement(LeaveRequest, { db: db, setDb: setDb, user: user }),
             page === "install" && React.createElement(Install, null),
             page === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
-            page === "mgr-funds" && canAdmin && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }),
+            page === "mgr-funds" && canFunds && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }),
             page === "deletions" && canAdmin && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
             page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
