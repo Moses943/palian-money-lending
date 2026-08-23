@@ -67,7 +67,9 @@
 <script src="config.js"></script>
 
 <!-- App code — pre-compiled to plain JavaScript, no in-browser transform needed -->
-<script src="app.js"></script>
+<!-- IMPORTANT: bump ?v= number every time app.js changes, or phones will keep -->
+<!-- running a cached old copy even after a successful deploy. -->
+<script src="app.js?v=4"></script>
 
 <script>
   if("serviceWorker" in navigator){
