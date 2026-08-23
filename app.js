@@ -2859,6 +2859,9 @@ function WApplyForm({ db, canApply, onSubmit }) {
     }
     return (React.createElement(Card, null,
         React.createElement(ST, null, "Apply for Withdrawal"),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: C.light, borderRadius: 8, padding: "8px 12px", marginBottom: 12 } },
+            React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.muted } }, "Current Accounts Balance"),
+            React.createElement("span", { style: { fontSize: 14, fontWeight: 900, color: C.navy } }, fmt(db.bankBalance || 0))),
         !canApply && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Your role can't submit withdrawal requests."),
         React.createElement(Sel, { label: "Branch / Office", value: form.branch, onChange: e => set("branch", e.target.value), style: compactSt },
             branches.map(b => React.createElement("option", { key: b, value: b }, b))),
