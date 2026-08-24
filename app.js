@@ -3102,9 +3102,9 @@ function WAccountsManager({ db, setDb, user }) {
         setNote(x => ({ ...x, [accountId]: "" }));
     }
     return React.createElement("div", null,
-        React.createElement(HRHeading, { eyebrow: "Accounts", title: "Money Accounts" }),
+        React.createElement(HRHeading, { eyebrow: "Accounts", title: "Money Account" }),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 } },
-            React.createElement(HRStatCard, { label: "Total Outstanding Balance", value: fmt(total), accent: total <= 0 ? HRT.garnet700 : total < MONEY_LOW_THRESHOLD ? HRT.gold500 : HRT.green700, sub: total <= 0 ? "\u26A0\uFE0F Out of funds" : total < MONEY_LOW_THRESHOLD ? "\u26A0\uFE0F Funds running low" : "\u2705 Funds healthy" }),
+            React.createElement(HRStatCard, { label: "Total Balance", value: fmt(total), accent: total <= 0 ? HRT.garnet700 : total < MONEY_LOW_THRESHOLD ? HRT.gold500 : HRT.green700, sub: total <= 0 ? "\u26A0\uFE0F Out of funds" : total < MONEY_LOW_THRESHOLD ? "\u26A0\uFE0F Funds running low" : "\u2705 Funds healthy" }),
             React.createElement(HRStatCard, { label: "Total Disbursed", value: fmt(totalDisbursed), accent: HRT.navy700 }),
             React.createElement(HRStatCard, { label: "Total Collections", value: fmt(totalCollections), accent: HRT.green700 })),
         React.createElement(WProvinceRecoveryChart, { db: db }),
@@ -4696,7 +4696,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "whistory", lb: "\uD83D\uDD58 History" },
         { id: "wreports", lb: "\uD83D\uDCCA W-Reports" },
         { id: "waudit", lb: "\uD83D\uDCCB Audit" },
-        { id: "accounts", lb: "\uD83D\uDCB0 Accounts" },
+        { id: "accounts", lb: "\uD83D\uDCB0 Money Account" },
         { id: "messages", lb: "\uD83D\uDCAC Messages" },
         { id: "notify", lb: "\uD83D\uDD14 Alerts" },
         { id: "reports", lb: "\uD83D\uDCC4 Reports" },
