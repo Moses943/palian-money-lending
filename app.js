@@ -224,7 +224,7 @@ async function saveDB(db) {
     await tryUpsert("Daily Reports", "daily_reports", db.dailyReports?.length ? db.dailyReports.map(dailyReportOut) : null);
     await tryUpsert("Branch Disbursements", "branch_disbursements", db.branchDisbursements?.length ? db.branchDisbursements.map(d => ({ id: d.id, branch: d.branch, province: d.province, amount: d.amount, category: d.category, note: d.note || null, date: d.date, sent_by: d.sentBy })) : null, { onConflict: "id" });
     await tryUpsert("Payment Plans", "payment_plans", db.paymentPlans?.length ? db.paymentPlans.map(paymentPlanOut) : null);
-    await tryUpsert("Messages", "messages", db.messages?.length ? db.messages.map(messageOut) : null);
+    await tryUpsert("Messages", "messages", db.messages?.length ? db.messages.map(messageOut) : null, { onConflict: "id" });
     await tryUpsert("Withdrawal Requests", "withdrawal_requests", db.withdrawalRequests?.length ? db.withdrawalRequests.map(withdrawalOut) : null, { onConflict: "id" });
     await tryUpsert("Money Accounts", "money_accounts", db.moneyAccounts?.length ? db.moneyAccounts.map(moneyAccountOut) : null, { onConflict: "id" });
     await tryUpsert("Money Account Transactions", "money_account_txns", db.moneyAccountTxns?.length ? db.moneyAccountTxns.map(moneyTxnOut) : null, { onConflict: "id" });
@@ -2314,10 +2314,10 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
         const recentTxns = (db.moneyAccountTxns || []).slice(0, 10);
         return React.createElement("div", null,
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
-                ["Accounts Balance", fmt(db.bankBalance || 0), C.teal], ["Money Accounts Total", fmt(totalMoneyBalance(accounts)), C.navy], ["Accounts Tracked", accounts.length, C.purple],
+                ["Accounts Balance", fmt(db.bankBalance || 0), C.teal], ["Many Account Total", fmt(totalMoneyBalance(accounts)), C.navy], ["Accounts Tracked", accounts.length, C.purple],
             ].map(([l, v, c]) => React.createElement(ExecKPI, { key: l, label: l, value: v, color: c }))),
             React.createElement(Card, null,
-                React.createElement(ST, null, "\uD83C\uDFE6 Money Accounts"),
+                React.createElement(ST, null, "\uD83C\uDFE6 Many Account"),
                 accounts.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "No accounts recorded yet.") :
                     accounts.map(a => React.createElement(IR, { key: a.id, label: a.name, value: fmt(a.balance) }))),
             React.createElement(Card, null,
@@ -3110,7 +3110,7 @@ function WAccountsManager({ db, setDb, user }) {
         setNote(x => ({ ...x, [accountId]: "" }));
     }
     return React.createElement("div", null,
-        React.createElement(HRHeading, { eyebrow: "Accounts", title: "Money Account" }),
+        React.createElement(HRHeading, { eyebrow: "Accounts", title: "Many Account" }),
         React.createElement(Card, { style: { borderLeft: `4px solid ${C.green}`, background: "#F1F8F4" } },
             React.createElement(ST, { color: C.green }, "\u2795 Add Money to Accounts Balance"),
             React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, `Current Accounts Balance: ${fmt(db.bankBalance || 0)}`),
@@ -4711,7 +4711,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "whistory", lb: "\uD83D\uDD58 History" },
         { id: "wreports", lb: "\uD83D\uDCCA W-Reports" },
         { id: "waudit", lb: "\uD83D\uDCCB Audit" },
-        { id: "accounts", lb: "\uD83D\uDCB0 Money Account" },
+        { id: "accounts", lb: "\uD83D\uDCB0 Many Account" },
         { id: "messages", lb: "\uD83D\uDCAC Messages" },
         { id: "notify", lb: "\uD83D\uDD14 Alerts" },
         { id: "reports", lb: "\uD83D\uDCC4 Reports" },
