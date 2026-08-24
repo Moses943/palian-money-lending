@@ -2109,7 +2109,105 @@ function ExecFeatureStrip() {
                 React.createElement("div", { style: { fontSize: 18, marginBottom: 4 } }, icon),
                 React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: C.text } }, label)))));
 }
-function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
+function MEOverviewPage({ db, setDb, user, isWide }) {
+    const { loans, payments, staff } = db;
+    const allPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const allDue = loans.reduce((s, l) => s + l.totalDue, 0);
+    const allApplied = loans.reduce((s, l) => s + (l.principal || 0), 0);
+    const rec = allDue > 0 ? (allPaid / allDue * 100) : 0;
+    const collRate = allApplied > 0 ? (allPaid / allApplied * 100) : 0;
+    const provinceRows = Object.keys(PROVINCES).map(p => {
+        const towns = PROVINCES[p].towns.map(t => t[0]);
+        const pLoans = loans.filter(l => l.province === p);
+        const pPayments = payments.filter(pm => towns.includes(pm.branch));
+        const collected = pPayments.reduce((s, pm) => s + pm.amount, 0);
+        const totalDue = pLoans.reduce((s, l) => s + l.totalDue, 0);
+        const recovery = totalDue > 0 ? (collected / totalDue * 100) : 100;
+        return { province: p, recovery, loans: pLoans.length, collected, portfolio: pLoans.reduce((s, l) => s + (l.principal || 0), 0) };
+    });
+    const activeProvinceRows = provinceRows.filter(r => r.loans > 0);
+    const allBranches = [...new Set((staff || []).filter(s => s.branch && s.branch !== "Head Office" && s.branch !== "Provincial Office").map(s => s.branch))];
+    const activeBranchRows = allBranches.map(b => branchStats(db, b)).filter(r => r.loans > 0);
+    const [form, setForm] = useState({ kpi: ME_KPIS[0], scopeType: "company", scopeValue: "", targetValue: "", period: new Date().getFullYear().toString(), notes: "" });
+    const targets = db.meTargets || [];
+    function saveTarget() {
+        const tv = parseFloat(form.targetValue);
+        if (isNaN(tv)) { alert("Enter a target value."); return; }
+        if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
+        const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
+        const nd = { ...db, meTargets: [t, ...targets] };
+        saveDB(nd); setDb(nd);
+        setForm(f => ({ ...f, targetValue: "", notes: "" }));
+    }
+    async function deleteTarget(id) {
+        if (!window.confirm("Delete this target?")) return;
+        const { error } = await sb.from("me_targets").delete().eq("id", id);
+        if (error) { alert("Could not delete: " + error.message); return; }
+        const nd = { ...db, meTargets: targets.filter(t => t.id !== id) };
+        saveDB(nd); setDb(nd);
+    }
+    function actualFor(kpi, scopeType, scopeValue) {
+        if (scopeType === "company") {
+            if (kpi === "Recovery Rate") return rec;
+            if (kpi === "Collection Rate") return collRate;
+            if (kpi === "Portfolio") return allApplied;
+        }
+        if (scopeType === "province") {
+            const r = activeProvinceRows.find(x => x.province === scopeValue);
+            if (!r) return null;
+            if (kpi === "Recovery Rate") return r.recovery;
+            if (kpi === "Collection Rate") return r.portfolio > 0 ? (r.collected / r.portfolio * 100) : 0;
+            if (kpi === "Portfolio") return r.portfolio;
+        }
+        if (scopeType === "branch") {
+            const r = activeBranchRows.find(x => x.branch === scopeValue);
+            if (!r) return null;
+            const branchPortfolio = loans.filter(l => l.branch === scopeValue).reduce((s, l) => s + (l.principal || 0), 0);
+            if (kpi === "Recovery Rate") return r.recovery;
+            if (kpi === "Collection Rate") return branchPortfolio > 0 ? (r.collected / branchPortfolio * 100) : 0;
+            if (kpi === "Portfolio") return branchPortfolio;
+        }
+        return null;
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "\uD83C\uDFAF Set a Target"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
+                React.createElement(Sel, { label: "KPI", value: form.kpi, onChange: e => setForm(f => ({ ...f, kpi: e.target.value })) }, ME_KPIS.map(k => React.createElement("option", { key: k, value: k }, k))),
+                React.createElement(Sel, { label: "Scope", value: form.scopeType, onChange: e => setForm(f => ({ ...f, scopeType: e.target.value, scopeValue: "" })) },
+                    React.createElement("option", { value: "company" }, "Company-wide"),
+                    React.createElement("option", { value: "province" }, "Province"),
+                    React.createElement("option", { value: "branch" }, "Branch")),
+                form.scopeType === "province" && React.createElement(Sel, { label: "Province", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
+                    React.createElement("option", { value: "" }, "Select..."), Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
+                form.scopeType === "branch" && React.createElement(Sel, { label: "Branch", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
+                    React.createElement("option", { value: "" }, "Select..."), allBranches.map(b => React.createElement("option", { key: b, value: b }, b)))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
+                React.createElement(Inp, { label: `Target Value ${form.kpi === "Portfolio" ? "(K)" : "(%)"}`, type: "number", value: form.targetValue, onChange: e => setForm(f => ({ ...f, targetValue: e.target.value })) }),
+                React.createElement(Inp, { label: "Period", value: form.period, onChange: e => setForm(f => ({ ...f, period: e.target.value })), placeholder: "e.g. 2026 or Q3 2026" }),
+                React.createElement(Inp, { label: "Notes (optional)", value: form.notes, onChange: e => setForm(f => ({ ...f, notes: e.target.value })) })),
+            React.createElement(Btn, { color: C.purple, full: true, onClick: saveTarget }, "\uD83C\uDFAF Save Target")),
+        React.createElement(Card, null,
+            React.createElement(ST, null, "\uD83D\uDCCA KPIs vs Targets"),
+            targets.length === 0 ? React.createElement(Alrt, { type: "info" }, "No targets set yet \u2014 add one above to start tracking achievement.") :
+                targets.map(t => {
+                    const actual = actualFor(t.kpi, t.scopeType, t.scopeValue);
+                    const achievement = actual !== null && t.targetValue ? (actual / t.targetValue * 100) : null;
+                    const status = achievement === null ? ["No data", C.muted] : achievement >= 100 ? ["On Target", C.green] : achievement >= 80 ? ["Near Target", C.amber] : ["Below Target", C.red];
+                    const scopeLabel = t.scopeType === "company" ? "Company-wide" : t.scopeValue;
+                    return React.createElement("div", { key: t.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontWeight: 800, fontSize: 13 } }, `${t.kpi} \u2014 ${scopeLabel}`),
+                                React.createElement("div", { style: { fontSize: 10, color: C.muted } }, `${t.period}${t.notes ? " \u00B7 " + t.notes : ""}`)),
+                            React.createElement("button", { onClick: () => deleteTarget(t.id), style: { background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 16 } }, "\uD83D\uDDD1\uFE0F")),
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12 } },
+                            React.createElement("span", null, `Target: ${t.kpi === "Portfolio" ? fmt(t.targetValue) : t.targetValue.toFixed(1) + "%"}`),
+                            React.createElement("span", null, `Actual: ${actual === null ? "\u2014" : (t.kpi === "Portfolio" ? fmt(actual) : actual.toFixed(1) + "%")}`),
+                            React.createElement("span", { style: { fontWeight: 800, color: status[1] } }, achievement === null ? status[0] : `${achievement.toFixed(0)}% \u2014 ${status[0]}`)));
+                })));
+}
+function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
     const [page, setPage] = useState(isCEO ? "ceo-dash" : "dir-dash");
     const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
@@ -2348,86 +2446,6 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
                     React.createElement("span", { style: { color: C.muted } }, l.date, " ", l.time))));
     }
 
-    function MEOverviewPage() {
-        const [form, setForm] = useState({ kpi: ME_KPIS[0], scopeType: "company", scopeValue: "", targetValue: "", period: new Date().getFullYear().toString(), notes: "" });
-        const targets = db.meTargets || [];
-        function saveTarget() {
-            const tv = parseFloat(form.targetValue);
-            if (isNaN(tv)) { alert("Enter a target value."); return; }
-            if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
-            const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
-            const nd = { ...db, meTargets: [t, ...targets] };
-            saveDB(nd); setDb(nd);
-            setForm(f => ({ ...f, targetValue: "", notes: "" }));
-        }
-        async function deleteTarget(id) {
-            if (!window.confirm("Delete this target?")) return;
-            const { error } = await sb.from("me_targets").delete().eq("id", id);
-            if (error) { alert("Could not delete: " + error.message); return; }
-            const nd = { ...db, meTargets: targets.filter(t => t.id !== id) };
-            saveDB(nd); setDb(nd);
-        }
-        function actualFor(kpi, scopeType, scopeValue) {
-            if (scopeType === "company") {
-                if (kpi === "Recovery Rate") return rec;
-                if (kpi === "Collection Rate") return collRate;
-                if (kpi === "Portfolio") return allApplied;
-            }
-            if (scopeType === "province") {
-                const r = activeProvinceRows.find(x => x.province === scopeValue);
-                if (!r) return null;
-                if (kpi === "Recovery Rate") return r.recovery;
-                if (kpi === "Collection Rate") return r.portfolio > 0 ? (r.collected / r.portfolio * 100) : 0;
-                if (kpi === "Portfolio") return r.portfolio;
-            }
-            if (scopeType === "branch") {
-                const r = activeBranchRows.find(x => x.branch === scopeValue);
-                if (!r) return null;
-                const branchPortfolio = loans.filter(l => l.branch === scopeValue).reduce((s, l) => s + (l.principal || 0), 0);
-                if (kpi === "Recovery Rate") return r.recovery;
-                if (kpi === "Collection Rate") return branchPortfolio > 0 ? (r.collected / branchPortfolio * 100) : 0;
-                if (kpi === "Portfolio") return branchPortfolio;
-            }
-            return null;
-        }
-        return React.createElement("div", null,
-            React.createElement(Card, null,
-                React.createElement(ST, { color: C.purple }, "\uD83C\uDFAF Set a Target"),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
-                    React.createElement(Sel, { label: "KPI", value: form.kpi, onChange: e => setForm(f => ({ ...f, kpi: e.target.value })) }, ME_KPIS.map(k => React.createElement("option", { key: k, value: k }, k))),
-                    React.createElement(Sel, { label: "Scope", value: form.scopeType, onChange: e => setForm(f => ({ ...f, scopeType: e.target.value, scopeValue: "" })) },
-                        React.createElement("option", { value: "company" }, "Company-wide"),
-                        React.createElement("option", { value: "province" }, "Province"),
-                        React.createElement("option", { value: "branch" }, "Branch")),
-                    form.scopeType === "province" && React.createElement(Sel, { label: "Province", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
-                        React.createElement("option", { value: "" }, "Select..."), Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
-                    form.scopeType === "branch" && React.createElement(Sel, { label: "Branch", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
-                        React.createElement("option", { value: "" }, "Select..."), allBranches.map(b => React.createElement("option", { key: b, value: b }, b)))),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
-                    React.createElement(Inp, { label: `Target Value ${form.kpi === "Portfolio" ? "(K)" : "(%)"}`, type: "number", value: form.targetValue, onChange: e => setForm(f => ({ ...f, targetValue: e.target.value })) }),
-                    React.createElement(Inp, { label: "Period", value: form.period, onChange: e => setForm(f => ({ ...f, period: e.target.value })), placeholder: "e.g. 2026 or Q3 2026" }),
-                    React.createElement(Inp, { label: "Notes (optional)", value: form.notes, onChange: e => setForm(f => ({ ...f, notes: e.target.value })) })),
-                React.createElement(Btn, { color: C.purple, full: true, onClick: saveTarget }, "\uD83C\uDFAF Save Target")),
-            React.createElement(Card, null,
-                React.createElement(ST, null, "\uD83D\uDCCA KPIs vs Targets"),
-                targets.length === 0 ? React.createElement(Alrt, { type: "info" }, "No targets set yet \u2014 add one above to start tracking achievement.") :
-                    targets.map(t => {
-                        const actual = actualFor(t.kpi, t.scopeType, t.scopeValue);
-                        const achievement = actual !== null && t.targetValue ? (actual / t.targetValue * 100) : null;
-                        const status = achievement === null ? ["No data", C.muted] : achievement >= 100 ? ["On Target", C.green] : achievement >= 80 ? ["Near Target", C.amber] : ["Below Target", C.red];
-                        const scopeLabel = t.scopeType === "company" ? "Company-wide" : t.scopeValue;
-                        return React.createElement("div", { key: t.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
-                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-                                React.createElement("div", null,
-                                    React.createElement("div", { style: { fontWeight: 800, fontSize: 13 } }, `${t.kpi} \u2014 ${scopeLabel}`),
-                                    React.createElement("div", { style: { fontSize: 10, color: C.muted } }, `${t.period}${t.notes ? " \u00B7 " + t.notes : ""}`)),
-                                React.createElement("button", { onClick: () => deleteTarget(t.id), style: { background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 16 } }, "\uD83D\uDDD1\uFE0F")),
-                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12 } },
-                                React.createElement("span", null, `Target: ${t.kpi === "Portfolio" ? fmt(t.targetValue) : t.targetValue.toFixed(1) + "%"}`),
-                                React.createElement("span", null, `Actual: ${actual === null ? "\u2014" : (t.kpi === "Portfolio" ? fmt(actual) : actual.toFixed(1) + "%")}`),
-                                React.createElement("span", { style: { fontWeight: 800, color: status[1] } }, achievement === null ? status[0] : `${achievement.toFixed(0)}% \u2014 ${status[0]}`)));
-                    })));
-    }
     const PAGES = {
         "ceo-dash": () => React.createElement(DashboardPage, { variant: "ceo" }),
         "dir-dash": () => React.createElement(DashboardPage, { variant: "director" }),
@@ -2440,7 +2458,7 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
         recovery: () => React.createElement(RecoveryPage, null),
         hr: () => React.createElement(HRPage, null),
         finance: () => React.createElement(FinancePage, null),
-        me: () => React.createElement(MEOverviewPage, null),
+        me: () => React.createElement(MEOverviewPage, { db: db, setDb: setDb, user: user, isWide: isWide }),
         notifications: () => React.createElement(ExecAttention, { items: attentionItems }),
         audit: () => React.createElement(AuditPage, null),
     };
@@ -4823,6 +4841,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "wreports", lb: "\uD83D\uDCCA W-Reports" },
         { id: "waudit", lb: "\uD83D\uDCCB Audit" },
         { id: "accounts", lb: "\uD83D\uDCB0 Many Account" },
+        { id: "me", lb: "\uD83D\uDCD0 M&E" },
         { id: "messages", lb: "\uD83D\uDCAC Messages" },
         { id: "notify", lb: "\uD83D\uDD14 Alerts" },
         { id: "reports", lb: "\uD83D\uDCC4 Reports" },
@@ -4855,6 +4874,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         React.createElement("div", { style: { padding: 14, maxWidth: 720, position: "relative", zIndex: 1, marginLeft: isWide ? 250 : 104 } },
             WDL_PAGE_IDS.includes(page) && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user, page: page, setPage: setPage, selectedId: selectedId, setSelectedId: setSelectedId }),
             page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
+            page === "me" && React.createElement(MEOverviewPage, { db: db, setDb: setDb, user: user, isWide: isWide }),
             page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             page === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: () => { } }),
             page === "reports" && React.createElement(Reports, { db: db, user: user, onReport: () => { } }),
@@ -5271,7 +5291,7 @@ function App() {
     if (module === "accounts")
         return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "exec" && (user.role === "ceo" || user.role === "director"))
-        return React.createElement(ExecutiveCommandCenter, { db: db, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule("accounts") });
+        return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule("accounts") });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
     const info = (hoRole || provRole) ? null : gBI(user.branch);
