@@ -2207,6 +2207,132 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
                             React.createElement("span", { style: { fontWeight: 800, color: status[1] } }, achievement === null ? status[0] : `${achievement.toFixed(0)}% \u2014 ${status[0]}`)));
                 })));
 }
+// ── M&E & DATA ANALYSIS SYSTEM (standalone) ─────────────────────────────────
+// Dark-theme system matching the FMEAS reference design. All figures below
+// are computed live from real loans/payments/staff data — nothing here is
+// placeholder/sample data. Sections needing data sources this system doesn't
+// have yet (Finacle integration, Reports, Administration) are honestly
+// marked "Coming Soon" rather than faked.
+const MC = { bg: "#0B0F17", card: "#161B26", cardAlt: "#1B2130", sidebar: "#0E1219", accent: "#3B82F6", text: "#E5E7EB", muted: "#8B93A7", border: "#232838", green: "#10B981", amber: "#F59E0B", red: "#EF4444", purple: "#8B5CF6" };
+const ME_NAV = [
+    { id: "dash", label: "Dashboard", icon: "\uD83C\uDFE0", ready: true },
+    { id: "monitoring", label: "M&E Monitoring", icon: "\uD83C\uDFAF", ready: true },
+    { id: "provinces", label: "Provinces", icon: "\uD83D\uDCCD", ready: true },
+    { id: "branches", label: "Branches", icon: "\uD83D\uDC65", ready: true },
+    { id: "loans", label: "Loan Records", icon: "\uD83D\uDCCA", ready: true },
+    { id: "finacle", label: "Finacle Monitoring", icon: "\uD83D\uDDBC\uFE0F", ready: false },
+    { id: "accounts", label: "Accounts & Approvals", icon: "\uD83D\uDCB3", ready: true, external: true },
+    { id: "audit", label: "Auditing", icon: "\uD83D\uDD17", ready: true },
+    { id: "reports", label: "Reports", icon: "\uD83D\uDCC4", ready: false },
+    { id: "notifications", label: "Notifications", icon: "\uD83D\uDD14", ready: true },
+    { id: "admin", label: "Administration", icon: "\u2699\uFE0F", ready: false },
+];
+function MCard({ children, style }) { return React.createElement("div", { style: { background: MC.card, borderRadius: 14, padding: 18, border: `1px solid ${MC.border}`, ...style } }, children); }
+function MSoon({ label }) {
+    return React.createElement(MCard, { style: { textAlign: "center", padding: 40 } },
+        React.createElement("div", { style: { fontSize: 30, marginBottom: 8 } }, "\uD83D\uDEA7"),
+        React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: "#fff", marginBottom: 6 } }, `${label} \u2014 Coming Soon`),
+        React.createElement("div", { style: { fontSize: 12, color: MC.muted, maxWidth: 420, margin: "0 auto" } }, "This section needs its own data source before it can show real information \u2014 ask any time to have it added."));
+}
+function MStatCard({ icon, label, value, sub, color }) {
+    return React.createElement(MCard, null,
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
+            React.createElement("div", { style: { width: 36, height: 36, borderRadius: 9, background: MC.cardAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 } }, icon),
+            React.createElement("div", { style: { color: MC.muted, fontSize: 12, fontWeight: 600 } }, label)),
+        React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: color || "#fff" } }, value),
+        sub && React.createElement("div", { style: { fontSize: 11, color: MC.muted, marginTop: 4 } }, sub));
+}
+function MEDataAnalysisLoans({ db, isWide }) {
+    const { loans, payments } = db;
+    const countSt = s => loans.filter(l => getSt(l, payments) === s).length;
+    const allApplied = loans.reduce((s, l) => s + (l.principal || 0), 0);
+    const allOut = loans.reduce((s, l) => s + getBal(l, payments), 0);
+    const allPaid = payments.reduce((s, p) => s + p.amount, 0);
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(5,1fr)" : "repeat(2,1fr)", gap: 12, marginBottom: 16 } },
+            [["\u2705", "Active", countSt("Active"), MC.green], ["\u23F3", "Overdue", countSt("Overdue"), MC.amber], ["\uD83D\uDD34", "Defaulted", countSt("Defaulted"), MC.red], ["\uD83D\uDCC4", "Cleared", countSt("Cleared"), MC.accent], ["\uD83D\uDD52", "Pending", countSt("Pending"), MC.purple]]
+                .map(([i, l, v, c]) => React.createElement(MStatCard, { key: l, icon: i, label: l, value: v, color: c }))),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "Portfolio Summary"),
+            [["Amount Applied", fmt(allApplied)], ["Outstanding", fmt(allOut)], ["Collected to Date", fmt(allPaid)], ["Total Loan Records", loans.length]].map(([l, v]) => React.createElement("div", { key: l, style: { display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${MC.border}`, fontSize: 13 } },
+                React.createElement("span", { style: { color: MC.muted } }, l), React.createElement("span", { style: { color: "#fff", fontWeight: 700 } }, v)))));
+}
+function MEAuditPage({ db }) {
+    const logs = (db.loginLogs || []).slice().reverse().slice(0, 60);
+    return React.createElement(MCard, null,
+        React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "\uD83D\uDD17 Login Activity (most recent)"),
+        logs.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: MC.muted } }, "No login activity recorded yet.") :
+            logs.map((l, i) => React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${MC.border}`, fontSize: 12 } },
+                React.createElement("span", { style: { color: "#fff" } }, l.name, " \u00B7 ", l.roleLabel || l.role, " \u00B7 ", l.branch || l.province || "Head Office"),
+                React.createElement("span", { style: { color: MC.muted } }, l.date, " ", l.time))));
+}
+function MEDashboard({ db, isWide, setPage }) {
+    const { loans, payments, clients, staff } = db;
+    const allPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const allDue = loans.reduce((s, l) => s + l.totalDue, 0);
+    const allApplied = loans.reduce((s, l) => s + (l.principal || 0), 0);
+    const rec = allDue > 0 ? (allPaid / allDue * 100) : 0;
+    const recentPayments = payments.slice().reverse().slice(0, 7).map(p => {
+        const loan = loans.find(l => l.loanNo === p.loanNo);
+        return { date: p.date, client: loan ? loan.name : p.loanNo, amount: p.amount, branch: p.branch };
+    });
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 12, marginBottom: 16 } },
+            React.createElement(MStatCard, { icon: "\uD83D\uDCB0", label: "Total Portfolio", value: fmt(allApplied), color: MC.accent }),
+            React.createElement(MStatCard, { icon: "\u267B\uFE0F", label: "Recovery Rate", value: rec.toFixed(1) + "%", color: rec >= 70 ? MC.green : rec >= 50 ? MC.amber : MC.red }),
+            React.createElement(MStatCard, { icon: "\uD83D\uDC65", label: "Active Clients", value: clients.length, color: MC.purple })),
+        React.createElement(MCard, { style: { marginBottom: 16 } },
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "\uD83D\uDCCA Company Performance"),
+            React.createElement(ExecComboChart, { labels: ["Applied", "Collected", "Outstanding"], bars: { label: "Amount (K)", values: [allApplied, allPaid, loans.reduce((s, l) => s + getBal(l, payments), 0)], color: MC.accent } })),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+                React.createElement("div", { style: { fontWeight: 800, color: "#fff" } }, "Recent Activity"),
+                React.createElement("button", { onClick: () => setPage("loans"), style: { background: "none", border: "none", color: MC.accent, fontSize: 12, cursor: "pointer", fontWeight: 700 } }, "View All \u2192")),
+            recentPayments.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: MC.muted } }, "No payments recorded yet.") :
+                recentPayments.map((r, i) => React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${MC.border}`, fontSize: 12 } },
+                    React.createElement("span", { style: { color: "#fff" } }, r.client, " \u00B7 ", React.createElement("span", { style: { color: MC.muted } }, r.branch)),
+                    React.createElement("span", { style: { color: MC.green, fontWeight: 700 } }, "+" + fmt(r.amount))))));
+}
+function MESystemApp({ db, setDb, user, onLogout, onSwitch }) {
+    const [page, setPage] = useState("dash");
+    const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
+    useEffect(() => { const h = () => setIsWide(window.innerWidth >= 1000); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
+    const sbw = isWide ? 240 : 92;
+    const attentionCount = (db.withdrawalRequests || []).filter(w => w.status === "pending_ceo" || w.status === "pending_director").length;
+    const PAGES = {
+        dash: () => React.createElement(MEDashboard, { db: db, isWide: isWide, setPage: setPage }),
+        monitoring: () => React.createElement(MEOverviewPage, { db: db, setDb: setDb, user: user, isWide: isWide }),
+        provinces: () => React.createElement(AdminProvincialView, { db: db }),
+        branches: () => React.createElement(AdminBranchView, { db: db }),
+        loans: () => React.createElement(MEDataAnalysisLoans, { db: db, isWide: isWide }),
+        audit: () => React.createElement(MEAuditPage, { db: db }),
+        notifications: () => React.createElement(MCard, null, React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "\uD83D\uDD14 Notifications"), attentionCount > 0 ? React.createElement("div", { style: { fontSize: 13, color: MC.amber } }, `${attentionCount} financial request(s) pending approval`) : React.createElement("div", { style: { fontSize: 12, color: MC.muted } }, "Nothing pending right now.")),
+    };
+    const navItem = ME_NAV.find(n => n.id === page);
+    return React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", minHeight: "100vh", background: MC.bg, color: MC.text } },
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: sbw, background: MC.sidebar, borderRight: `1px solid ${MC.border}`, zIndex: 20, overflowY: "auto" } },
+            React.createElement("div", { style: { padding: isWide ? "20px 18px" : "16px 6px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${MC.border}`, marginBottom: 8 } },
+                React.createElement("div", { style: { width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg,${MC.accent},${MC.purple})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 } }, "\uD83D\uDCC8"),
+                isWide && React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 14, color: "#fff" } }, "M&E System"),
+                    React.createElement("div", { style: { fontSize: 9, color: MC.muted, letterSpacing: 0.5 } }, "MONITORING \u2022 EVALUATION \u2022 ANALYSIS"))),
+            React.createElement("div", { style: { padding: isWide ? "4px 10px" : "4px 4px", display: "flex", flexDirection: "column", gap: 2 } },
+                ME_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => { if (!n.ready) return; if (n.external) { onSwitch(); return; } setPage(n.id); }, style: { display: "flex", alignItems: "center", justifyContent: isWide ? "flex-start" : "center", flexDirection: isWide ? "row" : "column", gap: isWide ? 10 : 2, textAlign: isWide ? "left" : "center", padding: isWide ? "10px 12px" : "8px 2px", borderRadius: 8, border: "none", cursor: n.ready ? "pointer" : "default", background: page === n.id ? MC.accent : "transparent", color: page === n.id ? "#fff" : n.ready ? MC.muted : "#454C5E", fontWeight: 600, fontSize: isWide ? 13 : 8.5 } },
+                    React.createElement("span", { style: { fontSize: isWide ? 14 : 14 } }, n.icon),
+                    isWide ? React.createElement("span", null, n.label) : React.createElement("span", { style: { wordBreak: "break-word" } }, n.label.split(" ")[0])))),
+            React.createElement("div", { style: { marginTop: "auto", padding: isWide ? "16px 18px" : "10px 6px", borderTop: `1px solid ${MC.border}` } },
+                isWide && React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+                isWide && React.createElement("div", { style: { fontSize: 9, color: MC.muted, marginBottom: 8 } }, user.roleLabel || user.role, " \u00B7 Online"),
+                React.createElement("div", { style: { display: "flex", flexDirection: isWide ? "row" : "column", gap: isWide ? 10 : 4, alignItems: "center" } },
+                    React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: MC.muted, fontSize: isWide ? 10 : 8, cursor: "pointer", padding: 0 } }, "Switch"),
+                    React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: MC.muted, fontSize: isWide ? 10 : 8, cursor: "pointer", padding: 0 } }, "Logout")))),
+        React.createElement("div", { style: { marginLeft: sbw, padding: isWide ? "22px 28px" : 12 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
+                React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: "#fff" } }, navItem ? navItem.label : "Dashboard"),
+                React.createElement("div", { style: { fontSize: 12, color: MC.muted } }, new Date().toLocaleDateString("en", { month: "long", day: "numeric", year: "numeric" }))),
+            navItem && !navItem.ready ? React.createElement(MSoon, { label: navItem.label }) : (PAGES[page] ? PAGES[page]() : React.createElement(MSoon, { label: navItem ? navItem.label : "This section" }))));
+}
+
 function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
     const [page, setPage] = useState(isCEO ? "ceo-dash" : "dir-dash");
@@ -4578,7 +4704,12 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83C\uDFAF"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Executive Command Center"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, user.role === "ceo" ? "Company oversight, approvals, executive decisions" : "Operations, approvals, provincial & branch supervision")))),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, user.role === "ceo" ? "Company oversight, approvals, executive decisions" : "Operations, approvals, provincial & branch supervision"))),
+            ["accounts", "admin", "director", "ceo"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("mesystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+                React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCC8"),
+                React.createElement("div", { style: { textAlign: "left" } },
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "M&E & Data Analysis"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Targets, KPIs, provincial & branch performance analysis")))),
         React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout"))));
 }
 // ── NEW PARCEL FORM ────────────────────────────────────────────────────────────
@@ -4841,7 +4972,6 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "wreports", lb: "\uD83D\uDCCA W-Reports" },
         { id: "waudit", lb: "\uD83D\uDCCB Audit" },
         { id: "accounts", lb: "\uD83D\uDCB0 Many Account" },
-        { id: "me", lb: "\uD83D\uDCD0 M&E" },
         { id: "messages", lb: "\uD83D\uDCAC Messages" },
         { id: "notify", lb: "\uD83D\uDD14 Alerts" },
         { id: "reports", lb: "\uD83D\uDCC4 Reports" },
@@ -4874,7 +5004,6 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         React.createElement("div", { style: { padding: 14, maxWidth: 720, position: "relative", zIndex: 1, marginLeft: isWide ? 250 : 104 } },
             WDL_PAGE_IDS.includes(page) && React.createElement(AccountsWithdrawal, { db: db, setDb: setDb, user: user, page: page, setPage: setPage, selectedId: selectedId, setSelectedId: setSelectedId }),
             page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
-            page === "me" && React.createElement(MEOverviewPage, { db: db, setDb: setDb, user: user, isWide: isWide }),
             page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             page === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: () => { } }),
             page === "reports" && React.createElement(Reports, { db: db, user: user, onReport: () => { } }),
@@ -5292,6 +5421,8 @@ function App() {
         return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "exec" && (user.role === "ceo" || user.role === "director"))
         return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule("accounts") });
+    if (module === "mesystem" && ["accounts", "admin", "director", "ceo"].includes(user.role))
+        return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
     const info = (hoRole || provRole) ? null : gBI(user.branch);
