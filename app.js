@@ -3079,6 +3079,14 @@ function WAccountsManager({ db, setDb, user }) {
     const [amt, setAmt] = useState({});
     const [note, setNote] = useState({});
     const [cat, setCat] = useState({});
+    const [balAmt, setBalAmt] = useState("");
+    function addToBalance() {
+        const a = parseFloat(balAmt);
+        if (!a || a <= 0) { alert("Enter a valid amount."); return; }
+        const nd = { ...db, bankBalance: (db.bankBalance || 0) + a };
+        saveDB(nd); setDb(nd); setBalAmt("");
+        alert(`\u2705 ${fmt(a)} added. New Accounts Balance: ${fmt(nd.bankBalance)}`);
+    }
     function addAccount() {
         if (!newName.trim()) { alert("Enter an account name."); return; }
         const acc = { id: nextMoneyAccountId(accounts), name: newName.trim(), balance: 0 };
@@ -3103,6 +3111,13 @@ function WAccountsManager({ db, setDb, user }) {
     }
     return React.createElement("div", null,
         React.createElement(HRHeading, { eyebrow: "Accounts", title: "Money Account" }),
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.green}`, background: "#F1F8F4" } },
+            React.createElement(ST, { color: C.green }, "\u2795 Add Money to Accounts Balance"),
+            React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, `Current Accounts Balance: ${fmt(db.bankBalance || 0)}`),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement("input", { type: "number", value: balAmt, onChange: e => setBalAmt(e.target.value), placeholder: "0.00", style: { flex: 1, padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit" } }),
+                React.createElement(Btn, { onClick: addToBalance, color: C.green }, "\u2795 Add")),
+            React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 6 } }, "This adds directly to the Accounts Balance used across CEO/Director approvals and the whole system \u2014 the same balance you see when applying for a withdrawal.")),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 16 } },
             React.createElement(HRStatCard, { label: "Total Balance", value: fmt(total), accent: total <= 0 ? HRT.garnet700 : total < MONEY_LOW_THRESHOLD ? HRT.gold500 : HRT.green700, sub: total <= 0 ? "\u26A0\uFE0F Out of funds" : total < MONEY_LOW_THRESHOLD ? "\u26A0\uFE0F Funds running low" : "\u2705 Funds healthy" }),
             React.createElement(HRStatCard, { label: "Total Disbursed", value: fmt(totalDisbursed), accent: HRT.navy700 }),
