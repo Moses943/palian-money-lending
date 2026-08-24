@@ -4705,7 +4705,7 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Executive Command Center"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted } }, user.role === "ceo" ? "Company oversight, approvals, executive decisions" : "Operations, approvals, provincial & branch supervision"))),
-            ["accounts", "admin", "director", "ceo"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("mesystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            ["accounts", "admin"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("mesystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCC8"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "M&E & Data Analysis"),
@@ -5421,7 +5421,7 @@ function App() {
         return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "exec" && (user.role === "ceo" || user.role === "director"))
         return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule("accounts") });
-    if (module === "mesystem" && ["accounts", "admin", "director", "ceo"].includes(user.role))
+    if (module === "mesystem" && ["accounts", "admin"].includes(user.role))
         return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
