@@ -82,6 +82,14 @@ function nextMoneyAccountId(list) {
     }, 0);
     return `ACC-${pad(maxNum + 1)}`;
 }
+function nextMETargetId(list) {
+    const maxNum = (list || []).reduce((max, t) => {
+        const m = /^MET-(\d+)$/.exec(t.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `MET-${pad(maxNum + 1)}`;
+}
+const ME_KPIS = ["Recovery Rate", "Collection Rate", "Portfolio"];
 function nextMoneyTxnId(list) {
     const maxNum = (list || []).reduce((max, t) => {
         const m = /^MTX-(\d+)$/.exec(t.id || "");
@@ -144,7 +152,7 @@ function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultant
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
     const results = { staff: null, clients: null, loans: null, payments: null, leaveRequests: null, loginLogs: null, branchFunds: null, consultantFunds: null, bankBalance: null, dailyReports: null, paymentPlans: null, messages: null, messageReads: null, branchDisbursements: null, withdrawalRequests: null, moneyAccounts: null, moneyAccountTxns: null };
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -162,12 +170,13 @@ async function loadDB() {
         sb.from("withdrawal_requests").select("*").order("date_submitted", { ascending: false }).limit(1000),
         sb.from("money_accounts").select("*"),
         sb.from("money_account_txns").select("*").order("date", { ascending: false }).limit(1000),
+        sb.from("me_targets").select("*"),
     ]);
     // Supabase-js returns { data, error } and does NOT throw on failure (bad
     // RLS policy, expired key, paused project, etc.) — checking .error here
     // is what stops a failed fetch from silently rendering as an empty/zero
     // dashboard with no indication anything went wrong.
-    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR]];
+    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR]];
     const errors = labeled.filter(([, r]) => r && r.error).map(([label, r]) => `${label}: ${r.error.message}`);
     if (errors.length) {
         const err = new Error("Failed to load data from the database:\n\n" + errors.join("\n") + "\n\nThis is a connection/permissions problem, not missing data — check your Supabase project status and API key.");
@@ -193,6 +202,7 @@ async function loadDB() {
         withdrawalRequests: (wrR.data || []).map(withdrawalIn),
         moneyAccounts: (maR.data || []).map(moneyAccountIn),
         moneyAccountTxns: (mtR.data || []).map(moneyTxnIn),
+        meTargets: (meR.data || []).map(r => ({ id: r.id, kpi: r.kpi, scopeType: r.scope_type, scopeValue: r.scope_value, targetValue: r.target_value, period: r.period, notes: r.notes || "", createdBy: r.created_by, createdAt: r.created_at })),
     };
 }
 async function saveDB(db) {
@@ -228,6 +238,7 @@ async function saveDB(db) {
     await tryUpsert("Withdrawal Requests", "withdrawal_requests", db.withdrawalRequests?.length ? db.withdrawalRequests.map(withdrawalOut) : null, { onConflict: "id" });
     await tryUpsert("Money Accounts", "money_accounts", db.moneyAccounts?.length ? db.moneyAccounts.map(moneyAccountOut) : null, { onConflict: "id" });
     await tryUpsert("Money Account Transactions", "money_account_txns", db.moneyAccountTxns?.length ? db.moneyAccountTxns.map(moneyTxnOut) : null, { onConflict: "id" });
+    await tryUpsert("M&E Targets", "me_targets", db.meTargets?.length ? db.meTargets.map(t => ({ id: t.id, kpi: t.kpi, scope_type: t.scopeType, scope_value: t.scopeValue || null, target_value: t.targetValue, period: t.period, notes: t.notes || null, created_by: t.createdBy, created_at: t.createdAt })) : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
     await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null);
     const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
@@ -1963,7 +1974,7 @@ const EXEC_NAV = [
     { id: "recovery", label: "Recovery Overview", icon: "\u267B\uFE0F", ready: true },
     { id: "projects", label: "Projects Overview", icon: "\uD83D\uDCC1", ready: false },
     { id: "hr", label: "HR Overview", icon: "\uD83D\uDC65", ready: true },
-    { id: "me", label: "M&E Overview", icon: "\uD83D\uDCD0", ready: false },
+    { id: "me", label: "M&E Overview", icon: "\uD83D\uDCD0", ready: true },
     { id: "finance", label: "Finance Overview", icon: "\uD83D\uDCB3", ready: true },
     { id: "risks", label: "Risks & Compliance", icon: "\u26A0\uFE0F", ready: false },
     { id: "tasks", label: "Executive Tasks", icon: "\uD83D\uDDC2\uFE0F", ready: false },
@@ -2337,6 +2348,86 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
                     React.createElement("span", { style: { color: C.muted } }, l.date, " ", l.time))));
     }
 
+    function MEOverviewPage() {
+        const [form, setForm] = useState({ kpi: ME_KPIS[0], scopeType: "company", scopeValue: "", targetValue: "", period: new Date().getFullYear().toString(), notes: "" });
+        const targets = db.meTargets || [];
+        function saveTarget() {
+            const tv = parseFloat(form.targetValue);
+            if (isNaN(tv)) { alert("Enter a target value."); return; }
+            if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
+            const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
+            const nd = { ...db, meTargets: [t, ...targets] };
+            saveDB(nd); setDb(nd);
+            setForm(f => ({ ...f, targetValue: "", notes: "" }));
+        }
+        async function deleteTarget(id) {
+            if (!window.confirm("Delete this target?")) return;
+            const { error } = await sb.from("me_targets").delete().eq("id", id);
+            if (error) { alert("Could not delete: " + error.message); return; }
+            const nd = { ...db, meTargets: targets.filter(t => t.id !== id) };
+            saveDB(nd); setDb(nd);
+        }
+        function actualFor(kpi, scopeType, scopeValue) {
+            if (scopeType === "company") {
+                if (kpi === "Recovery Rate") return rec;
+                if (kpi === "Collection Rate") return collRate;
+                if (kpi === "Portfolio") return allApplied;
+            }
+            if (scopeType === "province") {
+                const r = activeProvinceRows.find(x => x.province === scopeValue);
+                if (!r) return null;
+                if (kpi === "Recovery Rate") return r.recovery;
+                if (kpi === "Collection Rate") return r.portfolio > 0 ? (r.collected / r.portfolio * 100) : 0;
+                if (kpi === "Portfolio") return r.portfolio;
+            }
+            if (scopeType === "branch") {
+                const r = activeBranchRows.find(x => x.branch === scopeValue);
+                if (!r) return null;
+                const branchPortfolio = loans.filter(l => l.branch === scopeValue).reduce((s, l) => s + (l.principal || 0), 0);
+                if (kpi === "Recovery Rate") return r.recovery;
+                if (kpi === "Collection Rate") return branchPortfolio > 0 ? (r.collected / branchPortfolio * 100) : 0;
+                if (kpi === "Portfolio") return branchPortfolio;
+            }
+            return null;
+        }
+        return React.createElement("div", null,
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.purple }, "\uD83C\uDFAF Set a Target"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
+                    React.createElement(Sel, { label: "KPI", value: form.kpi, onChange: e => setForm(f => ({ ...f, kpi: e.target.value })) }, ME_KPIS.map(k => React.createElement("option", { key: k, value: k }, k))),
+                    React.createElement(Sel, { label: "Scope", value: form.scopeType, onChange: e => setForm(f => ({ ...f, scopeType: e.target.value, scopeValue: "" })) },
+                        React.createElement("option", { value: "company" }, "Company-wide"),
+                        React.createElement("option", { value: "province" }, "Province"),
+                        React.createElement("option", { value: "branch" }, "Branch")),
+                    form.scopeType === "province" && React.createElement(Sel, { label: "Province", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
+                        React.createElement("option", { value: "" }, "Select..."), Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
+                    form.scopeType === "branch" && React.createElement(Sel, { label: "Branch", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
+                        React.createElement("option", { value: "" }, "Select..."), allBranches.map(b => React.createElement("option", { key: b, value: b }, b)))),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
+                    React.createElement(Inp, { label: `Target Value ${form.kpi === "Portfolio" ? "(K)" : "(%)"}`, type: "number", value: form.targetValue, onChange: e => setForm(f => ({ ...f, targetValue: e.target.value })) }),
+                    React.createElement(Inp, { label: "Period", value: form.period, onChange: e => setForm(f => ({ ...f, period: e.target.value })), placeholder: "e.g. 2026 or Q3 2026" }),
+                    React.createElement(Inp, { label: "Notes (optional)", value: form.notes, onChange: e => setForm(f => ({ ...f, notes: e.target.value })) })),
+                React.createElement(Btn, { color: C.purple, full: true, onClick: saveTarget }, "\uD83C\uDFAF Save Target")),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "\uD83D\uDCCA KPIs vs Targets"),
+                targets.length === 0 ? React.createElement(Alrt, { type: "info" }, "No targets set yet \u2014 add one above to start tracking achievement.") :
+                    targets.map(t => {
+                        const actual = actualFor(t.kpi, t.scopeType, t.scopeValue);
+                        const achievement = actual !== null && t.targetValue ? (actual / t.targetValue * 100) : null;
+                        const status = achievement === null ? ["No data", C.muted] : achievement >= 100 ? ["On Target", C.green] : achievement >= 80 ? ["Near Target", C.amber] : ["Below Target", C.red];
+                        const scopeLabel = t.scopeType === "company" ? "Company-wide" : t.scopeValue;
+                        return React.createElement("div", { key: t.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
+                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                                React.createElement("div", null,
+                                    React.createElement("div", { style: { fontWeight: 800, fontSize: 13 } }, `${t.kpi} \u2014 ${scopeLabel}`),
+                                    React.createElement("div", { style: { fontSize: 10, color: C.muted } }, `${t.period}${t.notes ? " \u00B7 " + t.notes : ""}`)),
+                                React.createElement("button", { onClick: () => deleteTarget(t.id), style: { background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 16 } }, "\uD83D\uDDD1\uFE0F")),
+                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12 } },
+                                React.createElement("span", null, `Target: ${t.kpi === "Portfolio" ? fmt(t.targetValue) : t.targetValue.toFixed(1) + "%"}`),
+                                React.createElement("span", null, `Actual: ${actual === null ? "\u2014" : (t.kpi === "Portfolio" ? fmt(actual) : actual.toFixed(1) + "%")}`),
+                                React.createElement("span", { style: { fontWeight: 800, color: status[1] } }, achievement === null ? status[0] : `${achievement.toFixed(0)}% \u2014 ${status[0]}`)));
+                    })));
+    }
     const PAGES = {
         "ceo-dash": () => React.createElement(DashboardPage, { variant: "ceo" }),
         "dir-dash": () => React.createElement(DashboardPage, { variant: "director" }),
@@ -2349,6 +2440,7 @@ function ExecutiveCommandCenter({ db, user, onBack, onLogout, onSwitch }) {
         recovery: () => React.createElement(RecoveryPage, null),
         hr: () => React.createElement(HRPage, null),
         finance: () => React.createElement(FinancePage, null),
+        me: () => React.createElement(MEOverviewPage, null),
         notifications: () => React.createElement(ExecAttention, { items: attentionItems }),
         audit: () => React.createElement(AuditPage, null),
     };
@@ -2605,6 +2697,21 @@ function AccountsFunds({ db, setDb, user }) {
         return;
     } if (!window.confirm(`Set bank balance to exactly ${fmt(a)}? This overwrites the current balance of ${fmt(bankBalance || 0)}.`))
         return; const nd = { ...db, bankBalance: a }; saveDB(nd); setDb(nd); setSetAmt(""); alert(`✅ Bank balance set to ${fmt(a)}.`); }
+    const [cleaning, setCleaning] = useState(false);
+    async function cleanOutMoney() {
+        if (!window.confirm("This will reset Accounts Balance to K0.00 AND permanently delete ALL Many Account entries and their transaction history. This cannot be undone. Continue?")) return;
+        if (!window.confirm("Really sure? This deletes real transaction records from the database, not just this screen.")) return;
+        setCleaning(true);
+        try {
+            const { error: e1 } = await sb.from("money_accounts").delete().not("id", "is", null);
+            const { error: e2 } = await sb.from("money_account_txns").delete().not("id", "is", null);
+            if (e1 || e2) { alert("⚠️ Could not fully clear database records: " + [e1?.message, e2?.message].filter(Boolean).join("; ")); setCleaning(false); return; }
+        } catch (e) { alert("⚠️ Error clearing data: " + e.message); setCleaning(false); return; }
+        const nd = { ...db, bankBalance: 0, moneyAccounts: [], moneyAccountTxns: [] };
+        saveDB(nd); setDb(nd);
+        setCleaning(false);
+        alert("✅ Accounts Balance reset to K0.00 and all Many Account data cleared.");
+    }
     return (React.createElement("div", null,
         React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.teal},#00897B)`, color: "#fff", padding: 18, marginBottom: 14 } },
             React.createElement("div", { style: { fontSize: 14, fontWeight: 800, marginBottom: 10 } }, "\uD83D\uDCB0 Fund Management"),
@@ -2620,6 +2727,10 @@ function AccountsFunds({ db, setDb, user }) {
             React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F This overwrites the balance directly \u2014 use for corrections, not routine deposits."),
             React.createElement(Inp, { label: "New Balance (K)", type: "number", value: setAmt, onChange: e => setSetAmt(e.target.value), placeholder: String(bankBalance || 0) }),
             React.createElement(Btn, { onClick: setBalance, color: C.purple, full: true }, "\uD83D\uDD27 Set Balance")),
+        canEditBalance && React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF3F0" } },
+            React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Danger Zone"),
+            React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, "Resets Accounts Balance to K0.00 and permanently deletes all Many Account entries and transaction history. Use this to clear out test data before going live \u2014 cannot be undone."),
+            React.createElement(Btn, { onClick: cleanOutMoney, color: C.red, full: true, disabled: cleaning }, cleaning ? "\u23F3 Clearing..." : "\uD83E\uDDF9 Clean Out All Money Data")),
         React.createElement(Card, null,
             React.createElement(ST, { color: C.teal }, "\uD83C\uDFE6 Record Bank Deposit"),
             React.createElement(Inp, { label: "Amount (K)", req: true, type: "number", value: bAmt, onChange: e => setBAmt(e.target.value), placeholder: "0.00" }),
