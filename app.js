@@ -2333,6 +2333,25 @@ function MESystemApp({ db, setDb, user, onLogout, onSwitch }) {
             navItem && !navItem.ready ? React.createElement(MSoon, { label: navItem.label }) : (PAGES[page] ? PAGES[page]() : React.createElement(MSoon, { label: navItem ? navItem.label : "This section" }))));
 }
 
+// ── HR SYSTEM (standalone) ──────────────────────────────────────────────────
+// HRSystem already manages its own internal tabs (Dashboard/Staff/Leave/
+// Payroll etc.) via its own horizontal tab strip, so this wrapper only needs
+// to provide the header chrome — no separate sidebar needed.
+function HRSystemApp({ db, setDb, user, onLogout, onSwitch }) {
+    return React.createElement("div", { style: { minHeight: "100vh", background: HRT.parchment50, fontFamily: HRF.body } },
+        React.createElement("div", { style: { background: HRT.navy950, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 12px rgba(0,0,0,0.25)" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement(PalianLogo, { size: 34 }),
+                React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 15, color: HRT.gold500, letterSpacing: 0.5 } }, "HR System")),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14 } },
+                React.createElement("div", { style: { textAlign: "right" } },
+                    React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)" } }, user.roleLabel || user.role)),
+                React.createElement("button", { onClick: onSwitch, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Switch"),
+                React.createElement("button", { onClick: onLogout, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Logout"))),
+        React.createElement("div", { style: { padding: 16, maxWidth: 960, margin: "0 auto" } },
+            React.createElement(HRSystem, { db: db, setDb: setDb, user: user })));
+}
 function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch }) {
     const isCEO = user.role === "ceo";
     const [page, setPage] = useState(isCEO ? "ceo-dash" : "dir-dash");
@@ -4734,7 +4753,12 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCC8"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "M&E & Data Analysis"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Targets, KPIs, provincial & branch performance analysis")))),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Targets, KPIs, provincial & branch performance analysis"))),
+            ["hr", "admin", "accounts"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("hrsystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+                React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDC65"),
+                React.createElement("div", { style: { textAlign: "left" } },
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "HR System"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Staff, leave, payroll, employee register")))),
         React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout"))));
 }
 // ── NEW PARCEL FORM ────────────────────────────────────────────────────────────
@@ -5005,7 +5029,6 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "export", lb: "\u2B07\uFE0F Export" },
         { id: "leave", lb: "\uD83C\uDFD6\uFE0F Leave" },
         { id: "install", lb: "\uD83D\uDCF1 Install" },
-        { id: "hr", lb: "\uD83D\uDC65 HR" },
         ...(canFunds ? [{ id: "mgr-funds", lb: "\uD83D\uDD11 Branch Funds" }] : []),
         ...(canAdmin ? [{ id: "deletions", lb: "\uD83D\uDDD1\uFE0F Deletions" }] : []),
         { id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" },
@@ -5037,7 +5060,6 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "export" && React.createElement(Export, { db: db, user: user }),
             page === "leave" && React.createElement(LeaveRequest, { db: db, setDb: setDb, user: user }),
             page === "install" && React.createElement(Install, null),
-            page === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
             page === "mgr-funds" && canFunds && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }),
             page === "deletions" && canAdmin && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
             page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
@@ -5448,6 +5470,8 @@ function App() {
         return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "mesystem" && user.role === "admin")
         return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "hrsystem" && ["hr", "admin", "accounts"].includes(user.role))
+        return React.createElement(HRSystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
     const info = (hoRole || provRole) ? null : gBI(user.branch);
@@ -5463,7 +5487,7 @@ function App() {
     // already exclude these roles too, so this isn't the only guard.
     const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
     const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
-    const extraTabs = { accounts: [{ id: "hr", lb: "🧾 Payroll" }], admin: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], ceo: [{ id: "hr", lb: "👥 HR" }], hr: [{ id: "hr", lb: "👥 HR System" }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "hr", lb: "👥 HR" }, { id: "mgr-funds", lb: "🔑 Branch Funds" }] };
+    const extraTabs = { admin: [{ id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
     return (React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", background: C.light, minHeight: "100vh", position: "relative" } },
@@ -5523,7 +5547,6 @@ function App() {
             tab === "leave" && React.createElement(LeaveRequest, { db: db, setDb: setDb, user: user }),
             tab === "install" && React.createElement(Install, null),
             tab === "funds" && React.createElement(AccountsFunds, { db: db, setDb: setDb, user: user }),
-            tab === "hr" && React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
             tab === "deletions" && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
             tab === "mgr-funds" && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }))));
 }
