@@ -2442,25 +2442,50 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch })
             isWide && React.createElement(SideCol, null));
     }
 
+    function decideExec(id, role, decision, comment) {
+        const req = wdl.find(r => r.id === id);
+        if (!req) return;
+        let notice = null;
+        if (decision !== "rejected" && role === "ceo") {
+            notice = { id: `MSG-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, senderId: user.id, senderName: user.name, senderRole: user.roleLabel || user.role, sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: "position", recipientPosition: "director", recipientIds: [], text: `\uD83D\uDEE1\uFE0F Withdrawal ${id} (${fmt(req.amount)}) was approved by CEO and now needs your approval.`, attachmentUrl: "", attachmentType: "", attachmentName: "" };
+        }
+        const isFinalApproval = decision !== "rejected" && role === "director";
+        if (isFinalApproval && req.amount > (db.bankBalance || 0)) {
+            if (!window.confirm(`\u26A0\uFE0F This approval (${fmt(req.amount)}) exceeds the current Accounts Balance of ${fmt(db.bankBalance || 0)}. Approve anyway? The balance will go negative until topped up.`)) return;
+        }
+        const nd = { ...db, withdrawalRequests: wdl.map(r => {
+            if (r.id !== id) return r;
+            let updated = { ...r, [role]: { decision, by: user.name, date: today(), comment: comment || "" } };
+            if (decision === "rejected") { updated.status = "rejected"; updated = wdlAddAudit(updated, `${role === "ceo" ? "CEO" : "Director"} Rejected`, user.name, comment || "No comment"); }
+            else if (role === "ceo") { updated.status = "pending_director"; updated = wdlAddAudit(updated, "CEO Approved", user.name, comment || "Approved"); }
+            else if (role === "director") { updated.status = "fully_approved"; updated = wdlAddAudit(updated, "Director Approved \u2014 Accounts Balance updated", user.name, comment || "Approved"); }
+            return updated;
+        }), ...(notice ? { messages: [notice, ...(db.messages || [])] } : {}), ...(isFinalApproval ? { bankBalance: (db.bankBalance || 0) - req.amount } : {}) };
+        saveDB(nd); setDb(nd);
+    }
+    function ApprovalRow({ w, role }) {
+        const canDecide = (role === "ceo" && isCEO) || (role === "director" && !isCEO);
+        return React.createElement("div", { style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
+            React.createElement("div", { style: { fontSize: 11, color: C.muted, marginBottom: canDecide ? 8 : 0 } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`),
+            canDecide && React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement(Btn, { sm: true, color: C.green, onClick: () => decideExec(w.id, role, "approved", "") }, "\u2705 Approve"),
+                React.createElement(Btn, { sm: true, color: C.red, onClick: () => { const c = window.prompt("Reason for rejecting (optional):") || ""; decideExec(w.id, role, "rejected", c); } }, "\u274C Reject")));
+    }
     function ApprovalsPage() {
         return React.createElement("div", null,
             React.createElement(Card, null,
                 React.createElement(ST, null, "\u2705 Executive Approval Center"),
-                React.createElement(Alrt, { type: "info" }, "Financial (withdrawal) requests are decided in the Accounts module, which already enforces Director \u2192 CEO dual sign-off before Finance can release funds. Shown here for full visibility."),
+                React.createElement(Alrt, { type: "info" }, "Approve or reject directly here \u2014 Director \u2192 CEO dual sign-off is enforced before any money moves, and the Accounts Balance updates automatically on final approval."),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "1fr 1fr" : "1fr", gap: 16 } },
                     React.createElement("div", null,
                         React.createElement(ST, { color: C.blue }, `Awaiting CEO (${wdlAwaitingCEO.length} \u00B7 ${fmt(wdlAwaitingCEOAmt)})`),
                         wdlAwaitingCEO.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "None pending.") :
-                            wdlAwaitingCEO.map(w => React.createElement("div", { key: w.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
-                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
-                                React.createElement("div", { style: { fontSize: 11, color: C.muted } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`)))),
+                            wdlAwaitingCEO.map(w => React.createElement(ApprovalRow, { key: w.id, w: w, role: "ceo" }))),
                     React.createElement("div", null,
                         React.createElement(ST, { color: C.orange }, `Awaiting Director (${wdlAwaitingDirector.length} \u00B7 ${fmt(wdlAwaitingDirectorAmt)})`),
                         wdlAwaitingDirector.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "None pending.") :
-                            wdlAwaitingDirector.map(w => React.createElement("div", { key: w.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
-                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, w.category), React.createElement("span", null, fmt(w.amount))),
-                                React.createElement("div", { style: { fontSize: 11, color: C.muted } }, `${w.requestedBy} \u00B7 ${w.branch || "Head Office"} \u00B7 ${w.purpose || ""}`))))),
-                React.createElement(Btn, { color: C.navy, full: true, onClick: onSwitch, style: { marginTop: 14 } }, "Open Accounts \u2192 Decide on Requests")),
+                            wdlAwaitingDirector.map(w => React.createElement(ApprovalRow, { key: w.id, w: w, role: "director" }))))),
             React.createElement(Card, null,
                 React.createElement(ST, { color: C.muted }, "Other Operational Approvals (for awareness)"),
                 React.createElement(IR, { label: "Loans pending approval", value: pendingLoans }),
@@ -4695,12 +4720,12 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "PTDC"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Palian Transport & Delivery Courier \u2014 parcels, shifting"))),
-            ["accounts", "admin", "director", "ceo"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("accounts"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            ["accounts", "admin"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("accounts"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83C\uDFE6"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Accounts"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Withdrawal requests \u2014 CEO & Director approval"))),
-            ["director", "ceo"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("exec"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            ["director", "ceo", "admin"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("exec"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83C\uDFAF"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Executive Command Center"),
@@ -5417,10 +5442,10 @@ function App() {
         return React.createElement(SystemSelect, { user: user, onSelect: setModule, onLogout: handleLogout });
     if (module === "transport")
         return React.createElement(TransportApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
-    if (module === "accounts")
+    if (module === "accounts" && ["accounts", "admin"].includes(user.role))
         return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
-    if (module === "exec" && (user.role === "ceo" || user.role === "director"))
-        return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule("accounts") });
+    if (module === "exec" && ["ceo", "director", "admin"].includes(user.role))
+        return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "mesystem" && user.role === "admin")
         return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     const hoRole = isHO(user.role);
