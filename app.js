@@ -2352,8 +2352,9 @@ function HRSystemApp({ db, setDb, user, onLogout, onSwitch }) {
         React.createElement("div", { style: { padding: 16, maxWidth: 960, margin: "0 auto" } },
             React.createElement(HRSystem, { db: db, setDb: setDb, user: user })));
 }
-function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch }) {
-    const isCEO = user.role === "ceo";
+function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch, viewRole }) {
+    const isCEO = (viewRole || user.role) === "ceo";
+    const execNav = EXEC_NAV.filter(n => n.id !== (isCEO ? "dir-dash" : "ceo-dash"));
     const [page, setPage] = useState(isCEO ? "ceo-dash" : "dir-dash");
     const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
     useEffect(() => { const h = () => setIsWide(window.innerWidth >= 1000); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
@@ -2632,7 +2633,7 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch })
         notifications: () => React.createElement(ExecAttention, { items: attentionItems }),
         audit: () => React.createElement(AuditPage, null),
     };
-    const navItem = EXEC_NAV.find(n => n.id === page);
+    const navItem = execNav.find(n => n.id === page);
     const badgeCount = myQueue.length;
 
     return React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", minHeight: "100vh", background: "#EEF1F7" } },
@@ -2645,7 +2646,7 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch })
                     React.createElement("div", { style: { fontSize: 8, opacity: 0.5, fontWeight: 700, letterSpacing: 1 } }, "MONEY LENDING LIMITED"))),
             React.createElement("div", { className: "exec-brand-full", style: { textAlign: "center", flex: 1 } },
                 React.createElement("div", { style: { fontWeight: 900, fontSize: 16, letterSpacing: 0.4 } }, "PALIAN MONEY LENDING LIMITED"),
-                React.createElement("div", { style: { fontSize: 10, color: C.amber, fontWeight: 700, letterSpacing: 0.5 } }, isCEO ? "CEO & DIRECTOR EXECUTIVE COMMAND CENTER" : "CEO & DIRECTOR EXECUTIVE COMMAND CENTER")),
+                React.createElement("div", { style: { fontSize: 10, color: C.amber, fontWeight: 700, letterSpacing: 0.5 } }, isCEO ? "CEO SYSTEM" : "DIRECTOR SYSTEM")),
             React.createElement("div", { className: "exec-brand-mini", style: { flex: 1, textAlign: "center", fontSize: 11, fontWeight: 800 } }, "EXECUTIVE COMMAND CENTER"),
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flexShrink: 0 } },
                 React.createElement("div", { onClick: () => setPage("notifications"), style: { position: "relative", cursor: "pointer", fontSize: 17 }, title: "Notifications" },
@@ -2657,7 +2658,7 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch })
                 React.createElement("button", { onClick: onLogout, title: "Logout", style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" } }, "\u23FB Logout"))),
         React.createElement("div", { style: { display: "flex" } },
             React.createElement("div", { className: "exec-sb", style: { flexDirection: "column", position: "fixed", top: 58, left: 0, bottom: 0, width: isWide ? 232 : 108, background: "#0B1526", padding: isWide ? "14px 10px" : "10px 5px", overflowY: "auto", zIndex: 20 } },
-                EXEC_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => n.ready && setPage(n.id), style: { display: "flex", alignItems: "center", justifyContent: isWide ? "space-between" : "center", flexDirection: isWide ? "row" : "column", gap: isWide ? 0 : 2, width: "100%", textAlign: isWide ? "left" : "center", background: page === n.id ? C.amber : "transparent", color: page === n.id ? C.navy : n.ready ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.35)", border: "none", borderRadius: 8, padding: isWide ? "9px 10px" : "8px 2px", marginBottom: 3, fontWeight: 700, fontSize: isWide ? 12 : 9, cursor: n.ready ? "pointer" : "default", lineHeight: 1.2 } },
+                execNav.map(n => React.createElement("button", { key: n.id, onClick: () => n.ready && setPage(n.id), style: { display: "flex", alignItems: "center", justifyContent: isWide ? "space-between" : "center", flexDirection: isWide ? "row" : "column", gap: isWide ? 0 : 2, width: "100%", textAlign: isWide ? "left" : "center", background: page === n.id ? C.amber : "transparent", color: page === n.id ? C.navy : n.ready ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.35)", border: "none", borderRadius: 8, padding: isWide ? "9px 10px" : "8px 2px", marginBottom: 3, fontWeight: 700, fontSize: isWide ? 12 : 9, cursor: n.ready ? "pointer" : "default", lineHeight: 1.2 } },
                     React.createElement("span", { style: { fontSize: isWide ? 13 : 15 } }, n.icon),
                     isWide ? React.createElement("span", { style: { marginLeft: 6 } }, n.label) : React.createElement("span", { style: { fontSize: 8, wordBreak: "break-word" } }, n.label),
                     n.badge && badgeCount > 0 ? React.createElement("span", { style: { background: C.red, color: "#fff", borderRadius: 10, fontSize: isWide ? 10 : 8, padding: isWide ? "1px 7px" : "0 4px", fontWeight: 800, marginTop: isWide ? 0 : 2 } }, badgeCount) : null)),
@@ -4744,11 +4745,16 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Accounts"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Withdrawal requests \u2014 CEO & Director approval"))),
-            ["director", "ceo", "admin"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("exec"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            ["ceo", "admin"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("ceosystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83C\uDFAF"),
                 React.createElement("div", { style: { textAlign: "left" } },
-                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Executive Command Center"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, user.role === "ceo" ? "Company oversight, approvals, executive decisions" : "Operations, approvals, provincial & branch supervision"))),
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "CEO System"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Company oversight, final approvals, executive decisions"))),
+            ["director", "admin"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("directorsystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+                React.createElement("div", { style: { fontSize: 34 } }, "\uD83E\uDDED"),
+                React.createElement("div", { style: { textAlign: "left" } },
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Director System"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Operations, first-level approvals, provincial & branch supervision"))),
             user.role === "admin" && React.createElement("button", { onClick: () => onSelect("mesystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCC8"),
                 React.createElement("div", { style: { textAlign: "left" } },
@@ -5466,8 +5472,10 @@ function App() {
         return React.createElement(TransportApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "accounts" && ["accounts", "admin"].includes(user.role))
         return React.createElement(AccountsApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
-    if (module === "exec" && ["ceo", "director", "admin"].includes(user.role))
-        return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "ceosystem" && ["ceo", "admin"].includes(user.role))
+        return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, viewRole: "ceo", onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "directorsystem" && ["director", "admin"].includes(user.role))
+        return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, viewRole: "director", onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "mesystem" && user.role === "admin")
         return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "hrsystem" && ["hr", "admin", "accounts"].includes(user.role))
