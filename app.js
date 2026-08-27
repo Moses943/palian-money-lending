@@ -6574,7 +6574,7 @@ function SystemSelect({ user, onSelect, onLogout }) {
             user.name,
             " \u2014 choose a system"),
         React.createElement("div", { style: { width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 16 } },
-            React.createElement("button", { onClick: () => onSelect("loans"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            user.role !== "strategic" && React.createElement("button", { onClick: () => onSelect("loans"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCB0"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Loans & Money"),
@@ -6599,7 +6599,7 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "Director System"),
                     React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Operations, first-level approvals, provincial & branch supervision"))),
-            user.role === "admin" && React.createElement("button", { onClick: () => onSelect("mesystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+            ["admin", "strategic"].includes(user.role) && React.createElement("button", { onClick: () => onSelect("mesystem"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDCC8"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "M&E & Data Analysis"),
@@ -7322,10 +7322,12 @@ function App() {
         return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, viewRole: "ceo", onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "directorsystem" && ["director", "admin"].includes(user.role))
         return React.createElement(ExecutiveCommandCenter, { db: db, setDb: setDb, user: user, viewRole: "director", onBack: () => setModule(null), onLogout: handleLogout, onSwitch: () => setModule(null) });
-    if (module === "mesystem" && user.role === "admin")
+    if (module === "mesystem" && ["admin", "strategic"].includes(user.role))
         return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "hrsystem" && ["hr", "admin"].includes(user.role))
         return React.createElement(HRSystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "loans" && user.role === "strategic")
+        return React.createElement(SystemSelect, { user: user, onSelect: setModule, onLogout: handleLogout });
     const hoRole = isHO(user.role);
     const provRole = isProvincial(user.role);
     const info = (hoRole || provRole) ? null : gBI(user.branch);
