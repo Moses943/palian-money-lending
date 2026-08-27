@@ -54,8 +54,8 @@ function isEffectivelyActive(s) {
 }
 function clientIn(r) { return { id: r.id, branch: r.branch, province: r.province, name: r.name, nrc: r.nrc, sex: r.sex, dob: r.dob, phone: r.phone, phone2: r.phone_2 || "", phone3: r.phone_3 || "", whatsapp: r.whatsapp || "", email: r.email, address: r.address, company: r.company, bank: r.bank, accountNo: r.account_no, bankCode: r.bank_code, tpin: r.tpin, nok_name: r.nok_name, nok_phone: r.nok_phone, nok_relationship: r.nok_relationship, nok_address: r.nok_address, passportPhoto: r.passport_photo, docs: r.docs || {}, regDate: r.reg_date, deletionRequested: r.deletion_requested || false, deletionRequestedBy: r.deletion_requested_by || "", deletionRequestedDate: r.deletion_requested_date || null, deletionReason: r.deletion_reason || "" }; }
 function clientOut(c) { return { id: c.id, branch: c.branch, province: c.province, name: c.name, nrc: c.nrc, sex: c.sex, dob: c.dob || null, phone: c.phone, phone_2: c.phone2 || null, phone_3: c.phone3 || null, whatsapp: c.whatsapp || null, email: c.email, address: c.address, company: c.company, bank: c.bank, account_no: c.accountNo, bank_code: c.bankCode, tpin: c.tpin, nok_name: c.nok_name, nok_phone: c.nok_phone, nok_relationship: c.nok_relationship, nok_address: c.nok_address, passport_photo: c.passportPhoto || null, docs: c.docs || {}, reg_date: c.regDate || null, deletion_requested: c.deletionRequested || false, deletion_requested_by: c.deletionRequestedBy || null, deletion_requested_date: c.deletionRequestedDate || null, deletion_reason: c.deletionReason || null }; }
-function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.nrc, name: r.name, branch: r.branch, province: r.province, branchCode: r.branch_code, type: r.type, principal: r.principal, interestRate: r.interest_rate, interest: r.interest, totalDue: r.total_due, period: r.period, appDate: r.app_date, disburseDate: r.disburse_date, dueDate: r.due_date, consultant: r.consultant, consultantId: r.consultant_id, approvalStatus: r.approval_status, approvedBy: r.approved_by, approvedDate: r.approved_date, remarks: r.remarks, collateral: r.collateral, deduction: r.deduction, signedLoanCopy: r.signed_loan_copy }; }
-function loanOut(l) { return { loan_no: l.loanNo, client_id: l.clientId, nrc: l.nrc, name: l.name, branch: l.branch, province: l.province, branch_code: l.branchCode, type: l.type, principal: l.principal, interest_rate: l.interestRate, interest: l.interest, total_due: l.totalDue, period: l.period, app_date: l.appDate || null, disburse_date: l.disburseDate || null, due_date: l.dueDate || null, consultant: l.consultant, consultant_id: l.consultantId, approval_status: l.approvalStatus, approved_by: l.approvedBy || null, approved_date: l.approvedDate || null, remarks: l.remarks, collateral: l.collateral || null, deduction: l.deduction || null, signed_loan_copy: l.signedLoanCopy || null }; }
+function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.nrc, name: r.name, branch: r.branch, province: r.province, branchCode: r.branch_code, type: r.type, principal: r.principal, interestRate: r.interest_rate, interest: r.interest, totalDue: r.total_due, period: r.period, appDate: r.app_date, disburseDate: r.disburse_date, dueDate: r.due_date, consultant: r.consultant, consultantId: r.consultant_id, approvalStatus: r.approval_status, approvedBy: r.approved_by, approvedDate: r.approved_date, remarks: r.remarks, collateral: r.collateral, deduction: r.deduction, signedLoanCopy: r.signed_loan_copy, ddaccStatus: r.ddacc_status || "Pending" }; }
+function loanOut(l) { return { loan_no: l.loanNo, client_id: l.clientId, nrc: l.nrc, name: l.name, branch: l.branch, province: l.province, branch_code: l.branchCode, type: l.type, principal: l.principal, interest_rate: l.interestRate, interest: l.interest, total_due: l.totalDue, period: l.period, app_date: l.appDate || null, disburse_date: l.disburseDate || null, due_date: l.dueDate || null, consultant: l.consultant, consultant_id: l.consultantId, approval_status: l.approvalStatus, approved_by: l.approvedBy || null, approved_date: l.approvedDate || null, remarks: l.remarks, collateral: l.collateral || null, deduction: l.deduction || null, signed_loan_copy: l.signedLoanCopy || null, ddacc_status: l.ddaccStatus || "Pending" }; }
 function paymentIn(r) { return { id: r.id, loanNo: r.loan_no, clientId: r.client_id, name: r.name, branch: r.branch, amount: r.amount, date: r.date, method: r.method, recordedBy: r.recorded_by, totalDue: r.total_due, newBalance: r.new_balance }; }
 function paymentOut(p) { return { id: p.id, loan_no: p.loanNo, client_id: p.clientId, name: p.name, branch: p.branch, amount: p.amount, date: p.date || null, method: p.method, recorded_by: p.recordedBy, total_due: p.totalDue, new_balance: p.newBalance }; }
 function paymentPlanIn(r) { return { id: r.id, loanNo: r.loan_no, requestedBy: r.requested_by, requestedByRole: r.requested_by_role, requestedDate: r.requested_date, proposedAmount: r.proposed_amount || 0, reason: r.reason || "", status: r.status, approvedBy: r.approved_by || "", approvedDate: r.approved_date || null }; }
@@ -3786,7 +3786,8 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
         if (isNaN(tv)) { alert("Enter a target value."); return; }
         if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
         const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
-        const nd = { ...db, meTargets: [t, ...targets] };
+        const isConsultantAmount = form.scopeType === "consultant" && form.kpi === "Portfolio";
+        const nd = { ...db, meTargets: [t, ...targets], ...(isConsultantAmount ? { consultantTargets: { ...db.consultantTargets, [form.scopeValue]: tv } } : {}) };
         saveDB(nd); setDb(nd);
         setForm(f => ({ ...f, targetValue: "", notes: "" }));
     }
@@ -3905,20 +3906,58 @@ function MStatCard({ icon, label, value, sub, color }) {
         React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: color || "#fff" } }, value),
         sub && React.createElement("div", { style: { fontSize: 11, color: MC.muted, marginTop: 4 } }, sub));
 }
-function MEDataAnalysisLoans({ db, isWide }) {
-    const { loans, payments } = db;
+function MEDataAnalysisLoans({ db, setDb, isWide }) {
+    const { loans, payments, clients } = db;
     const countSt = s => loans.filter(l => getSt(l, payments) === s).length;
     const allApplied = loans.reduce((s, l) => s + (l.principal || 0), 0);
     const allOut = loans.reduce((s, l) => s + getBal(l, payments), 0);
     const allPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const collateralLoans = loans.filter(l => l.type === "Collateral");
+    const ddaccSubmitted = loans.filter(l => l.ddaccStatus === "Submitted" || l.ddaccStatus === "Approved").length;
+    const ddaccRejected = loans.filter(l => l.ddaccStatus === "Rejected").length;
+    const ddaccPending = loans.filter(l => !l.ddaccStatus || l.ddaccStatus === "Pending").length;
+    // Completeness: fraction of required fields present per record.
+    const clientReq = ["name", "nrc", "phone", "passportPhoto"];
+    const loanReq = ["signedLoanCopy"];
+    const clientScores = clients.map(c => clientReq.filter(f => c[f]).length / clientReq.length);
+    const loanScores = loans.map(l => {
+        const req = l.type === "Collateral" ? [...loanReq, "collateral"] : loanReq;
+        const filled = req.filter(f => f === "collateral" ? (l.collateral && l.collateral.photo) : l[f]).length;
+        return filled / req.length;
+    });
+    const allScores = [...clientScores, ...loanScores];
+    const overallCompleteness = allScores.length ? (allScores.reduce((s, v) => s + v, 0) / allScores.length * 100) : 0;
+    const fullyCompleteCount = allScores.filter(v => v === 1).length;
+    const [ddaccLoanId, setDdaccLoanId] = useState("");
+    const [ddaccNewStatus, setDdaccNewStatus] = useState("Submitted");
+    function updateDdacc() {
+        if (!ddaccLoanId) { alert("Select a loan."); return; }
+        const nd = { ...db, loans: loans.map(l => l.loanNo === ddaccLoanId ? { ...l, ddaccStatus: ddaccNewStatus } : l) };
+        saveDB(nd); setDb(nd);
+        setDdaccLoanId("");
+    }
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(5,1fr)" : "repeat(2,1fr)", gap: 12, marginBottom: 16 } },
             [["\u2705", "Active", countSt("Active"), MC.green], ["\u23F3", "Overdue", countSt("Overdue"), MC.amber], ["\uD83D\uDD34", "Defaulted", countSt("Defaulted"), MC.red], ["\uD83D\uDCC4", "Cleared", countSt("Cleared"), MC.accent], ["\uD83D\uDD52", "Pending", countSt("Pending"), MC.purple]]
                 .map(([i, l, v, c]) => React.createElement(MStatCard, { key: l, icon: i, label: l, value: v, color: c }))),
-        React.createElement(MCard, null,
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: 12, marginBottom: 16 } },
+            React.createElement(MStatCard, { icon: "\uD83D\uDCCB", label: "Data Completeness", value: overallCompleteness.toFixed(0) + "%", color: overallCompleteness >= 90 ? MC.green : overallCompleteness >= 70 ? MC.amber : MC.red, sub: `${fullyCompleteCount} record(s) at 100%` }),
+            React.createElement(MStatCard, { icon: "\uD83D\uDCDD", label: "DDACC Submitted", value: ddaccSubmitted, color: MC.green }),
+            React.createElement(MStatCard, { icon: "\u274C", label: "DDACC Rejected", value: ddaccRejected, color: MC.red }),
+            React.createElement(MStatCard, { icon: "\uD83C\uDFE6", label: "Collateral Loans", value: collateralLoans.length, color: MC.accent })),
+        React.createElement(MCard, { style: { marginBottom: 16 } },
             React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "Portfolio Summary"),
             [["Amount Applied", fmt(allApplied)], ["Outstanding", fmt(allOut)], ["Collected to Date", fmt(allPaid)], ["Total Loan Records", loans.length]].map(([l, v]) => React.createElement("div", { key: l, style: { display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${MC.border}`, fontSize: 13 } },
-                React.createElement("span", { style: { color: MC.muted } }, l), React.createElement("span", { style: { color: "#fff", fontWeight: 700 } }, v)))));
+                React.createElement("span", { style: { color: MC.muted } }, l), React.createElement("span", { style: { color: "#fff", fontWeight: 700 } }, v)))),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "\uD83D\uDCDD Update DDACC Form Status"),
+            React.createElement("div", { style: { fontSize: 11, color: MC.muted, marginBottom: 10 } }, `${ddaccPending} loan(s) still Pending`),
+            React.createElement("select", { value: ddaccLoanId, onChange: e => setDdaccLoanId(e.target.value), style: { width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 8 } },
+                React.createElement("option", { value: "" }, "-- Select a loan --"),
+                loans.map(l => React.createElement("option", { key: l.loanNo, value: l.loanNo }, `${l.loanNo} \u2014 ${l.name} (${l.ddaccStatus || "Pending"})`))),
+            React.createElement("select", { value: ddaccNewStatus, onChange: e => setDdaccNewStatus(e.target.value), style: { width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 10 } },
+                ["Submitted", "Approved", "Rejected", "Pending"].map(s => React.createElement("option", { key: s, value: s }, s))),
+            React.createElement("button", { onClick: updateDdacc, style: { width: "100%", background: MC.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 700, cursor: "pointer" } }, "Update Status")));
 }
 function MEAuditPage({ db }) {
     const logs = (db.loginLogs || []).slice().reverse().slice(0, 60);
@@ -3967,7 +4006,7 @@ function MESystemApp({ db, setDb, user, onLogout, onSwitch }) {
         monitoring: () => React.createElement(MEOverviewPage, { db: db, setDb: setDb, user: user, isWide: isWide }),
         provinces: () => React.createElement(AdminProvincialView, { db: db }),
         branches: () => React.createElement(AdminBranchView, { db: db }),
-        loans: () => React.createElement(MEDataAnalysisLoans, { db: db, isWide: isWide }),
+        loans: () => React.createElement(MEDataAnalysisLoans, { db: db, setDb: setDb, isWide: isWide }),
         audit: () => React.createElement(MEAuditPage, { db: db }),
         notifications: () => React.createElement(MCard, null, React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 12 } }, "\uD83D\uDD14 Notifications"), attentionCount > 0 ? React.createElement("div", { style: { fontSize: 13, color: MC.amber } }, `${attentionCount} financial request(s) pending approval`) : React.createElement("div", { style: { fontSize: 12, color: MC.muted } }, "Nothing pending right now.")),
     };
@@ -4749,9 +4788,7 @@ function ManagerFunds({ db, setDb, user }) {
                         React.createElement("div", null,
                             React.createElement(Inp, { label: "Allocate (K)", type: "number", value: cAmts[s.id] || "", onChange: e => setCAmts(x => ({ ...x, [s.id]: e.target.value })), placeholder: "0.00" }),
                             React.createElement(Btn, { sm: true, color: C.teal, onClick: () => allocate(s.id, s.name), disabled: branchFund <= 0 }, "Allocate")),
-                        React.createElement("div", null,
-                            React.createElement(Inp, { label: "Set Target (K)", type: "number", value: cTgts[s.id] || "", onChange: e => setCTgts(x => ({ ...x, [s.id]: e.target.value })), placeholder: "0.00" }),
-                            React.createElement(Btn, { sm: true, color: C.purple, onClick: () => setTgt(s.id, s.name) }, "Set Target")))))))))));
+                        React.createElement("div", { style: { fontSize: 10, color: C.muted, fontStyle: "italic", paddingTop: 20 } }, "Targets are set by M&E only."))))))))));
 }
 
 // ── ACCOUNTS WITHDRAWAL (CEO + Director dual-approval) ─────────────────────────
