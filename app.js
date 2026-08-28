@@ -4821,6 +4821,7 @@ function AccountsFunds({ db, setDb, user }) {
     const [bAmt, setBAmt] = useState("");
     const [setAmt, setSetAmt] = useState("");
     const canEditBalance = user && (user.role === "admin" || user.role === "ceo" || user.role === "director");
+    const canClearMoney = user && user.role === "admin";
     const { branchFunds, bankBalance } = db;
     const DISBURSEMENT_CATEGORIES = ["Loan Fund", "Stationery", "License", "Other"];
     function deposit() { const a = parseFloat(dep.amt); if (!a || !dep.town) {
@@ -4839,6 +4840,7 @@ function AccountsFunds({ db, setDb, user }) {
         return; const nd = { ...db, bankBalance: a }; saveDB(nd); setDb(nd); setSetAmt(""); alert(`✅ Bank balance set to ${fmt(a)}.`); }
     const [cleaning, setCleaning] = useState(false);
     async function cleanOutMoney() {
+        if (!canClearMoney) { alert("Only System Admin can clear out money data."); return; }
         if (!window.confirm("This will reset Accounts Balance to K0.00 AND permanently delete ALL Many Account entries and their transaction history. This cannot be undone. Continue?")) return;
         if (!window.confirm("Really sure? This deletes real transaction records from the database, not just this screen.")) return;
         setCleaning(true);
@@ -4867,8 +4869,8 @@ function AccountsFunds({ db, setDb, user }) {
             React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F This overwrites the balance directly \u2014 use for corrections, not routine deposits."),
             React.createElement(Inp, { label: "New Balance (K)", type: "number", value: setAmt, onChange: e => setSetAmt(e.target.value), placeholder: String(bankBalance || 0) }),
             React.createElement(Btn, { onClick: setBalance, color: C.purple, full: true }, "\uD83D\uDD27 Set Balance")),
-        canEditBalance && React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF3F0" } },
-            React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Danger Zone"),
+        canClearMoney && React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF3F0" } },
+            React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Danger Zone (System Admin Only)"),
             React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, "Resets Accounts Balance to K0.00 and permanently deletes all Many Account entries and transaction history. Use this to clear out test data before going live \u2014 cannot be undone."),
             React.createElement(Btn, { onClick: cleanOutMoney, color: C.red, full: true, disabled: cleaning }, cleaning ? "\u23F3 Clearing..." : "\uD83E\uDDF9 Clean Out All Money Data")),
         React.createElement(Card, null,
