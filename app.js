@@ -5100,6 +5100,75 @@ function WRequestTable({ requests }) {
 }
 // ── DOCUMENT SIGNING REQUESTS (available to everyone) ───────────────────────
 const DOC_CATEGORIES = ["Contract", "Policy", "Letter", "Agreement", "Report", "Other"];
+// ── ADMIN TOOLS: ACCOUNTS (System Admin only) ───────────────────────────────
+const ADMIN_ACC_ACTIONS = [
+    { id: "edit_wdl_amount", label: "Edit Withdrawal Request Amount" },
+    { id: "delete_wdl", label: "Delete Withdrawal Request" },
+    { id: "delete_txn", label: "Delete Money Account Transaction" },
+    { id: "delete_account", label: "Delete Many Account (named account)" },
+];
+function AdminAccountsTools({ db, setDb, user }) {
+    const [action, setAction] = useState("edit_wdl_amount");
+    const [targetId, setTargetId] = useState("");
+    const [newAmount, setNewAmount] = useState("");
+    const [busy, setBusy] = useState(false);
+    const wdl = db.withdrawalRequests || [];
+    const txns = db.moneyAccountTxns || [];
+    const accounts = db.moneyAccounts || [];
+    function reset() { setTargetId(""); setNewAmount(""); }
+    async function run() {
+        if (!targetId) { alert("Select a record first."); return; }
+        setBusy(true);
+        try {
+            if (action === "edit_wdl_amount") {
+                const a = parseFloat(newAmount);
+                if (isNaN(a) || a <= 0) { alert("Enter a valid new amount."); setBusy(false); return; }
+                if (!window.confirm(`Change ${targetId}'s amount to ${fmt(a)}? This does not undo any Accounts Balance already deducted \u2014 adjust that separately if needed.`)) { setBusy(false); return; }
+                const nd = { ...db, withdrawalRequests: wdl.map(w => w.id === targetId ? { ...w, amount: a, audit: [...(w.audit || []), { action: "Amount edited by Admin", by: user.name, date: today(), note: `Changed to ${fmt(a)}` }] } : w) };
+                saveDB(nd); setDb(nd);
+                alert("\u2705 Amount updated.");
+            } else if (action === "delete_wdl") {
+                if (!window.confirm(`Permanently delete withdrawal request ${targetId}? This cannot be undone.`)) { setBusy(false); return; }
+                const { error } = await sb.from("withdrawal_requests").delete().eq("id", targetId);
+                if (error) { alert("Could not delete: " + error.message); setBusy(false); return; }
+                const nd = { ...db, withdrawalRequests: wdl.filter(w => w.id !== targetId) };
+                saveDB(nd); setDb(nd);
+                alert("\u2705 Request deleted.");
+            } else if (action === "delete_txn") {
+                if (!window.confirm(`Permanently delete this transaction record? This does not reverse its effect on any account balance \u2014 adjust that separately if needed.`)) { setBusy(false); return; }
+                const { error } = await sb.from("money_account_txns").delete().eq("id", targetId);
+                if (error) { alert("Could not delete: " + error.message); setBusy(false); return; }
+                const nd = { ...db, moneyAccountTxns: txns.filter(t => t.id !== targetId) };
+                saveDB(nd); setDb(nd);
+                alert("\u2705 Transaction deleted.");
+            } else if (action === "delete_account") {
+                if (!window.confirm(`Permanently delete this Many Account and all its history? This cannot be undone.`)) { setBusy(false); return; }
+                const { error } = await sb.from("money_accounts").delete().eq("id", targetId);
+                if (error) { alert("Could not delete: " + error.message); setBusy(false); return; }
+                const nd = { ...db, moneyAccounts: accounts.filter(a => a.id !== targetId) };
+                saveDB(nd); setDb(nd);
+                alert("\u2705 Account deleted.");
+            }
+        } finally { setBusy(false); reset(); }
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Accounts"),
+            React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. These actions directly edit or delete real records \u2014 use with care."),
+            React.createElement(Sel, { label: "What do you want to do?", value: action, onChange: e => { setAction(e.target.value); reset(); } },
+                ADMIN_ACC_ACTIONS.map(a => React.createElement("option", { key: a.id, value: a.id }, a.label))),
+            (action === "edit_wdl_amount" || action === "delete_wdl") && React.createElement(Sel, { label: "Withdrawal Request", value: targetId, onChange: e => setTargetId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                wdl.map(w => React.createElement("option", { key: w.id, value: w.id }, `${w.id} \u2014 ${w.category} \u2014 ${fmt(w.amount)} \u2014 ${w.status}`))),
+            action === "edit_wdl_amount" && targetId && React.createElement(Inp, { label: "New Amount (K)", type: "number", value: newAmount, onChange: e => setNewAmount(e.target.value), placeholder: "0.00" }),
+            action === "delete_txn" && React.createElement(Sel, { label: "Transaction", value: targetId, onChange: e => setTargetId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                txns.map(t => React.createElement("option", { key: t.id, value: t.id }, `${t.date} \u2014 ${t.category} \u2014 ${t.type === "in" ? "+" : "-"}${fmt(t.amount)}`))),
+            action === "delete_account" && React.createElement(Sel, { label: "Many Account", value: targetId, onChange: e => setTargetId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                accounts.map(a => React.createElement("option", { key: a.id, value: a.id }, `${a.name} \u2014 ${fmt(a.balance)}`))),
+            React.createElement(Btn, { color: C.red, full: true, onClick: run, disabled: busy || !targetId }, busy ? "Working..." : "\u26A0\uFE0F Execute Action")));
+}
 function DocumentRequests({ db, setDb, user }) {
     const [form, setForm] = useState({ title: "", category: DOC_CATEGORIES[0], purpose: "", file: null, fileName: "" });
     const [busy, setBusy] = useState(false);
@@ -7065,6 +7134,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "install", lb: "\uD83D\uDCF1 Install" },
         ...(canFunds ? [{ id: "mgr-funds", lb: "\uD83D\uDD11 Branch Funds" }] : []),
         ...(canAdmin ? [{ id: "deletions", lb: "\uD83D\uDDD1\uFE0F Deletions" }] : []),
+        ...(user.role === "admin" ? [{ id: "admin-tools", lb: "\uD83D\uDEE0\uFE0F Admin Tools" }] : []),
         { id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" },
         { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" },
         ...(canAdmin ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : []),
@@ -7098,6 +7168,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "install" && React.createElement(Install, null),
             page === "mgr-funds" && canFunds && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }),
             page === "deletions" && canAdmin && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
+            page === "admin-tools" && user.role === "admin" && React.createElement(AdminAccountsTools, { db: db, setDb: setDb, user: user }),
             page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
