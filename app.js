@@ -4149,7 +4149,7 @@ function MyPhotoTrigger({ user, db, setDb, dark }) {
 const ADMIN_DEPARTMENTS = [
     { id: "accounts", label: "Accounts", icon: "\uD83D\uDCB3", ready: true },
     { id: "hr", label: "HR", icon: "\uD83D\uDC65", ready: false },
-    { id: "loans", label: "Loans & Money", icon: "\uD83D\uDCB0", ready: false },
+    { id: "loans", label: "Loans & Money", icon: "\uD83D\uDCB0", ready: true },
     { id: "me", label: "M&E", icon: "\uD83D\uDCCA", ready: false },
     { id: "ptdc", label: "PTDC", icon: "\uD83D\uDCE6", ready: false },
     { id: "exec", label: "Executive (CEO/Director)", icon: "\uD83C\uDFAF", ready: false },
@@ -4176,7 +4176,8 @@ function SystemAdminApp({ db, setDb, user, onLogout, onSwitch }) {
                 React.createElement("div", { style: { fontSize: 28, marginBottom: 8 } }, "\uD83D\uDEA7"),
                 React.createElement("div", { style: { fontWeight: 800, color: C.navy, marginBottom: 4 } }, `${active.label} Admin Tools \u2014 Coming Soon`),
                 React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Ask any time to have this department's controls built here next.")),
-            dept === "accounts" && React.createElement(AdminAccountsTools, { db: db, setDb: setDb, user: user })));
+            dept === "accounts" && React.createElement(AdminAccountsTools, { db: db, setDb: setDb, user: user }),
+            dept === "loans" && React.createElement(AdminLoansTools, { db: db, setDb: setDb, user: user })));
 }
 function HRSystemApp({ db, setDb, user, onLogout, onSwitch }) {
     return React.createElement("div", { style: { minHeight: "100vh", background: HRT.parchment50, fontFamily: HRF.body } },
@@ -4874,18 +4875,22 @@ function AccountsFunds({ db, setDb, user }) {
     const [cleaning, setCleaning] = useState(false);
     async function cleanOutMoney() {
         if (!canClearMoney) { alert("Only System Admin can clear out money data."); return; }
-        if (!window.confirm("This will reset Accounts Balance to K0.00 AND permanently delete ALL Many Account entries and their transaction history. This cannot be undone. Continue?")) return;
-        if (!window.confirm("Really sure? This deletes real transaction records from the database, not just this screen.")) return;
+        if (!window.confirm("This will reset ALL money in the system to K0.00: Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds \u2014 leaving nothing behind. This cannot be undone. Continue?")) return;
+        if (!window.confirm("Really sure? This deletes real records from the database, not just this screen \u2014 no amounts will remain anywhere.")) return;
         setCleaning(true);
         try {
             const { error: e1 } = await sb.from("money_accounts").delete().not("id", "is", null);
             const { error: e2 } = await sb.from("money_account_txns").delete().not("id", "is", null);
-            if (e1 || e2) { alert("⚠️ Could not fully clear database records: " + [e1?.message, e2?.message].filter(Boolean).join("; ")); setCleaning(false); return; }
-        } catch (e) { alert("⚠️ Error clearing data: " + e.message); setCleaning(false); return; }
-        const nd = { ...db, bankBalance: 0, moneyAccounts: [], moneyAccountTxns: [] };
+            const { error: e3 } = await sb.from("branch_funds").delete().not("branch", "is", null);
+            const { error: e4 } = await sb.from("provincial_funds").delete().not("province", "is", null);
+            const { error: e5 } = await sb.from("consultant_funds").delete().not("staff_id", "is", null);
+            const errs = [e1, e2, e3, e4, e5].filter(Boolean);
+            if (errs.length) { alert("\u26A0\uFE0F Could not fully clear database records: " + errs.map(e => e.message).join("; ")); setCleaning(false); return; }
+        } catch (e) { alert("\u26A0\uFE0F Error clearing data: " + e.message); setCleaning(false); return; }
+        const nd = { ...db, bankBalance: 0, moneyAccounts: [], moneyAccountTxns: [], branchFunds: {}, provincialFunds: {}, consultantFunds: {} };
         saveDB(nd); setDb(nd);
         setCleaning(false);
-        alert("✅ Accounts Balance reset to K0.00 and all Many Account data cleared.");
+        alert("\u2705 All money cleared to K0.00 \u2014 Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds. Nothing remains.");
     }
     return (React.createElement("div", null,
         React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.teal},#00897B)`, color: "#fff", padding: 18, marginBottom: 14 } },
@@ -4904,7 +4909,7 @@ function AccountsFunds({ db, setDb, user }) {
             React.createElement(Btn, { onClick: setBalance, color: C.purple, full: true }, "\uD83D\uDD27 Set Balance")),
         canClearMoney && React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF3F0" } },
             React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Danger Zone (System Admin Only)"),
-            React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, "Resets Accounts Balance to K0.00 and permanently deletes all Many Account entries and transaction history. Use this to clear out test data before going live \u2014 cannot be undone."),
+            React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, "Resets EVERY money figure in the system to K0.00 \u2014 Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds \u2014 with no leftover amounts anywhere. Use this to clear out test data before going live \u2014 cannot be undone."),
             React.createElement(Btn, { onClick: cleanOutMoney, color: C.red, full: true, disabled: cleaning }, cleaning ? "\u23F3 Clearing..." : "\uD83E\uDDF9 Clean Out All Money Data")),
         React.createElement(Card, null,
             React.createElement(ST, { color: C.teal }, "\uD83C\uDFE6 Record Bank Deposit"),
@@ -5201,6 +5206,48 @@ function AdminAccountsTools({ db, setDb, user }) {
                 React.createElement("option", { value: "" }, "Select..."),
                 accounts.map(a => React.createElement("option", { key: a.id, value: a.id }, `${a.name} \u2014 ${fmt(a.balance)}`))),
             React.createElement(Btn, { color: C.red, full: true, onClick: run, disabled: busy || !targetId }, busy ? "Working..." : "\u26A0\uFE0F Execute Action")));
+}
+// ── ADMIN TOOLS: LOANS & MONEY (System Admin only) ──────────────────────────
+function AdminLoansTools({ db, setDb, user }) {
+    const [search, setSearch] = useState("");
+    const [targetId, setTargetId] = useState("");
+    const [busy, setBusy] = useState(false);
+    const clients = db.clients || [];
+    const matches = search.trim() ? clients.filter(c => c.name.toLowerCase().includes(search.trim().toLowerCase()) || (c.nrc || "").toLowerCase().includes(search.trim().toLowerCase())) : [];
+    const selected = clients.find(c => c.id === targetId);
+    const theirLoans = selected ? db.loans.filter(l => l.clientId === selected.id) : [];
+    async function purgeClient() {
+        if (!selected) { alert("Select a client first."); return; }
+        if (!window.confirm(`Permanently delete ${selected.name} (NRC: ${selected.nrc}) and ALL ${theirLoans.length} of their loan record(s) and payments? This fully frees up their NRC for re-registration. This cannot be undone.`)) return;
+        if (!window.confirm("Really sure? This is a full purge, not a soft delete \u2014 nothing will remain of this client's history.")) return;
+        setBusy(true);
+        try {
+            const loanNos = theirLoans.map(l => l.loanNo);
+            if (loanNos.length) {
+                const { error: payErr } = await sb.from("payments").delete().in("loan_no", loanNos);
+                if (payErr) { alert("Could not delete payments: " + payErr.message); setBusy(false); return; }
+                const { error: loanErr } = await sb.from("loans").delete().eq("client_id", selected.id);
+                if (loanErr) { alert("Could not delete loans: " + loanErr.message); setBusy(false); return; }
+            }
+            const { error } = await sb.from("clients").delete().eq("id", selected.id);
+            if (error) { alert("Could not delete client: " + error.message); setBusy(false); return; }
+        } catch (e) { alert("Error: " + e.message); setBusy(false); return; }
+        const nd = { ...db, clients: clients.filter(c => c.id !== selected.id), loans: db.loans.filter(l => l.clientId !== selected.id), payments: db.payments.filter(p => !theirLoans.some(l => l.loanNo === p.loanNo)) };
+        saveDB(nd); setDb(nd);
+        setBusy(false);
+        setTargetId(""); setSearch("");
+        alert(`\u2705 ${selected.name} fully removed. Their NRC is now free for re-registration.`);
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Loans & Money"),
+            React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Use this when a client shows as \u201calready existing\u201d and blocks re-registration \u2014 this fully purges them (not a soft delete) so their NRC becomes free again."),
+            React.createElement(Inp, { label: "Search client by name or NRC", value: search, onChange: e => { setSearch(e.target.value); setTargetId(""); }, placeholder: "Type to search..." }),
+            matches.length > 0 && React.createElement(Sel, { label: "Matching Clients", value: targetId, onChange: e => setTargetId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                matches.map(c => React.createElement("option", { key: c.id, value: c.id }, `${c.name} \u2014 ${c.nrc} \u2014 ${c.branch}${c.deletionRequested ? " (deletion requested)" : ""}`))),
+            selected && React.createElement(Alrt, { type: "info" }, `${selected.name} has ${theirLoans.length} loan record(s) attached \u2014 all will be permanently deleted too.`),
+            React.createElement(Btn, { color: C.red, full: true, onClick: purgeClient, disabled: busy || !selected }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Permanently Delete Client")));
 }
 function DocumentRequests({ db, setDb, user }) {
     const [form, setForm] = useState({ title: "", category: DOC_CATEGORIES[0], purpose: "", file: null, fileName: "" });
