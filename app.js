@@ -4148,11 +4148,11 @@ function MyPhotoTrigger({ user, db, setDb, dark }) {
 // ── SYSTEM ADMIN (standalone, admin only) ───────────────────────────────────
 const ADMIN_DEPARTMENTS = [
     { id: "accounts", label: "Accounts", icon: "\uD83D\uDCB3", ready: true },
-    { id: "hr", label: "HR", icon: "\uD83D\uDC65", ready: false },
+    { id: "hr", label: "HR", icon: "\uD83D\uDC65", ready: true },
     { id: "loans", label: "Loans & Money", icon: "\uD83D\uDCB0", ready: true },
-    { id: "me", label: "M&E", icon: "\uD83D\uDCCA", ready: false },
-    { id: "ptdc", label: "PTDC", icon: "\uD83D\uDCE6", ready: false },
-    { id: "exec", label: "Executive (CEO/Director)", icon: "\uD83C\uDFAF", ready: false },
+    { id: "me", label: "M&E", icon: "\uD83D\uDCCA", ready: true },
+    { id: "ptdc", label: "PTDC", icon: "\uD83D\uDCE6", ready: true },
+    { id: "exec", label: "Executive (CEO/Director)", icon: "\uD83C\uDFAF", ready: true },
 ];
 function SystemAdminApp({ db, setDb, user, onLogout, onSwitch }) {
     const [dept, setDept] = useState("accounts");
@@ -4177,7 +4177,11 @@ function SystemAdminApp({ db, setDb, user, onLogout, onSwitch }) {
                 React.createElement("div", { style: { fontWeight: 800, color: C.navy, marginBottom: 4 } }, `${active.label} Admin Tools \u2014 Coming Soon`),
                 React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Ask any time to have this department's controls built here next.")),
             dept === "accounts" && React.createElement(AdminAccountsTools, { db: db, setDb: setDb, user: user }),
-            dept === "loans" && React.createElement(AdminLoansTools, { db: db, setDb: setDb, user: user })));
+            dept === "loans" && React.createElement(AdminLoansTools, { db: db, setDb: setDb, user: user }),
+            dept === "hr" && React.createElement(AdminHRTools, { db: db, setDb: setDb, user: user }),
+            dept === "me" && React.createElement(AdminMETools, { db: db, setDb: setDb, user: user }),
+            dept === "ptdc" && React.createElement(AdminPTDCTools, { user: user }),
+            dept === "exec" && React.createElement(AdminExecTools, { db: db, setDb: setDb, user: user })));
 }
 function HRSystemApp({ db, setDb, user, onLogout, onSwitch }) {
     return React.createElement("div", { style: { minHeight: "100vh", background: HRT.parchment50, fontFamily: HRF.body } },
@@ -5248,6 +5252,135 @@ function AdminLoansTools({ db, setDb, user }) {
                 matches.map(c => React.createElement("option", { key: c.id, value: c.id }, `${c.name} \u2014 ${c.nrc} \u2014 ${c.branch}${c.deletionRequested ? " (deletion requested)" : ""}`))),
             selected && React.createElement(Alrt, { type: "info" }, `${selected.name} has ${theirLoans.length} loan record(s) attached \u2014 all will be permanently deleted too.`),
             React.createElement(Btn, { color: C.red, full: true, onClick: purgeClient, disabled: busy || !selected }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Permanently Delete Client")));
+}
+// ── ADMIN TOOLS: HR (System Admin only) ─────────────────────────────────────
+function AdminHRTools({ db, setDb, user }) {
+    const [search, setSearch] = useState("");
+    const [staffId, setStaffId] = useState("");
+    const [leaveId, setLeaveId] = useState("");
+    const [busy, setBusy] = useState(false);
+    const staff = db.staff || [];
+    const leaves = db.leaveRequests || [];
+    const matches = search.trim() ? staff.filter(s => s.name.toLowerCase().includes(search.trim().toLowerCase())) : [];
+    const selected = staff.find(s => s.id === staffId);
+    async function purgeStaff() {
+        if (!selected) { alert("Select a staff member first."); return; }
+        if (!window.confirm(`Permanently delete ${selected.name}'s staff record? This removes their login and history. This cannot be undone.`)) return;
+        setBusy(true);
+        const { error } = await sb.from("staff").delete().eq("id", selected.id);
+        setBusy(false);
+        if (error) { alert("Could not delete: " + error.message); return; }
+        const nd = { ...db, staff: staff.filter(s => s.id !== selected.id) };
+        saveDB(nd); setDb(nd);
+        setStaffId(""); setSearch("");
+        alert("\u2705 Staff record deleted.");
+    }
+    async function deleteLeave() {
+        if (!leaveId) { alert("Select a leave request first."); return; }
+        if (!window.confirm("Permanently delete this leave request?")) return;
+        setBusy(true);
+        const { error } = await sb.from("leave_requests").delete().eq("id", leaveId);
+        setBusy(false);
+        if (error) { alert("Could not delete: " + error.message); return; }
+        const nd = { ...db, leaveRequests: leaves.filter(l => l.id !== leaveId) };
+        saveDB(nd); setDb(nd);
+        setLeaveId("");
+        alert("\u2705 Leave request deleted.");
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 HR"),
+            React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Permanently removes staff records \u2014 use for genuine errors or duplicate entries, not routine deactivation."),
+            React.createElement(Inp, { label: "Search staff by name", value: search, onChange: e => { setSearch(e.target.value); setStaffId(""); }, placeholder: "Type to search..." }),
+            matches.length > 0 && React.createElement(Sel, { label: "Matching Staff", value: staffId, onChange: e => setStaffId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                matches.map(s => React.createElement("option", { key: s.id, value: s.id }, `${s.name} \u2014 ${s.roleLabel || s.role} \u2014 ${s.branch || "Head Office"}`))),
+            React.createElement(Btn, { color: C.red, full: true, onClick: purgeStaff, disabled: busy || !selected }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Permanently Delete Staff Record")),
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.red }, "Delete Leave Request"),
+            React.createElement(Sel, { label: "Leave Request", value: leaveId, onChange: e => setLeaveId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                leaves.map(l => React.createElement("option", { key: l.id, value: l.id }, `${l.staffName} \u2014 ${l.type} \u2014 ${l.from} to ${l.to}`))),
+            React.createElement(Btn, { color: C.red, full: true, onClick: deleteLeave, disabled: busy || !leaveId }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Delete Leave Request")));
+}
+// ── ADMIN TOOLS: M&E (System Admin only) ────────────────────────────────────
+function AdminMETools({ db, setDb, user }) {
+    const [targetId, setTargetId] = useState("");
+    const [busy, setBusy] = useState(false);
+    const targets = db.meTargets || [];
+    async function deleteTarget() {
+        if (!targetId) { alert("Select a target first."); return; }
+        if (!window.confirm("Permanently delete this M&E target?")) return;
+        setBusy(true);
+        const { error } = await sb.from("me_targets").delete().eq("id", targetId);
+        setBusy(false);
+        if (error) { alert("Could not delete: " + error.message); return; }
+        const nd = { ...db, meTargets: targets.filter(t => t.id !== targetId) };
+        saveDB(nd); setDb(nd);
+        setTargetId("");
+        alert("\u2705 Target deleted.");
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 M&E"),
+            React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Deletes any M&E target, regardless of who set it."),
+            React.createElement(Sel, { label: "Target", value: targetId, onChange: e => setTargetId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                targets.map(t => React.createElement("option", { key: t.id, value: t.id }, `${t.kpi} \u2014 ${t.scopeType === "company" ? "Company-wide" : t.scopeValue} \u2014 ${t.period}`))),
+            React.createElement(Btn, { color: C.red, full: true, onClick: deleteTarget, disabled: busy || !targetId }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Delete Target")));
+}
+// ── ADMIN TOOLS: PTDC (System Admin only) ───────────────────────────────────
+function AdminPTDCTools({ user }) {
+    const [parcels, setParcels] = useState(null);
+    const [trackingNo, setTrackingNo] = useState("");
+    const [busy, setBusy] = useState(false);
+    useEffect(() => { loadParcels().then(setParcels); }, []);
+    async function deleteParcel() {
+        if (!trackingNo) { alert("Select a parcel first."); return; }
+        if (!window.confirm(`Permanently delete parcel ${trackingNo}?`)) return;
+        setBusy(true);
+        const { error } = await sb.from("parcels").delete().eq("tracking_no", trackingNo);
+        setBusy(false);
+        if (error) { alert("Could not delete: " + error.message); return; }
+        setParcels(parcels.filter(p => p.tracking_no !== trackingNo));
+        setTrackingNo("");
+        alert("\u2705 Parcel deleted.");
+    }
+    if (parcels === null) return React.createElement(Card, null, "Loading parcels...");
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 PTDC"),
+            React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Permanently deletes a parcel record."),
+            React.createElement(Sel, { label: "Parcel", value: trackingNo, onChange: e => setTrackingNo(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                parcels.map(p => React.createElement("option", { key: p.tracking_no, value: p.tracking_no }, `${p.tracking_no} \u2014 ${p.sender_name || "?"} \u2192 ${p.receiver_name || "?"} \u2014 ${p.status || ""}`))),
+            React.createElement(Btn, { color: C.red, full: true, onClick: deleteParcel, disabled: busy || !trackingNo }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Permanently Delete Parcel")));
+}
+// ── ADMIN TOOLS: EXECUTIVE (System Admin only) ──────────────────────────────
+function AdminExecTools({ db, setDb, user }) {
+    const [docId, setDocId] = useState("");
+    const [busy, setBusy] = useState(false);
+    const docs = db.documentRequests || [];
+    async function deleteDoc() {
+        if (!docId) { alert("Select a document request first."); return; }
+        if (!window.confirm("Permanently delete this document signature request?")) return;
+        setBusy(true);
+        const { error } = await sb.from("document_requests").delete().eq("id", docId);
+        setBusy(false);
+        if (error) { alert("Could not delete: " + error.message); return; }
+        const nd = { ...db, documentRequests: docs.filter(d => d.id !== docId) };
+        saveDB(nd); setDb(nd);
+        setDocId("");
+        alert("\u2705 Document request deleted.");
+    }
+    return React.createElement("div", null,
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Executive"),
+            React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Deletes a CEO/Director document signature request, regardless of status."),
+            React.createElement(Sel, { label: "Document Request", value: docId, onChange: e => setDocId(e.target.value) },
+                React.createElement("option", { value: "" }, "Select..."),
+                docs.map(d => React.createElement("option", { key: d.id, value: d.id }, `${d.title} \u2014 ${d.requestedBy} \u2014 ${d.status}`))),
+            React.createElement(Btn, { color: C.red, full: true, onClick: deleteDoc, disabled: busy || !docId }, busy ? "Deleting..." : "\uD83D\uDDD1\uFE0F Delete Document Request")));
 }
 function DocumentRequests({ db, setDb, user }) {
     const [form, setForm] = useState({ title: "", category: DOC_CATEGORIES[0], purpose: "", file: null, fileName: "" });
