@@ -4145,6 +4145,39 @@ function MyPhotoTrigger({ user, db, setDb, dark }) {
                 : React.createElement("div", { style: { width: 28, height: 28, borderRadius: "50%", background: dark ? "rgba(255,255,255,0.15)" : "#E7ECF3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 } }, "\uD83D\uDCF7")),
         open && React.createElement(MyPhotoModal, { user: user, db: db, setDb: setDb, onClose: () => setOpen(false) }));
 }
+// ── SYSTEM ADMIN (standalone, admin only) ───────────────────────────────────
+const ADMIN_DEPARTMENTS = [
+    { id: "accounts", label: "Accounts", icon: "\uD83D\uDCB3", ready: true },
+    { id: "hr", label: "HR", icon: "\uD83D\uDC65", ready: false },
+    { id: "loans", label: "Loans & Money", icon: "\uD83D\uDCB0", ready: false },
+    { id: "me", label: "M&E", icon: "\uD83D\uDCCA", ready: false },
+    { id: "ptdc", label: "PTDC", icon: "\uD83D\uDCE6", ready: false },
+    { id: "exec", label: "Executive (CEO/Director)", icon: "\uD83C\uDFAF", ready: false },
+];
+function SystemAdminApp({ db, setDb, user, onLogout, onSwitch }) {
+    const [dept, setDept] = useState("accounts");
+    const active = ADMIN_DEPARTMENTS.find(d => d.id === dept);
+    return React.createElement("div", { style: { minHeight: "100vh", background: HRT.parchment50, fontFamily: HRF.body } },
+        React.createElement("div", { style: { background: HRT.navy950, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 12px rgba(0,0,0,0.25)" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement(PalianLogo, { size: 34 }),
+                React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 700, fontSize: 15, color: HRT.gold500, letterSpacing: 0.5 } }, "System Admin")),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                React.createElement("div", { style: { textAlign: "right" } },
+                    React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+                    React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.55)" } }, "System Admin")),
+                React.createElement("button", { onClick: onSwitch, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Switch"),
+                React.createElement("button", { onClick: onLogout, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Logout"))),
+        React.createElement("div", { style: { padding: 16, maxWidth: 720, margin: "0 auto" } },
+            React.createElement(HRHeading, { eyebrow: "Full Access", title: "Select a Department" }),
+            React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", marginBottom: 16, paddingBottom: 4 } },
+                ADMIN_DEPARTMENTS.map(d => React.createElement("button", { key: d.id, onClick: () => setDept(d.id), style: { flexShrink: 0, padding: "10px 16px", borderRadius: 20, border: `1.5px solid ${dept === d.id ? C.navy : C.border}`, background: dept === d.id ? C.navy : "#fff", color: dept === d.id ? "#fff" : C.text, fontWeight: 700, fontSize: 12, cursor: d.ready ? "pointer" : "default", opacity: d.ready ? 1 : 0.5 }, disabled: !d.ready }, d.icon, " ", d.label))),
+            active && !active.ready && React.createElement(Card, { style: { textAlign: "center", padding: 32 } },
+                React.createElement("div", { style: { fontSize: 28, marginBottom: 8 } }, "\uD83D\uDEA7"),
+                React.createElement("div", { style: { fontWeight: 800, color: C.navy, marginBottom: 4 } }, `${active.label} Admin Tools \u2014 Coming Soon`),
+                React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Ask any time to have this department's controls built here next.")),
+            dept === "accounts" && React.createElement(AdminAccountsTools, { db: db, setDb: setDb, user: user })));
+}
 function HRSystemApp({ db, setDb, user, onLogout, onSwitch }) {
     return React.createElement("div", { style: { minHeight: "100vh", background: HRT.parchment50, fontFamily: HRF.body } },
         React.createElement("div", { style: { background: HRT.navy950, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 12px rgba(0,0,0,0.25)" } },
@@ -6861,7 +6894,12 @@ function SystemSelect({ user, onSelect, onLogout }) {
                 React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDC65"),
                 React.createElement("div", { style: { textAlign: "left" } },
                     React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "HR System"),
-                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Staff, leave, payroll, employee register")))),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Staff, leave, payroll, employee register"))),
+            user.role === "admin" && React.createElement("button", { onClick: () => onSelect("sysadmin"), style: { background: "#fff", border: "none", borderRadius: 16, padding: "26px 20px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" } },
+                React.createElement("div", { style: { fontSize: 34 } }, "\uD83D\uDEE0\uFE0F"),
+                React.createElement("div", { style: { textAlign: "left" } },
+                    React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.navy } }, "System Admin"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "Add, edit, and delete across every department")))),
         React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 32, cursor: "pointer" } }, "Logout"))));
 }
 // ── NEW PARCEL FORM ────────────────────────────────────────────────────────────
@@ -7134,7 +7172,6 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
         { id: "install", lb: "\uD83D\uDCF1 Install" },
         ...(canFunds ? [{ id: "mgr-funds", lb: "\uD83D\uDD11 Branch Funds" }] : []),
         ...(canAdmin ? [{ id: "deletions", lb: "\uD83D\uDDD1\uFE0F Deletions" }] : []),
-        ...(user.role === "admin" ? [{ id: "admin-tools", lb: "\uD83D\uDEE0\uFE0F Admin Tools" }] : []),
         { id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" },
         { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" },
         ...(canAdmin ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : []),
@@ -7168,7 +7205,6 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "install" && React.createElement(Install, null),
             page === "mgr-funds" && canFunds && React.createElement(ManagerFunds, { db: db, setDb: setDb, user: user }),
             page === "deletions" && canAdmin && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
-            page === "admin-tools" && user.role === "admin" && React.createElement(AdminAccountsTools, { db: db, setDb: setDb, user: user }),
             page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
             page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
@@ -7581,6 +7617,8 @@ function App() {
         return React.createElement(MESystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "hrsystem" && ["hr", "admin"].includes(user.role))
         return React.createElement(HRSystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "sysadmin" && user.role === "admin")
+        return React.createElement(SystemAdminApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "loans" && user.role === "strategic")
         return React.createElement(SystemSelect, { user: user, onSelect: setModule, onLogout: handleLogout });
     const hoRole = isHO(user.role);
