@@ -3224,11 +3224,15 @@ function HRHeading({ eyebrow, title }) {
         React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: HRT.gold500 } }, eyebrow),
         React.createElement("div", { style: { fontFamily: HRF.display, fontSize: 21, fontWeight: 600, color: HRT.ink900, marginTop: 2 } }, title)));
 }
-function HRStatCard({ label, value, sub, accent }) {
-    return (React.createElement("div", { style: { background: HRT.navy800, borderRadius: 10, padding: "14px 14px", borderTop: `3px solid ${accent || HRT.gold500}`, minWidth: 0 } },
-        React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 9, color: "#9fb0c6", textTransform: "uppercase", letterSpacing: "0.06em" } }, label),
-        React.createElement("div", { style: { fontFamily: HRF.display, fontSize: 24, fontWeight: 600, color: "#fff", marginTop: 4 } }, value),
-        sub && React.createElement("div", { style: { fontSize: 11, color: "#9fb0c6", marginTop: 2 } }, sub)));
+function HRStatCard({ label, value, sub, accent, icon, onClick }) {
+    const color = accent || HRT.navy700;
+    return (React.createElement("div", { onClick: onClick, style: { background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 2px 10px rgba(15,45,92,0.08)", display: "flex", alignItems: "center", gap: 12, minWidth: 0, border: `1px solid ${HRT.line}`, cursor: onClick ? "pointer" : "default" } },
+        React.createElement("div", { style: { width: 40, height: 40, borderRadius: 10, background: color + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 } }, icon || "\uD83D\uDCCA"),
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontFamily: HRF.mono, fontSize: 9, color: HRT.ink600, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, label),
+            React.createElement("div", { style: { fontFamily: HRF.display, fontSize: 18, fontWeight: 700, color: HRT.ink900, marginTop: 2 } }, value),
+            sub && React.createElement("div", { style: { fontSize: 10, color: HRT.ink600, marginTop: 1 } }, sub)),
+        React.createElement("div", { style: { color: "#c0c8d4", fontSize: 18, flexShrink: 0 } }, "\u203A")));
 }
 function HRPanel({ title, children, style }) {
     return (React.createElement("div", { style: { background: "#fff", border: `1px solid ${HRT.line}`, borderRadius: 10, padding: 16, marginBottom: 14, ...style } },
@@ -5455,15 +5459,15 @@ function WDashboard({ db, requests, goto, isCEO }) {
             React.createElement(HRHeading, { eyebrow: "Accounts \u2014 Overview", title: "Accounts Dashboard" }),
             hasAccounts && totalFunds <= 0 && React.createElement(HRAlrt, { type: "error" }, "\u26A0\uFE0F Company accounts are out of funds \u2014 the company may not be able to disburse loans until more money is deposited."),
             hasAccounts && totalFunds > 0 && totalFunds < MONEY_LOW_THRESHOLD && React.createElement(HRAlrt, { type: "warn" }, `\u26A0\uFE0F Total funds are low (${fmt(totalFunds)}) \u2014 loan disbursement capacity may be affected soon.`),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 16 } },
-                React.createElement(HRStatCard, { label: "Total Balance", value: fmt(totalFunds), accent: totalFunds <= 0 ? HRT.garnet700 : HRT.gold500 }),
-                React.createElement(HRStatCard, { label: "Disbursed", value: fmt(disbursed), accent: HRT.navy700 }),
-                React.createElement(HRStatCard, { label: "Collections", value: fmt(collected), accent: HRT.green700 }),
-                React.createElement(HRStatCard, { label: "Awaiting CEO", value: pendingCeo, accent: HRT.gold500 }),
-                React.createElement(HRStatCard, { label: "Awaiting Director", value: pendingDirector, accent: HRT.gold500 }),
-                React.createElement(HRStatCard, { label: "Fully Approved", value: fullyApproved, accent: HRT.green700 }),
-                React.createElement(HRStatCard, { label: "Processed", value: processed, accent: HRT.navy700 }),
-                React.createElement(HRStatCard, { label: "Pending Value", value: fmt(pendingValue), accent: HRT.garnet700 })),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 16 } },
+                React.createElement(HRStatCard, { label: "Total Balance", value: fmt(totalFunds), sub: "All accounts balance", icon: "\uD83D\uDCB3", accent: totalFunds <= 0 ? HRT.garnet700 : "#1565C0" }),
+                React.createElement(HRStatCard, { label: "Disbursed", value: fmt(disbursed), sub: "Total amount disbursed", icon: "\u2195\uFE0F", accent: HRT.green700 }),
+                React.createElement(HRStatCard, { label: "Collections", value: fmt(collected), sub: "Total collections made", icon: "\uD83D\uDCE6", accent: "#6A1B9A" }),
+                React.createElement(HRStatCard, { label: "Processed", value: processed, sub: "Total processed items", icon: "\uD83D\uDCC4", accent: "#FF6F00" }),
+                React.createElement(HRStatCard, { label: "Pending Value", value: fmt(pendingValue), sub: "Pending approvals", icon: "\u23F0", accent: HRT.gold500 }),
+                React.createElement(HRStatCard, { label: "Awaiting CEO", value: pendingCeo, sub: "Needs CEO sign-off", icon: "\uD83D\uDEE1\uFE0F", accent: "#1565C0" }),
+                React.createElement(HRStatCard, { label: "Awaiting Director", value: pendingDirector, sub: "Needs Director sign-off", icon: "\uD83E\uDDED", accent: HRT.gold500 }),
+                React.createElement(HRStatCard, { label: "Fully Approved", value: fullyApproved, sub: "Ready for processing", icon: "\u2705", accent: HRT.green700 })),
             !isCEO && React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" } },
                 React.createElement(HRBtn, { onClick: () => goto("wapply") }, "\u2795 New Withdrawal Request"),
                 React.createElement(HRGBtn, { onClick: () => goto("wceo") }, "\uD83D\uDEE1\uFE0F Review CEO Queue")),
