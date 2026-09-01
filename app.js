@@ -5520,10 +5520,29 @@ function AdminAccountsTools({ db, setDb, user }) {
     const [targetId, setTargetId] = useState("");
     const [newAmount, setNewAmount] = useState("");
     const [busy, setBusy] = useState(false);
+    const [cleaning, setCleaning] = useState(false);
     const wdl = db.withdrawalRequests || [];
     const txns = db.moneyAccountTxns || [];
     const accounts = db.moneyAccounts || [];
     function reset() { setTargetId(""); setNewAmount(""); }
+    async function cleanOutMoney() {
+        if (!window.confirm("This will reset ALL money in the system to K0.00: Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds \u2014 leaving nothing behind. This cannot be undone. Continue?")) return;
+        if (!window.confirm("Really sure? This deletes real records from the database, not just this screen \u2014 no amounts will remain anywhere.")) return;
+        setCleaning(true);
+        const results = await Promise.all([
+            sb.from("money_accounts").delete().not("id", "is", null),
+            sb.from("money_account_txns").delete().not("id", "is", null),
+            sb.from("branch_funds").delete().not("branch", "is", null),
+            sb.from("provincial_funds").delete().not("province", "is", null),
+            sb.from("consultant_funds").delete().not("staff_id", "is", null),
+        ]);
+        const errs = results.map(r => r.error).filter(Boolean);
+        if (errs.length) { alert("\u26A0\uFE0F Could not fully clear database records: " + errs.map(e => e.message).join("; ")); setCleaning(false); return; }
+        const nd = { ...db, bankBalance: 0, moneyAccounts: [], moneyAccountTxns: [], branchFunds: {}, provincialFunds: {}, consultantFunds: {} };
+        saveDB(nd); setDb(nd);
+        setCleaning(false);
+        alert("\u2705 All money cleared to K0.00 \u2014 Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds. Nothing remains.");
+    }
     async function run() {
         if (!targetId) { alert("Select a record first."); return; }
         setBusy(true);
@@ -5575,7 +5594,11 @@ function AdminAccountsTools({ db, setDb, user }) {
             action === "delete_account" && React.createElement(Sel, { label: "Many Account", value: targetId, onChange: e => setTargetId(e.target.value) },
                 React.createElement("option", { value: "" }, "Select..."),
                 accounts.map(a => React.createElement("option", { key: a.id, value: a.id }, `${a.name} \u2014 ${fmt(a.balance)}`))),
-            React.createElement(Btn, { color: C.red, full: true, onClick: run, disabled: busy || !targetId }, busy ? "Working..." : "\u26A0\uFE0F Execute Action")));
+            React.createElement(Btn, { color: C.red, full: true, onClick: run, disabled: busy || !targetId }, busy ? "Working..." : "\u26A0\uFE0F Execute Action")),
+        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF3F0" } },
+            React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Danger Zone \u2014 Clear All Money"),
+            React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, "Resets EVERY money figure in the system to K0.00 \u2014 Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds \u2014 with no leftover amounts anywhere. Use this to clear out test data before going live \u2014 cannot be undone."),
+            React.createElement(Btn, { onClick: cleanOutMoney, color: C.red, full: true, disabled: cleaning }, cleaning ? "\u23F3 Clearing..." : "\uD83E\uDDF9 Clean Out All Money Data")));
 }
 // ── ADMIN TOOLS: LOANS & MONEY (System Admin only) ──────────────────────────
 function AdminLoansTools({ db, setDb, user }) {
