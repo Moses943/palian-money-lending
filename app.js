@@ -264,11 +264,12 @@ async function saveDB(db) {
     await tryUpsert("Document Requests", "document_requests", db.documentRequests?.length ? db.documentRequests.map(documentRequestOut) : null, { onConflict: "id" });
     await tryUpsert("Provincial Delegations", "provincial_delegations", db.provincialDelegations?.length ? db.provincialDelegations.map(d => ({ id: d.id, province: d.province, granted_to_staff_id: d.grantedToStaffId, granted_to_name: d.grantedToName, granted_by: d.grantedBy, date_granted: d.dateGranted, active: d.active, note: d.note || null })) : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
-    await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null);
+    await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null, { onConflict: "branch" });
     const pfRows = Object.entries(db.provincialFunds || {}).map(([province, amount]) => ({ province, amount }));
-    await tryUpsert("Provincial Funds", "provincial_funds", pfRows.length ? pfRows : null);
-    const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
-    await tryUpsert("Consultant Funds", "consultant_funds", cfRows.length ? cfRows : null);
+    await tryUpsert("Provincial Funds", "provincial_funds", pfRows.length ? pfRows : null, { onConflict: "province" });
+    const cfIds = new Set([...Object.keys(db.consultantFunds || {}), ...Object.keys(db.consultantTargets || {})]);
+    const cfRows = [...cfIds].map(staff_id => ({ staff_id, amount: (db.consultantFunds || {})[staff_id] || 0, target: (db.consultantTargets || {})[staff_id] || 0 }));
+    await tryUpsert("Consultant Funds", "consultant_funds", cfRows.length ? cfRows : null, { onConflict: "staff_id" });
     await tryUpsert("Bank Account", "bank_account", [{ id: 1, balance: db.bankBalance || 0 }]);
     if (failures.length) {
         console.error("saveDB errors", failures);
