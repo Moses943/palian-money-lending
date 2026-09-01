@@ -1898,15 +1898,22 @@ function SettingsTab({ user, db, setDb }) {
         if (confirmText !== "CLEAR ALL DATA") { alert('Type "CLEAR ALL DATA" exactly to confirm.'); return; }
         if (!window.confirm("This permanently deletes ALL clients, loans, payments, branch/consultant funds, money accounts and withdrawal requests. This cannot be undone. Continue?")) return;
         setClearing(true);
-        const tables = ["clients", "loans", "payments", "payment_plans", "daily_reports", "branch_funds", "branch_disbursements", "consultant_funds", "money_accounts", "money_account_txns", "withdrawal_requests", "deletion_requests"];
-        try {
-            for (const t of tables) { await sb.from(t).delete().not("id", "is", null); }
-            await sb.from("bank_account").update({ balance: 0 }).eq("id", 1);
-            const nd = { ...defDB(), staff: db.staff, loginLogs: db.loginLogs, messages: db.messages, messageReads: db.messageReads, leaveRequests: db.leaveRequests };
-            setDb(nd);
-            alert("✅ All financial data has been cleared.");
-            setConfirmText("");
-        } catch (e) { alert("❌ Something went wrong: " + e.message); }
+        const tableKeys = {
+            clients: "id", loans: "id", payments: "id", payment_plans: "id", daily_reports: "id",
+            branch_funds: "branch", branch_disbursements: "id", consultant_funds: "staff_id",
+            money_accounts: "id", money_account_txns: "id", withdrawal_requests: "id", deletion_requests: "id",
+        };
+        const failed = [];
+        for (const [t, key] of Object.entries(tableKeys)) {
+            const res = await sb.from(t).delete().not(key, "is", null);
+            if (res.error) failed.push(`${t}: ${res.error.message}`);
+        }
+        await sb.from("bank_account").update({ balance: 0 }).eq("id", 1);
+        const nd = { ...defDB(), staff: db.staff, loginLogs: db.loginLogs, messages: db.messages, messageReads: db.messageReads, leaveRequests: db.leaveRequests };
+        setDb(nd);
+        if (failed.length) alert("\u26A0\uFE0F Some tables didn't clear:\n" + failed.join("\n"));
+        else alert("\u2705 All financial data has been cleared.");
+        setConfirmText("");
         setClearing(false);
     }
     return (React.createElement("div", null,
