@@ -2655,7 +2655,7 @@ function openClearanceCert(loan, client, db) {
   <div class="cb"><div style="font-size:34px">✅</div><div style="font-size:15px;font-weight:800;color:#2E7D32;margin-top:6px">LOAN FULLY CLEARED — ZERO BALANCE OUTSTANDING</div></div>
   <div class="stmt">This certifies that <strong>${client?.name || loan.name}</strong> (NRC: ${client?.nrc || loan.nrc}) has fully repaid loan <strong>${loan.loanNo}</strong> issued by Palian Money Lending Limited, ${loan.branch} Branch. As of <strong>${clearDate}</strong>, there are no outstanding obligations. This client is eligible for a new loan.</div>
   <div class="sms"><strong style="color:#1565C0">📱 SMS/WhatsApp:</strong><br><span id="s">${sms}</span><br><br><button class="np" onclick="navigator.clipboard.writeText(document.getElementById('s').innerText).then(()=>alert('✅ Copied!'))" style="padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:700;margin-top:4px;">📋 Copy SMS</button></div>
-  <div class="sga"><div class="sg"><div class="sl"></div><div class="slb">LOAN OFFICER / CONSULTANT</div><div style="font-size:11px;color:#888;margin-top:3px">${loan.consultant}</div></div><div class="sg"><div class="sl"></div><div class="slb">AUTHORIZED SIGNATORY</div><div style="font-size:11px;color:#888;margin-top:3px">Branch Manager — ${loan.branch}</div></div></div>
+  <div class="sga"><div class="sg"><div class="sl"></div><div class="slb">LOAN OFFICER / CONSULTANT</div><div style="font-size:11px;color:#888;margin-top:3px">${loan.consultant}</div></div><div class="sg"><div class="sl"></div><div class="slb">AUTHORIZED SIGNATORY</div><div style="font-size:11px;color:#888;margin-top:3px">Branch System Manager — ${loan.branch}</div></div></div>
   <div style="text-align:right;margin-top:6px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:90px;opacity:0.9" alt="Official Stamp"/></div>
   <div class="ft">Palian Money Lending Limited · Licensed Microfinance Institution, Zambia<br>Cert Ref: CLR-${loan.loanNo} · Generated: ${new Date().toLocaleString()}</div>
   <br><button class="np" onclick="window.print()" style="width:100%;padding:14px;background:#0F2D5C;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:800;margin-top:10px;">🖨️ Print / Save as PDF</button>
@@ -2842,7 +2842,7 @@ function buildClearancePDF(loan, client, db) {
     doc.setDrawColor(50); doc.line(14, y, 80, y); doc.line(116, y, 182, y);
     doc.setFontSize(8);
     doc.text("LOAN OFFICER / CONSULTANT", 14, y + 5); doc.text(loan.consultant, 14, y + 10);
-    doc.text("AUTHORIZED SIGNATORY", 116, y + 5); doc.text(`Branch Manager — ${loan.branch}`, 116, y + 10);
+    doc.text("AUTHORIZED SIGNATORY", 116, y + 5); doc.text(`Branch System Manager — ${loan.branch}`, 116, y + 10);
     y += 20;
     doc.setTextColor(140); doc.text(`Cert Ref: CLR-${loan.loanNo} · Generated: ${new Date().toLocaleString()}`, 14, y);
     addPalianStamp(doc);
@@ -3038,7 +3038,7 @@ function FinancialReportView({ loan, client, db, onClose }) {
                             React.createElement("strong", null, loan.consultant),
                             " to discuss repayment options."),
                         React.createElement("div", null, "\u2022 Explore financial restructuring or flexible repayment plans for better loan management."))),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, marginTop: 40 } }, [["LOAN OFFICER / CONSULTANT", loan.consultant], ["AUTHORIZED SIGNATORY", `Branch Manager — ${loan.branch}`]].map(([l, s]) => (React.createElement("div", { key: l, style: { textAlign: "center" } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, marginTop: 40 } }, [["LOAN OFFICER / CONSULTANT", loan.consultant], ["AUTHORIZED SIGNATORY", `Branch System Manager — ${loan.branch}`]].map(([l, s]) => (React.createElement("div", { key: l, style: { textAlign: "center" } },
                     React.createElement("div", { style: { borderTop: `1.5px solid #333`, marginTop: 44, marginBottom: 7 } }),
                     React.createElement("div", { style: { fontSize: 11, color: "#444", fontWeight: 700 } }, l),
                     React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 3 } }, s))))),
@@ -3477,7 +3477,7 @@ function HRSystem({ db, setDb, user }) {
             alert("Name already exists.");
             return;
         }
-        const roleLabel = ns.role === "other" ? ns.customRole.trim() : (ns.role === "manager" ? "Branch Manager" : ns.role === "provincial" ? "Provincial Manager" : ns.role === "strategic" ? "M&E" : ns.role.charAt(0).toUpperCase() + ns.role.slice(1));
+        const roleLabel = ns.role === "other" ? ns.customRole.trim() : (ns.role === "manager" ? "Branch System Manager" : ns.role === "provincial" ? "Provincial System Manager" : ns.role === "strategic" ? "M&E" : ns.role.charAt(0).toUpperCase() + ns.role.slice(1));
         const sysRole = ["consultant", "officer", "manager", "provincial", "hr", "accounts", "ceo", "admin", "director", "strategic"].includes(ns.role) ? ns.role : "viewer";
         const branch = needsBranch ? ns.town : (isProvincialRole ? "Provincial Office" : "Head Office");
         const province = needsBranch ? ns.province : (isProvincialRole ? ns.province : "Head Office");
@@ -3528,7 +3528,7 @@ function HRSystem({ db, setDb, user }) {
         const isAdmin = user.role === "admin" || user.role === "director";
         const newRole = (isAdmin && ef.role) ? ef.role : s.role;
         const roleChanged = newRole !== s.role;
-        const newRoleLabel = roleChanged ? (newRole === "manager" ? "Branch Manager" : newRole.charAt(0).toUpperCase() + newRole.slice(1)) : s.roleLabel;
+        const newRoleLabel = roleChanged ? (newRole === "manager" ? "Branch System Manager" : newRole === "provincial" ? "Provincial System Manager" : newRole === "strategic" ? "M&E" : newRole.charAt(0).toUpperCase() + newRole.slice(1)) : s.roleLabel;
         const needsBranch = !isHQR(newRole) && newRole !== "provincial";
         const isProvincialRole = newRole === "provincial";
         const newPinHash = ef.pin.trim() ? await hashPin(ef.pin.trim()) : s.pinHash;
@@ -3577,8 +3577,8 @@ function HRSystem({ db, setDb, user }) {
                 React.createElement(HRInp, { label: "Full Name", req: true, value: ns.name, onChange: e => setNs(f => ({ ...f, name: e.target.value })) }),
                 React.createElement(HRSel, { label: "Role", req: true, value: ns.role, onChange: e => setNs(f => ({ ...f, role: e.target.value, customRole: "", province: "", town: "" })) },
                     React.createElement("option", { value: "consultant" }, "Loan Consultant (branch)"),
-                    React.createElement("option", { value: "manager" }, "Branch Manager (branch)"),
-                    React.createElement("option", { value: "provincial" }, "Provincial Manager (province)"),
+                    React.createElement("option", { value: "manager" }, "Branch System Manager (branch)"),
+                    React.createElement("option", { value: "provincial" }, "Provincial System Manager (province)"),
                     React.createElement("option", { value: "hr" }, "HR (Head Office)"),
                     React.createElement("option", { value: "accounts" }, "Accountant (Head Office)"),
                     React.createElement("option", { value: "ceo" }, "CEO (Head Office)"),
@@ -3628,8 +3628,8 @@ function HRSystem({ db, setDb, user }) {
                         grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, g.min_amount === g.max_amount ? `${g.grade_name} — ${fmt(g.min_amount)}` : `${g.grade_name} — ${fmt(g.min_amount)}\u2013${fmt(g.max_amount)}`))),
                     (user.role === "admin" || user.role === "director") && React.createElement(HRSel, { label: "\uD83D\uDD11 Role / Rights (Admin/Director only)", value: ef.role, onChange: e => setEf(f => ({ ...f, role: e.target.value })) },
                         React.createElement("option", { value: "consultant" }, "Loan Consultant"),
-                        React.createElement("option", { value: "manager" }, "Branch Manager"),
-                        React.createElement("option", { value: "provincial" }, "Provincial Manager"),
+                        React.createElement("option", { value: "manager" }, "Branch System Manager"),
+                        React.createElement("option", { value: "provincial" }, "Provincial System Manager"),
                         React.createElement("option", { value: "hr" }, "HR"),
                         React.createElement("option", { value: "accounts" }, "Accountant"),
                         React.createElement("option", { value: "ceo" }, "CEO"),
@@ -4162,7 +4162,7 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
         if (isNaN(tv)) { alert("Enter a target value."); return; }
         if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
         const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
-        const isConsultantAmount = form.scopeType === "consultant" && form.kpi === "Portfolio";
+        const isConsultantAmount = form.scopeType === "consultant";
         const nd = { ...db, meTargets: [t, ...targets], ...(isConsultantAmount ? { consultantTargets: { ...db.consultantTargets, [form.scopeValue]: tv } } : {}) };
         saveDB(nd); setDb(nd);
         setForm(f => ({ ...f, targetValue: "", notes: "" }));
@@ -4515,7 +4515,7 @@ function MyPhotoTrigger({ user, db, setDb, dark }) {
 const ADMIN_DEPARTMENTS = [
     { id: "accounts", label: "Accounts", icon: "\uD83D\uDCB3", ready: true },
     { id: "hr", label: "HR", icon: "\uD83D\uDC65", ready: true },
-    { id: "loans", label: "Loans & Money", icon: "\uD83D\uDCB0", ready: true },
+    { id: "loans", label: "Loan System", icon: "\uD83D\uDCB0", ready: true },
     { id: "me", label: "M&E", icon: "\uD83D\uDCCA", ready: true },
     { id: "ptdc", label: "PTDC", icon: "\uD83D\uDCE6", ready: true },
     { id: "exec", label: "Executive (CEO/Director)", icon: "\uD83C\uDFAF", ready: true },
@@ -4930,7 +4930,7 @@ function ProvincialDelegationManager({ db, setDb, user }) {
     const activeDelegations = delegations.filter(d => d.active);
     const pms = (db.staff || []).filter(s => s.role === "provincial" && isEffectivelyActive(s));
     function grant() {
-        if (!staffId) { alert("Select a Provincial Manager."); return; }
+        if (!staffId) { alert("Select a Provincial System Manager."); return; }
         const pm = pms.find(s => s.id === staffId);
         const rec = { id: nextDelegationId(delegations), province, grantedToStaffId: staffId, grantedToName: pm ? pm.name : staffId, grantedBy: user.name, dateGranted: today(), active: true, note: note.trim() };
         const nd = { ...db, provincialDelegations: [rec, ...delegations] };
@@ -4945,11 +4945,11 @@ function ProvincialDelegationManager({ db, setDb, user }) {
     return React.createElement("div", null,
         React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Grant Temporary Provincial Access"),
-            React.createElement(Alrt, { type: "info" }, "Use this when a Provincial Manager is sick, on leave, or otherwise unavailable \u2014 grant another Provincial Manager full access to that province until revoked."),
+            React.createElement(Alrt, { type: "info" }, "Use this when a Provincial System Manager is sick, on leave, or otherwise unavailable \u2014 grant another Provincial System Manager full access to that province until revoked."),
             React.createElement(Sel, { label: "Province", value: province, onChange: e => setProvince(e.target.value) },
                 Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
             React.createElement(Sel, { label: "Grant Access To", value: staffId, onChange: e => setStaffId(e.target.value) },
-                React.createElement("option", { value: "" }, "Select a Provincial Manager..."),
+                React.createElement("option", { value: "" }, "Select a Provincial System Manager..."),
                 pms.map(s => React.createElement("option", { key: s.id, value: s.id }, `${s.name} (${s.province})`))),
             React.createElement(Inp, { label: "Note (optional)", value: note, onChange: e => setNote(e.target.value), placeholder: "e.g. Covering for John while on leave" }),
             React.createElement(Btn, { color: C.purple, full: true, onClick: grant }, "\uD83D\uDD11 Grant Access")),
@@ -5633,7 +5633,7 @@ function AdminLoansTools({ db, setDb, user }) {
     }
     return React.createElement("div", null,
         React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
-            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Loans & Money"),
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Loan System"),
             React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Use this when a client shows as \u201calready existing\u201d and blocks re-registration \u2014 this fully purges them (not a soft delete) so their NRC becomes free again."),
             React.createElement(Inp, { label: "Search client by name or NRC", value: search, onChange: e => { setSearch(e.target.value); setTargetId(""); }, placeholder: "Type to search..." }),
             matches.length > 0 && React.createElement(Sel, { label: "Matching Clients", value: targetId, onChange: e => setTargetId(e.target.value) },
@@ -6568,7 +6568,7 @@ function PaymentPlans({ db, setDb, user }) {
             React.createElement(Btn, { color: C.orange, full: true, onClick: submit }, "\uD83D\uDCE4 Submit Request")),
         React.createElement(Card, null,
             React.createElement(ST, null, `Payment Plan Requests (${plans.length})`),
-            !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch Manager, Provincial Manager, System Admin, or Director can approve payment plans."),
+            !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch System Manager, Provincial System Manager, System Admin, or Director can approve payment plans."),
             plans.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No payment plan requests yet.") :
                 plans.slice().reverse().map(p => (React.createElement("div", { key: p.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
@@ -6593,7 +6593,7 @@ function Approvals({ db, setDb, user }) {
             "Approvals (",
             pending.length,
             " pending)"),
-        !can && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only the Branch Manager can approve loans."),
+        !can && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only the Branch System Manager can approve loans."),
         pending.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 32 } },
             React.createElement("div", { style: { fontSize: 40 } }, "\u2705"),
             React.createElement("p", null, "No pending approvals."))
@@ -7387,9 +7387,9 @@ async function saveSalaryGrade(row) {
 const STANDARD_GRADES = [
     { grade_name: "Grade A+ (Executive Leadership)", roles: "CEO", min_amount: 30000, max_amount: 30000 },
     { grade_name: "Grade A (Executive)", roles: "Director", min_amount: 25000, max_amount: 25000 },
-    { grade_name: "Grade B+ (Provincial Leadership)", roles: "Provincial Manager", min_amount: 20000, max_amount: 20000 },
+    { grade_name: "Grade B+ (Provincial Leadership)", roles: "Provincial System Manager", min_amount: 20000, max_amount: 20000 },
     { grade_name: "Grade B+ (Senior Management)", roles: "Operations Manager, HR Manager, Accounts Manager", min_amount: 15000, max_amount: 16000 },
-    { grade_name: "Grade B (Middle Management)", roles: "Branch Manager, Recovery Manager", min_amount: 10000, max_amount: 12000 },
+    { grade_name: "Grade B (Middle Management)", roles: "Branch System Manager, Recovery Manager", min_amount: 10000, max_amount: 12000 },
     { grade_name: "Grade C+ (Entry/Support)", roles: "Loan Consultant, clerical staff", min_amount: 7000, max_amount: 7000 },
     { grade_name: "Grade C (Support)", roles: "Office Cleaner", min_amount: 3000, max_amount: 3000 },
 ];
@@ -7440,7 +7440,7 @@ function SysCard({ onClick, icon, label, ready }) {
 }
 function SystemSelect({ user, onSelect, onLogout }) {
     const cards = [
-        user.role !== "strategic" && { icon: "\uD83D\uDCB0", label: "Loans & Money", onClick: () => onSelect("loans") },
+        user.role !== "strategic" && { icon: "\uD83D\uDCB0", label: "Loan System", onClick: () => onSelect("loans") },
         { icon: "\uD83D\uDCE6", label: "PTDC", onClick: () => onSelect("transport") },
         ["accounts", "admin"].includes(user.role) && { icon: "\uD83C\uDFE6", label: "Accounts", onClick: () => onSelect("accounts") },
         ["ceo", "admin"].includes(user.role) && { icon: "\uD83C\uDFAF", label: "CEO System", onClick: () => onSelect("ceosystem") },
