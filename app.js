@@ -6255,9 +6255,10 @@ function Wizard({ db, setDb, user, onDone }) {
             nd.branchFunds = { ...nd.branchFunds, [branch]: Math.max(0, (nd.branchFunds[branch] || 0) - amt) };
         const seq = nd.loans.filter(l => l.branch === branch).length + 1;
         const loanNo = `LN-${info.provinceCode}${info.townCode}-${pad(seq)}`;
-        const extra = lf.type === "Collateral" ? { collateral: col } : lf.type === "Deduction" ? { deduction: ded } : {};
+        const extra = lf.type === "Collateral" ? { collateral: col } : lf.type === "Deduction" ? { deduction: parseFloat(ded.monthly) || 0 } : {};
         const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
-        const loan = { loanNo, clientId: client.id, nrc: client.nrc, name: client.name, branch, province: info.province, branchCode: `${info.provinceCode}-${info.townCode}`, type: lf.type, principal: amt, interestRate: rate, interest, totalDue: total, period: lf.period, appDate: today(), disburseDate: lf.disburse, dueDate: lf.due, consultant: enteredStaff.name, consultantId: enteredStaff.id, approvalStatus: "Pending", approvedBy: "", approvedDate: "", remarks: lf.remarks, loanNumForClient: nd.loans.filter(l => l.clientId === client.id).length + 1, signedLoanCopy: signedLoan, ...extra };
+        const dedNote = lf.type === "Deduction" ? ` [Salary: ${ded.salary || "N/A"}, Payroll Date: ${ded.payrollDate || "N/A"}]` : "";
+        const loan = { loanNo, clientId: client.id, nrc: client.nrc, name: client.name, branch, province: info.province, branchCode: `${info.provinceCode}-${info.townCode}`, type: lf.type, principal: amt, interestRate: rate, interest, totalDue: total, period: lf.period, appDate: today(), disburseDate: lf.disburse, dueDate: lf.due, consultant: enteredStaff.name, consultantId: enteredStaff.id, approvalStatus: "Pending", approvedBy: "", approvedDate: "", remarks: (lf.remarks || "") + dedNote, loanNumForClient: nd.loans.filter(l => l.clientId === client.id).length + 1, signedLoanCopy: signedLoan, ...extra };
         nd.loans.push(loan);
         saveDB(nd);
         setDb(nd);
