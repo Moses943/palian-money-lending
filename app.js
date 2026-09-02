@@ -4162,6 +4162,7 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
         const tv = parseFloat(form.targetValue);
         if (isNaN(tv)) { alert("Enter a target value."); return; }
         if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
+        if (form.scopeType === "consultant" && !["admin", "strategic"].includes(user.role)) { alert("Only System Admin or M&E can set individual Loan Consultant targets here. Branch/Provincial System Managers can set them from Branch Funds."); return; }
         const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
         const isConsultantAmount = form.scopeType === "consultant";
         const nd = { ...db, meTargets: [t, ...targets], ...(isConsultantAmount ? { consultantTargets: { ...db.consultantTargets, [form.scopeValue]: tv } } : {}) };
@@ -4216,7 +4217,7 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
                     React.createElement("option", { value: "company" }, "Company-wide"),
                     React.createElement("option", { value: "province" }, "Province"),
                     React.createElement("option", { value: "branch" }, "Branch"),
-                    React.createElement("option", { value: "consultant" }, "Loan Consultant")),
+                    (user.role === "admin" || user.role === "strategic") && React.createElement("option", { value: "consultant" }, "Loan Consultant")),
                 form.scopeType === "province" && React.createElement(Sel, { label: "Province", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
                     React.createElement("option", { value: "" }, "Select..."), Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
                 form.scopeType === "branch" && React.createElement(Sel, { label: "Branch", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
@@ -5300,6 +5301,7 @@ function AccountsFunds({ db, setDb, user }) {
 // ── MANAGER FUNDS ─────────────────────────────────────────────────────────────
 function ManagerFunds({ db, setDb, user }) {
     const canOverride = isHO(user.role) || isProvincial(user.role);
+    const canSetTarget = user.role === "admin" || user.role === "manager" || user.role === "provincial";
     const allBranches = isProvincial(user.role)
         ? (PROVINCES[user.province]?.towns || []).map(t => t[0])
         : [...new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office").map(s => s.branch))].sort();
@@ -5349,10 +5351,13 @@ function ManagerFunds({ db, setDb, user }) {
                         " \u00B7 Target: ",
                         React.createElement("strong", null, fmt((db.consultantTargets || {})[s.id] || 0))),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
-                        React.createElement("div", null,
                             React.createElement(Inp, { label: "Allocate (K)", type: "number", value: cAmts[s.id] || "", onChange: e => setCAmts(x => ({ ...x, [s.id]: e.target.value })), placeholder: "0.00" }),
                             React.createElement(Btn, { sm: true, color: C.teal, onClick: () => allocate(s.id, s.name), disabled: branchFund <= 0 }, "Allocate")),
-                        React.createElement("div", { style: { fontSize: 10, color: C.muted, fontStyle: "italic", paddingTop: 20 } }, "Targets are set by M&E only."))))))))));
+                    canSetTarget
+                        ? React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 } },
+                            React.createElement(Inp, { label: "Set Loan Target (K)", type: "number", value: cTgts[s.id] || "", onChange: e => setCTgts(x => ({ ...x, [s.id]: e.target.value })), placeholder: "0.00" }),
+                            React.createElement(Btn, { sm: true, color: C.purple, onClick: () => setTgt(s.id, s.name) }, "\uD83C\uDFAF Set Target"))
+                        : React.createElement("div", { style: { fontSize: 10, color: C.muted, fontStyle: "italic", paddingTop: 8 } }, "Only a Branch/Provincial System Manager or System Admin can set targets.")))))))));
 }
 
 // ── ACCOUNTS WITHDRAWAL (CEO + Director dual-approval) ─────────────────────────
