@@ -5313,8 +5313,16 @@ function ManagerFunds({ db, setDb, user }) {
         alert(!a ? "Enter amount." : `Insufficient: ${fmt(branchFund)}`);
         return;
     } const nd = { ...db, branchFunds: { ...db.branchFunds, [branch]: Math.max(0, branchFund - a) }, consultantFunds: { ...db.consultantFunds, [id]: (db.consultantFunds[id] || 0) + a } }; saveDB(nd); setDb(nd); setCAmts(x => ({ ...x, [id]: "" })); alert(`✅ ${fmt(a)} → ${name}`); }
-    function setTgt(id, name) { const t = parseFloat(cTgts[id] || 0); if (!t)
-        return; const nd = { ...db, consultantTargets: { ...db.consultantTargets, [id]: t } }; saveDB(nd); setDb(nd); setCTgts(x => ({ ...x, [id]: "" })); alert(`✅ Target set for ${name}`); }
+    async function setTgt(id, name) {
+        const t = parseFloat(cTgts[id] || 0);
+        if (!t) return;
+        const nd = { ...db, consultantTargets: { ...db.consultantTargets, [id]: t } };
+        setDb(nd);
+        const result = await saveDB(nd);
+        setCTgts(x => ({ ...x, [id]: "" }));
+        if (result && result.ok === false) alert(`\u274C Target for ${name} did NOT save to the database:\n\n${(result.errors || []).join("\n")}\n\nIt will be lost on next reload.`);
+        else alert(`\u2705 Target set for ${name} and confirmed saved.`);
+    }
     return (React.createElement("div", null,
         canOverride && (React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}` } },
             React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Admin Override \u2014 Manage Any Branch"),
