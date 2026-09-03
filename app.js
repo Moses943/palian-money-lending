@@ -125,10 +125,10 @@ async function markMessageRead(messageId, staffId) {
 }
 async function loadWallpapers() {
     try {
-        const { data, error } = await sb.storage.from("wallpaper").list("", { sortBy: { column: "created_at", order: "desc" } });
+        const { data, error } = await sb.storage.from("wallpapers").list("", { sortBy: { column: "created_at", order: "desc" } });
         if (error || !data) return [];
         return data.filter(f => f.name && !f.name.startsWith(".")).map(f => {
-            const { data: pub } = sb.storage.from("wallpaper").getPublicUrl(f.name);
+            const { data: pub } = sb.storage.from("wallpapers").getPublicUrl(f.name);
             return { name: f.name, url: pub.publicUrl };
         });
     } catch (e) { console.error(e); return []; }
@@ -137,14 +137,14 @@ async function uploadWallpaper(dataUrl, fileName) {
     try {
         const blob = dataURLtoBlob(dataUrl);
         const safeName = `${Date.now()}-${(fileName || "wallpaper").replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-        const { error } = await sb.storage.from("wallpaper").upload(safeName, blob, { contentType: blob.type, upsert: true });
+        const { error } = await sb.storage.from("wallpapers").upload(safeName, blob, { contentType: blob.type, upsert: true });
         if (error) return { error: error.message };
         return { ok: true };
     } catch (e) { return { error: e.message || "Unknown error" }; }
 }
 async function deleteWallpaper(name) {
     try {
-        const { error } = await sb.storage.from("wallpaper").remove([name]);
+        const { error } = await sb.storage.from("wallpapers").remove([name]);
         if (error) return { error: error.message };
         return { ok: true };
     } catch (e) { return { error: e.message || "Unknown error" }; }
@@ -155,9 +155,9 @@ async function uploadMessageAttachment(dataUrl, msgId, fileName) {
         const blob = dataURLtoBlob(dataUrl);
         const safeName = (fileName || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
         const path = `attachments/${msgId}-${safeName}`;
-        const { error } = await sb.storage.from("message").upload(path, blob, { contentType: blob.type, upsert: true });
+        const { error } = await sb.storage.from("messages").upload(path, blob, { contentType: blob.type, upsert: true });
         if (error) { console.error(error); return null; }
-        const { data } = sb.storage.from("message").getPublicUrl(path);
+        const { data } = sb.storage.from("messages").getPublicUrl(path);
         return data.publicUrl;
     } catch (e) { console.error(e); return null; }
 }
@@ -7342,12 +7342,12 @@ async function uploadParcelPhoto(dataUrl, trackingNo) {
     try {
         const blob = dataURLtoBlob(dataUrl);
         const path = `parcel-photos/${trackingNo}.jpg`;
-        const { error } = await sb.storage.from("parcel").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+        const { error } = await sb.storage.from("parcels").upload(path, blob, { contentType: "image/jpeg", upsert: true });
         if (error) {
             console.error(error);
             return null;
         }
-        const { data } = sb.storage.from("parcel").getPublicUrl(path);
+        const { data } = sb.storage.from("parcels").getPublicUrl(path);
         return data.publicUrl;
     }
     catch (e) {
@@ -7361,12 +7361,12 @@ async function uploadStaffPhoto(dataUrl, staffId) {
     try {
         const blob = dataURLtoBlob(dataUrl);
         const path = `staff-photos/${staffId}.jpg`;
-        const { error } = await sb.storage.from("team photos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+        const { error } = await sb.storage.from("team-photos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
         if (error) {
             console.error(error);
             return null;
         }
-        const { data } = sb.storage.from("team photos").getPublicUrl(path);
+        const { data } = sb.storage.from("team-photos").getPublicUrl(path);
         return data.publicUrl;
     }
     catch (e) {
