@@ -5801,9 +5801,9 @@ function DocumentRequests({ db, setDb, user }) {
         if (!form.file) { alert("Attach the document file."); return; }
         setBusy(true);
         const id = nextDocRequestId(db.documentRequests);
-        const url = await uploadDocRequestFile(form.file, id, form.fileName);
+        const { url, error } = await uploadDocRequestFile(form.file, id, form.fileName);
         setBusy(false);
-        if (!url) { alert("Upload failed. Check your connection and try again."); return; }
+        if (!url) { alert(`\u274C Upload failed:\n\n${error}\n\nPlease screenshot this exact message and report it.`); return; }
         const req = { id: id, title: form.title.trim(), category: form.category, purpose: form.purpose, fileUrl: url, fileName: form.fileName, branch: user.branch || null, requestedBy: user.name, dateSubmitted: today(), status: "pending_ceo", ceo: { decision: "pending" }, director: { decision: "pending" }, audit: [{ action: "Submitted", by: user.name, date: today(), note: "" }] };
         const nd = { ...db, documentRequests: [req, ...(db.documentRequests || [])] };
         saveDB(nd); setDb(nd);
@@ -7313,16 +7313,16 @@ function dataURLtoBlob(dataurl) {
     return new Blob([u8], { type: mime });
 }
 async function uploadDocRequestFile(dataUrl, id, filename) {
-    if (!dataUrl) return null;
+    if (!dataUrl) return { url: null, error: "No file selected" };
     try {
         const blob = dataURLtoBlob(dataUrl);
         const ext = (filename && filename.includes(".")) ? filename.split(".").pop() : "pdf";
         const path = `document-requests/${id}.${ext}`;
         const { error } = await sb.storage.from("reports").upload(path, blob, { contentType: blob.type, upsert: true });
-        if (error) { console.error(error); return null; }
+        if (error) { console.error(error); return { url: null, error: error.message || JSON.stringify(error) }; }
         const { data } = sb.storage.from("reports").getPublicUrl(path);
-        return data.publicUrl;
-    } catch (e) { console.error(e); return null; }
+        return { url: data.publicUrl, error: null };
+    } catch (e) { console.error(e); return { url: null, error: e.message || String(e) }; }
 }
 async function uploadLeaveDoc(dataUrl, requestId) {
     if (!dataUrl) return null;
