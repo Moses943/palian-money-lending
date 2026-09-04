@@ -32,7 +32,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, provincialFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [], documentRequests: [], provincialDelegations: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, provincialFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [], documentRequests: [], provincialDelegations: [], riskRegister: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -105,6 +105,13 @@ function nextDelegationId(list) {
     }, 0);
     return `DEL-${pad(maxNum + 1)}`;
 }
+function nextRiskId(list) {
+    const maxNum = (list || []).reduce((max, r) => {
+        const m = /^RSK-(\d+)$/.exec(r.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `RSK-${pad(maxNum + 1)}`;
+}
 const ME_KPIS = ["Recovery Rate", "Collection Rate", "Portfolio"];
 function nextMoneyTxnId(list) {
     const maxNum = (list || []).reduce((max, t) => {
@@ -168,7 +175,7 @@ function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultant
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
     const results = { staff: null, clients: null, loans: null, payments: null, leaveRequests: null, loginLogs: null, branchFunds: null, consultantFunds: null, bankBalance: null, dailyReports: null, paymentPlans: null, messages: null, messageReads: null, branchDisbursements: null, withdrawalRequests: null, moneyAccounts: null, moneyAccountTxns: null };
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, pfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR, docR, delR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, pfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR, docR, delR, riskR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -190,12 +197,13 @@ async function loadDB() {
         sb.from("me_targets").select("*"),
         sb.from("document_requests").select("*").order("date_submitted", { ascending: false }).limit(500),
         sb.from("provincial_delegations").select("*"),
+        sb.from("risk_register").select("*"),
     ]);
     // Supabase-js returns { data, error } and does NOT throw on failure (bad
     // RLS policy, expired key, paused project, etc.) — checking .error here
     // is what stops a failed fetch from silently rendering as an empty/zero
     // dashboard with no indication anything went wrong.
-    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Provincial Funds", pfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR], ["Document Requests", docR], ["Provincial Delegations", delR]];
+    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Provincial Funds", pfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR], ["Document Requests", docR], ["Provincial Delegations", delR], ["Risk Register", riskR]];
     const errors = labeled.filter(([, r]) => r && r.error).map(([label, r]) => `${label}: ${r.error.message}`);
     if (errors.length) {
         const err = new Error("Failed to load data from the database:\n\n" + errors.join("\n") + "\n\nThis is a connection/permissions problem, not missing data — check your Supabase project status and API key.");
@@ -225,6 +233,7 @@ async function loadDB() {
         meTargets: (meR.data || []).map(r => ({ id: r.id, kpi: r.kpi, scopeType: r.scope_type, scopeValue: r.scope_value, targetValue: r.target_value, period: r.period, notes: r.notes || "", createdBy: r.created_by, createdAt: r.created_at })),
         documentRequests: (docR.data || []).map(documentRequestIn),
         provincialDelegations: (delR.data || []).map(r => ({ id: r.id, province: r.province, grantedToStaffId: r.granted_to_staff_id, grantedToName: r.granted_to_name, grantedBy: r.granted_by, dateGranted: r.date_granted, active: r.active, note: r.note || "" })),
+        riskRegister: (riskR.data || []).map(r => ({ id: r.id, risk: r.risk, department: r.department, province: r.province, branch: r.branch, severity: r.severity, probability: r.probability, impact: r.impact, responsiblePerson: r.responsible_person, mitigation: r.mitigation, status: r.status, createdBy: r.created_by, dateLogged: r.date_logged })),
     };
 }
 async function saveDB(db) {
@@ -263,13 +272,13 @@ async function saveDB(db) {
     await tryUpsert("M&E Targets", "me_targets", db.meTargets?.length ? db.meTargets.map(t => ({ id: t.id, kpi: t.kpi, scope_type: t.scopeType, scope_value: t.scopeValue || null, target_value: t.targetValue, period: t.period, notes: t.notes || null, created_by: t.createdBy, created_at: t.createdAt })) : null, { onConflict: "id" });
     await tryUpsert("Document Requests", "document_requests", db.documentRequests?.length ? db.documentRequests.map(documentRequestOut) : null, { onConflict: "id" });
     await tryUpsert("Provincial Delegations", "provincial_delegations", db.provincialDelegations?.length ? db.provincialDelegations.map(d => ({ id: d.id, province: d.province, granted_to_staff_id: d.grantedToStaffId, granted_to_name: d.grantedToName, granted_by: d.grantedBy, date_granted: d.dateGranted, active: d.active, note: d.note || null })) : null, { onConflict: "id" });
+    await tryUpsert("Risk Register", "risk_register", db.riskRegister?.length ? db.riskRegister.map(r => ({ id: r.id, risk: r.risk, department: r.department || null, province: r.province || null, branch: r.branch || null, severity: r.severity, probability: r.probability, impact: r.impact || null, responsible_person: r.responsiblePerson || null, mitigation: r.mitigation || null, status: r.status, created_by: r.createdBy, date_logged: r.dateLogged })) : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
-    await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null, { onConflict: "branch" });
+    await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null);
     const pfRows = Object.entries(db.provincialFunds || {}).map(([province, amount]) => ({ province, amount }));
-    await tryUpsert("Provincial Funds", "provincial_funds", pfRows.length ? pfRows : null, { onConflict: "province" });
-    const cfIds = new Set([...Object.keys(db.consultantFunds || {}), ...Object.keys(db.consultantTargets || {})]);
-    const cfRows = [...cfIds].map(staff_id => ({ staff_id, amount: (db.consultantFunds || {})[staff_id] || 0, target: (db.consultantTargets || {})[staff_id] || 0 }));
-    await tryUpsert("Consultant Funds", "consultant_funds", cfRows.length ? cfRows : null, { onConflict: "staff_id" });
+    await tryUpsert("Provincial Funds", "provincial_funds", pfRows.length ? pfRows : null);
+    const cfRows = Object.entries(db.consultantFunds || {}).map(([staff_id, amount]) => ({ staff_id, amount, target: (db.consultantTargets || {})[staff_id] || 0 }));
+    await tryUpsert("Consultant Funds", "consultant_funds", cfRows.length ? cfRows : null);
     await tryUpsert("Bank Account", "bank_account", [{ id: 1, balance: db.bankBalance || 0 }]);
     if (failures.length) {
         console.error("saveDB errors", failures);
@@ -2656,7 +2665,7 @@ function openClearanceCert(loan, client, db) {
   <div class="cb"><div style="font-size:34px">✅</div><div style="font-size:15px;font-weight:800;color:#2E7D32;margin-top:6px">LOAN FULLY CLEARED — ZERO BALANCE OUTSTANDING</div></div>
   <div class="stmt">This certifies that <strong>${client?.name || loan.name}</strong> (NRC: ${client?.nrc || loan.nrc}) has fully repaid loan <strong>${loan.loanNo}</strong> issued by Palian Money Lending Limited, ${loan.branch} Branch. As of <strong>${clearDate}</strong>, there are no outstanding obligations. This client is eligible for a new loan.</div>
   <div class="sms"><strong style="color:#1565C0">📱 SMS/WhatsApp:</strong><br><span id="s">${sms}</span><br><br><button class="np" onclick="navigator.clipboard.writeText(document.getElementById('s').innerText).then(()=>alert('✅ Copied!'))" style="padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:700;margin-top:4px;">📋 Copy SMS</button></div>
-  <div class="sga"><div class="sg"><div class="sl"></div><div class="slb">LOAN OFFICER / CONSULTANT</div><div style="font-size:11px;color:#888;margin-top:3px">${loan.consultant}</div></div><div class="sg"><div class="sl"></div><div class="slb">AUTHORIZED SIGNATORY</div><div style="font-size:11px;color:#888;margin-top:3px">Branch System Manager — ${loan.branch}</div></div></div>
+  <div class="sga"><div class="sg"><div class="sl"></div><div class="slb">LOAN OFFICER / CONSULTANT</div><div style="font-size:11px;color:#888;margin-top:3px">${loan.consultant}</div></div><div class="sg"><div class="sl"></div><div class="slb">AUTHORIZED SIGNATORY</div><div style="font-size:11px;color:#888;margin-top:3px">Branch Manager — ${loan.branch}</div></div></div>
   <div style="text-align:right;margin-top:6px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:90px;opacity:0.9" alt="Official Stamp"/></div>
   <div class="ft">Palian Money Lending Limited · Licensed Microfinance Institution, Zambia<br>Cert Ref: CLR-${loan.loanNo} · Generated: ${new Date().toLocaleString()}</div>
   <br><button class="np" onclick="window.print()" style="width:100%;padding:14px;background:#0F2D5C;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:800;margin-top:10px;">🖨️ Print / Save as PDF</button>
@@ -2843,7 +2852,7 @@ function buildClearancePDF(loan, client, db) {
     doc.setDrawColor(50); doc.line(14, y, 80, y); doc.line(116, y, 182, y);
     doc.setFontSize(8);
     doc.text("LOAN OFFICER / CONSULTANT", 14, y + 5); doc.text(loan.consultant, 14, y + 10);
-    doc.text("AUTHORIZED SIGNATORY", 116, y + 5); doc.text(`Branch System Manager — ${loan.branch}`, 116, y + 10);
+    doc.text("AUTHORIZED SIGNATORY", 116, y + 5); doc.text(`Branch Manager — ${loan.branch}`, 116, y + 10);
     y += 20;
     doc.setTextColor(140); doc.text(`Cert Ref: CLR-${loan.loanNo} · Generated: ${new Date().toLocaleString()}`, 14, y);
     addPalianStamp(doc);
@@ -3039,7 +3048,7 @@ function FinancialReportView({ loan, client, db, onClose }) {
                             React.createElement("strong", null, loan.consultant),
                             " to discuss repayment options."),
                         React.createElement("div", null, "\u2022 Explore financial restructuring or flexible repayment plans for better loan management."))),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, marginTop: 40 } }, [["LOAN OFFICER / CONSULTANT", loan.consultant], ["AUTHORIZED SIGNATORY", `Branch System Manager — ${loan.branch}`]].map(([l, s]) => (React.createElement("div", { key: l, style: { textAlign: "center" } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, marginTop: 40 } }, [["LOAN OFFICER / CONSULTANT", loan.consultant], ["AUTHORIZED SIGNATORY", `Branch Manager — ${loan.branch}`]].map(([l, s]) => (React.createElement("div", { key: l, style: { textAlign: "center" } },
                     React.createElement("div", { style: { borderTop: `1.5px solid #333`, marginTop: 44, marginBottom: 7 } }),
                     React.createElement("div", { style: { fontSize: 11, color: "#444", fontWeight: 700 } }, l),
                     React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 3 } }, s))))),
@@ -3478,13 +3487,13 @@ function HRSystem({ db, setDb, user }) {
             alert("Name already exists.");
             return;
         }
-        const roleLabel = ns.role === "other" ? ns.customRole.trim() : (ns.role === "manager" ? "Branch System Manager" : ns.role === "provincial" ? "Provincial System Manager" : ns.role === "strategic" ? "M&E" : ns.role.charAt(0).toUpperCase() + ns.role.slice(1));
+        const roleLabel = ns.role === "other" ? ns.customRole.trim() : (ns.role === "manager" ? "Branch Manager" : ns.role === "provincial" ? "Provincial Manager" : ns.role === "strategic" ? "M&E" : ns.role.charAt(0).toUpperCase() + ns.role.slice(1));
         const sysRole = ["consultant", "officer", "manager", "provincial", "hr", "accounts", "ceo", "admin", "director", "strategic"].includes(ns.role) ? ns.role : "viewer";
         const branch = needsBranch ? ns.town : (isProvincialRole ? "Provincial Office" : "Head Office");
         const province = needsBranch ? ns.province : (isProvincialRole ? ns.province : "Head Office");
         const pinHash = await hashPin(ns.pin);
         const staffId = `STF-${pad(db.staff.length + 1)}`;
-        const photoUrl = nsPhoto ? await uploadStaffPhoto(nsPhoto, staffId) : "";
+        const photoUrl = nsPhoto ? await uploadParcelPhoto(nsPhoto, `staff-${staffId}`) : "";
         const nd = { ...db, staff: [...db.staff, { id: staffId, name: ns.name.trim(), role: sysRole, roleLabel, pinHash, dept: ns.dept, salary: parseFloat(ns.salary) || 0, startDate: ns.startDate, branch, province, active: true, nrc: ns.nrc.trim(), bank: ns.bank.trim(), accountNo: ns.accountNo.trim(), grade: ns.grade.trim(), phone: ns.phone.trim(), email: ns.email.trim(), tpin: ns.tpin.trim(), photoUrl: photoUrl || "" }] };
         saveDB(nd);
         setDb(nd);
@@ -3529,12 +3538,12 @@ function HRSystem({ db, setDb, user }) {
         const isAdmin = user.role === "admin" || user.role === "director";
         const newRole = (isAdmin && ef.role) ? ef.role : s.role;
         const roleChanged = newRole !== s.role;
-        const newRoleLabel = roleChanged ? (newRole === "manager" ? "Branch System Manager" : newRole === "provincial" ? "Provincial System Manager" : newRole === "strategic" ? "M&E" : newRole.charAt(0).toUpperCase() + newRole.slice(1)) : s.roleLabel;
+        const newRoleLabel = roleChanged ? (newRole === "manager" ? "Branch Manager" : newRole.charAt(0).toUpperCase() + newRole.slice(1)) : s.roleLabel;
         const needsBranch = !isHQR(newRole) && newRole !== "provincial";
         const isProvincialRole = newRole === "provincial";
         const newPinHash = ef.pin.trim() ? await hashPin(ef.pin.trim()) : s.pinHash;
         const photoChanged = efPhoto && efPhoto.startsWith("data:");
-        const photoUrl = photoChanged ? (await uploadStaffPhoto(efPhoto, s.id)) || s.photoUrl : (efPhoto || "");
+        const photoUrl = photoChanged ? (await uploadParcelPhoto(efPhoto, `staff-${s.id}`)) || s.photoUrl : (efPhoto || "");
         const gradeChanged = ef.grade && ef.grade !== s.grade;
         const matchedGrade = gradeChanged ? grades.find(g => g.grade_name === ef.grade) : null;
         const newSalary = matchedGrade ? matchedGrade.min_amount : s.salary;
@@ -3578,8 +3587,8 @@ function HRSystem({ db, setDb, user }) {
                 React.createElement(HRInp, { label: "Full Name", req: true, value: ns.name, onChange: e => setNs(f => ({ ...f, name: e.target.value })) }),
                 React.createElement(HRSel, { label: "Role", req: true, value: ns.role, onChange: e => setNs(f => ({ ...f, role: e.target.value, customRole: "", province: "", town: "" })) },
                     React.createElement("option", { value: "consultant" }, "Loan Consultant (branch)"),
-                    React.createElement("option", { value: "manager" }, "Branch System Manager (branch)"),
-                    React.createElement("option", { value: "provincial" }, "Provincial System Manager (province)"),
+                    React.createElement("option", { value: "manager" }, "Branch Manager (branch)"),
+                    React.createElement("option", { value: "provincial" }, "Provincial Manager (province)"),
                     React.createElement("option", { value: "hr" }, "HR (Head Office)"),
                     React.createElement("option", { value: "accounts" }, "Accountant (Head Office)"),
                     React.createElement("option", { value: "ceo" }, "CEO (Head Office)"),
@@ -3629,8 +3638,8 @@ function HRSystem({ db, setDb, user }) {
                         grades.map(g => React.createElement("option", { key: g.grade_name, value: g.grade_name }, g.min_amount === g.max_amount ? `${g.grade_name} — ${fmt(g.min_amount)}` : `${g.grade_name} — ${fmt(g.min_amount)}\u2013${fmt(g.max_amount)}`))),
                     (user.role === "admin" || user.role === "director") && React.createElement(HRSel, { label: "\uD83D\uDD11 Role / Rights (Admin/Director only)", value: ef.role, onChange: e => setEf(f => ({ ...f, role: e.target.value })) },
                         React.createElement("option", { value: "consultant" }, "Loan Consultant"),
-                        React.createElement("option", { value: "manager" }, "Branch System Manager"),
-                        React.createElement("option", { value: "provincial" }, "Provincial System Manager"),
+                        React.createElement("option", { value: "manager" }, "Branch Manager"),
+                        React.createElement("option", { value: "provincial" }, "Provincial Manager"),
                         React.createElement("option", { value: "hr" }, "HR"),
                         React.createElement("option", { value: "accounts" }, "Accountant"),
                         React.createElement("option", { value: "ceo" }, "CEO"),
@@ -4004,7 +4013,7 @@ const EXEC_NAV = [
     { id: "hr", label: "HR Overview", icon: "\uD83D\uDC65", ready: true },
     { id: "me", label: "M&E Overview", icon: "\uD83D\uDCD0", ready: true },
     { id: "finance", label: "Finance Overview", icon: "\uD83D\uDCB3", ready: true },
-    { id: "risks", label: "Risks & Compliance", icon: "\u26A0\uFE0F", ready: false },
+    { id: "risks", label: "Risks & Compliance", icon: "\u26A0\uFE0F", ready: true },
     { id: "tasks", label: "Executive Tasks", icon: "\uD83D\uDDC2\uFE0F", ready: false },
     { id: "decisions", label: "Decisions Register", icon: "\uD83D\uDCDD", ready: false },
     { id: "reports", label: "Reports", icon: "\uD83D\uDCD1", ready: false },
@@ -4162,9 +4171,8 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
         const tv = parseFloat(form.targetValue);
         if (isNaN(tv)) { alert("Enter a target value."); return; }
         if (form.scopeType !== "company" && !form.scopeValue) { alert("Select a province/branch."); return; }
-        if (form.scopeType === "consultant" && !["admin", "strategic"].includes(user.role)) { alert("Only System Admin or M&E can set individual Loan Consultant targets here. Branch/Provincial System Managers can set them from Branch Funds."); return; }
         const t = { id: nextMETargetId(targets), kpi: form.kpi, scopeType: form.scopeType, scopeValue: form.scopeType === "company" ? null : form.scopeValue, targetValue: tv, period: form.period || "Ongoing", notes: form.notes, createdBy: user.name, createdAt: today() };
-        const isConsultantAmount = form.scopeType === "consultant";
+        const isConsultantAmount = form.scopeType === "consultant" && form.kpi === "Portfolio";
         const nd = { ...db, meTargets: [t, ...targets], ...(isConsultantAmount ? { consultantTargets: { ...db.consultantTargets, [form.scopeValue]: tv } } : {}) };
         saveDB(nd); setDb(nd);
         setForm(f => ({ ...f, targetValue: "", notes: "" }));
@@ -4217,7 +4225,7 @@ function MEOverviewPage({ db, setDb, user, isWide }) {
                     React.createElement("option", { value: "company" }, "Company-wide"),
                     React.createElement("option", { value: "province" }, "Province"),
                     React.createElement("option", { value: "branch" }, "Branch"),
-                    (user.role === "admin" || user.role === "strategic") && React.createElement("option", { value: "consultant" }, "Loan Consultant")),
+                    React.createElement("option", { value: "consultant" }, "Loan Consultant")),
                 form.scopeType === "province" && React.createElement(Sel, { label: "Province", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
                     React.createElement("option", { value: "" }, "Select..."), Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
                 form.scopeType === "branch" && React.createElement(Sel, { label: "Branch", value: form.scopeValue, onChange: e => setForm(f => ({ ...f, scopeValue: e.target.value })) },
@@ -4410,6 +4418,7 @@ function MEDashboard({ db, isWide, setPage }) {
         return { date: p.date, client: loan ? loan.name : p.loanNo, amount: p.amount, branch: p.branch };
     });
     return React.createElement("div", null,
+        React.createElement(SlidingPhotosBanner, null),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 12, marginBottom: 16 } },
             React.createElement(MStatCard, { icon: "\uD83D\uDCB0", label: "Total Portfolio", value: fmt(allApplied), color: MC.accent }),
             React.createElement(MStatCard, { icon: "\u267B\uFE0F", label: "Recovery Rate", value: rec.toFixed(1) + "%", color: rec >= 70 ? MC.green : rec >= 50 ? MC.amber : MC.red }),
@@ -4487,12 +4496,19 @@ function MyPhotoModal({ user, db, setDb, onClose }) {
     async function save() {
         if (!me) { alert("Your staff record could not be found."); return; }
         setBusy(true);
-        const url = photo && photo.startsWith("data:") ? await uploadStaffPhoto(photo, me.id) : photo;
-        setBusy(false);
-        if (!url) { alert("Upload failed. Check your connection and try again."); return; }
-        const nd = { ...db, staff: db.staff.map(s => s.id === me.id ? { ...s, photoUrl: url } : s) };
-        saveDB(nd); setDb(nd);
-        onClose();
+        if (photo && photo.startsWith("data:")) {
+            const result = await uploadStaffPhoto(photo, me.id);
+            setBusy(false);
+            if (!result.url) { alert("\u274C Upload failed: " + result.error + "\n\nThis is a real error from the storage system \u2014 send this exact message to get it fixed."); return; }
+            const nd = { ...db, staff: db.staff.map(s => s.id === me.id ? { ...s, photoUrl: result.url } : s) };
+            const saveResult = await saveDB(nd);
+            setDb(nd);
+            if (!saveResult.ok) return;
+            onClose();
+        } else {
+            setBusy(false);
+            onClose();
+        }
     }
     return React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }, onClick: onClose },
         React.createElement("div", { style: { background: "#fff", borderRadius: 14, padding: 20, maxWidth: 340, width: "100%" }, onClick: e => e.stopPropagation() },
@@ -4517,7 +4533,7 @@ function MyPhotoTrigger({ user, db, setDb, dark }) {
 const ADMIN_DEPARTMENTS = [
     { id: "accounts", label: "Accounts", icon: "\uD83D\uDCB3", ready: true },
     { id: "hr", label: "HR", icon: "\uD83D\uDC65", ready: true },
-    { id: "loans", label: "Loan System", icon: "\uD83D\uDCB0", ready: true },
+    { id: "loans", label: "Loans & Money", icon: "\uD83D\uDCB0", ready: true },
     { id: "me", label: "M&E", icon: "\uD83D\uDCCA", ready: true },
     { id: "ptdc", label: "PTDC", icon: "\uD83D\uDCE6", ready: true },
     { id: "exec", label: "Executive (CEO/Director)", icon: "\uD83C\uDFAF", ready: true },
@@ -4537,6 +4553,7 @@ function SystemAdminApp({ db, setDb, user, onLogout, onSwitch }) {
                 React.createElement("button", { onClick: onSwitch, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Switch"),
                 React.createElement("button", { onClick: onLogout, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Logout"))),
         React.createElement("div", { style: { padding: 16, maxWidth: 720, margin: "0 auto" } },
+            React.createElement(SlidingPhotosBanner, null),
             React.createElement(HRHeading, { eyebrow: "Full Access", title: "Select a Department" }),
             React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", marginBottom: 16, paddingBottom: 4 } },
                 ADMIN_DEPARTMENTS.map(d => React.createElement("button", { key: d.id, onClick: () => setDept(d.id), style: { flexShrink: 0, padding: "10px 16px", borderRadius: 20, border: `1.5px solid ${dept === d.id ? C.navy : C.border}`, background: dept === d.id ? C.navy : "#fff", color: dept === d.id ? "#fff" : C.text, fontWeight: 700, fontSize: 12, cursor: d.ready ? "pointer" : "default", opacity: d.ready ? 1 : 0.5 }, disabled: !d.ready }, d.icon, " ", d.label))),
@@ -4565,6 +4582,7 @@ function HRSystemApp({ db, setDb, user, onLogout, onSwitch }) {
                 React.createElement("button", { onClick: onSwitch, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Switch"),
                 React.createElement("button", { onClick: onLogout, style: { background: "rgba(255,255,255,0.14)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: 11, cursor: "pointer" } }, "Logout"))),
         React.createElement("div", { style: { padding: 16, maxWidth: 960, margin: "0 auto" } },
+            React.createElement(SlidingPhotosBanner, null),
             React.createElement(HRSystem, { db: db, setDb: setDb, user: user }),
             React.createElement("div", { style: { marginTop: 24 } },
                 React.createElement(HRHeading, { eyebrow: "Access Control", title: "Provincial Access Delegation" }),
@@ -4661,6 +4679,7 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch, v
                 React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 14, padding: "16px 18px", marginBottom: 14, color: "#fff" } },
                     React.createElement("div", { style: { fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: C.amber } }, label),
                     React.createElement("div", { style: { fontSize: 11, opacity: 0.75, marginTop: 2 } }, `Good day, ${user.name.split(" ")[0]} \u00B7 ${new Date().toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`)),
+                React.createElement(SlidingPhotosBanner, null),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: 10, marginBottom: 14 } }, [
                     { l: "Total Portfolio", v: fmt(allApplied), c: C.navy, i: "\uD83D\uDCB0" },
                     { l: "Collection Rate", v: collRate.toFixed(1) + "%", c: C.blue, d: collRate },
@@ -4736,6 +4755,45 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch, v
             canDecide && React.createElement("div", { style: { display: "flex", gap: 8 } },
                 React.createElement(Btn, { sm: true, color: C.green, onClick: () => decideExec(w.id, role, "approved", "") }, "\u2705 Approve"),
                 React.createElement(Btn, { sm: true, color: C.red, onClick: () => { const c = window.prompt("Reason for rejecting (optional):") || ""; decideExec(w.id, role, "rejected", c); } }, "\u274C Reject")));
+    }
+    function RiskRegisterPage() {
+        const [form, setForm] = useState({ risk: "", department: "", scopeType: "company", scopeValue: "", severity: "Medium", probability: "Medium", responsiblePerson: "", mitigation: "" });
+        const risks = db.riskRegister || [];
+        function saveRisk() {
+            if (!form.risk.trim()) { alert("Describe the risk."); return; }
+            const r = { id: nextRiskId(risks), risk: form.risk.trim(), department: form.department || null, province: form.scopeType === "province" ? form.scopeValue : null, branch: form.scopeType === "branch" ? form.scopeValue : null, severity: form.severity, probability: form.probability, impact: null, responsiblePerson: form.responsiblePerson, mitigation: form.mitigation, status: "Open", createdBy: user.name, dateLogged: today() };
+            const nd = { ...db, riskRegister: [r, ...risks] };
+            saveDB(nd); setDb(nd);
+            setForm({ risk: "", department: "", scopeType: "company", scopeValue: "", severity: "Medium", probability: "Medium", responsiblePerson: "", mitigation: "" });
+        }
+        async function updateStatus(id, status) {
+            const nd = { ...db, riskRegister: risks.map(r => r.id === id ? { ...r, status } : r) };
+            saveDB(nd); setDb(nd);
+        }
+        const sevColor = s => ({ Critical: C.red, High: C.orange, Medium: C.amber, Low: C.green }[s] || C.muted);
+        return React.createElement("div", null,
+            React.createElement(Card, null,
+                React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Log a Risk"),
+                React.createElement(Inp, { label: "Risk Description", value: form.risk, onChange: e => setForm(f => ({ ...f, risk: e.target.value })), placeholder: "e.g. Copperbelt branch cash handling gap" }),
+                React.createElement(Inp, { label: "Department (optional)", value: form.department, onChange: e => setForm(f => ({ ...f, department: e.target.value })), placeholder: "e.g. Finance, HR, Loans" }),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: isWide ? "repeat(3,1fr)" : "1fr", gap: 8 } },
+                    React.createElement(Sel, { label: "Severity", value: form.severity, onChange: e => setForm(f => ({ ...f, severity: e.target.value })) },
+                        ["Low", "Medium", "High", "Critical"].map(s => React.createElement("option", { key: s, value: s }, s))),
+                    React.createElement(Sel, { label: "Probability", value: form.probability, onChange: e => setForm(f => ({ ...f, probability: e.target.value })) },
+                        ["Low", "Medium", "High"].map(s => React.createElement("option", { key: s, value: s }, s))),
+                    React.createElement(Inp, { label: "Responsible Person", value: form.responsiblePerson, onChange: e => setForm(f => ({ ...f, responsiblePerson: e.target.value })) })),
+                React.createElement(Inp, { label: "Mitigation Plan", value: form.mitigation, onChange: e => setForm(f => ({ ...f, mitigation: e.target.value })), placeholder: "What's being done about it?" }),
+                React.createElement(Btn, { color: C.red, full: true, onClick: saveRisk }, "\u26A0\uFE0F Log Risk")),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "Risk Register"),
+                risks.length === 0 ? React.createElement(Alrt, { type: "success" }, "No risks logged \u2014 nothing outstanding.") :
+                    risks.map(r => React.createElement("div", { key: r.id, style: { border: `1px solid ${C.border}`, borderLeft: `4px solid ${sevColor(r.severity)}`, borderRadius: 8, padding: 10, marginBottom: 8 } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 } }, React.createElement("span", null, r.risk), React.createElement("span", { style: { color: sevColor(r.severity), fontWeight: 800, fontSize: 11 } }, r.severity)),
+                        React.createElement("div", { style: { fontSize: 11, color: C.muted, marginBottom: 6 } }, `${r.department || "General"}${r.province ? " \u00B7 " + r.province : ""}${r.branch ? " \u00B7 " + r.branch : ""} \u00B7 ${r.dateLogged} \u00B7 ${r.responsiblePerson || "Unassigned"}`),
+                        r.mitigation && React.createElement("div", { style: { fontSize: 11, color: C.text, marginBottom: 6 } }, "Mitigation: ", r.mitigation),
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                            React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: r.status === "Closed" ? C.green : C.amber } }, r.status),
+                            r.status !== "Closed" && React.createElement(Btn, { sm: true, color: C.green, onClick: () => updateStatus(r.id, "Closed") }, "Mark Resolved"))))));
     }
     function ApprovalsPage() {
         return React.createElement("div", null,
@@ -4886,6 +4944,7 @@ function ExecutiveCommandCenter({ db, setDb, user, onBack, onLogout, onSwitch, v
         hr: () => React.createElement(HRPage, null),
         finance: () => React.createElement(FinancePage, null),
         me: () => React.createElement(MEOverviewPage, { db: db, setDb: setDb, user: user, isWide: isWide }),
+        risks: () => React.createElement(RiskRegisterPage, null),
         notifications: () => React.createElement(ExecAttention, { items: attentionItems }),
         audit: () => React.createElement(AuditPage, null),
     };
@@ -4932,7 +4991,7 @@ function ProvincialDelegationManager({ db, setDb, user }) {
     const activeDelegations = delegations.filter(d => d.active);
     const pms = (db.staff || []).filter(s => s.role === "provincial" && isEffectivelyActive(s));
     function grant() {
-        if (!staffId) { alert("Select a Provincial System Manager."); return; }
+        if (!staffId) { alert("Select a Provincial Manager."); return; }
         const pm = pms.find(s => s.id === staffId);
         const rec = { id: nextDelegationId(delegations), province, grantedToStaffId: staffId, grantedToName: pm ? pm.name : staffId, grantedBy: user.name, dateGranted: today(), active: true, note: note.trim() };
         const nd = { ...db, provincialDelegations: [rec, ...delegations] };
@@ -4947,11 +5006,11 @@ function ProvincialDelegationManager({ db, setDb, user }) {
     return React.createElement("div", null,
         React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Grant Temporary Provincial Access"),
-            React.createElement(Alrt, { type: "info" }, "Use this when a Provincial System Manager is sick, on leave, or otherwise unavailable \u2014 grant another Provincial System Manager full access to that province until revoked."),
+            React.createElement(Alrt, { type: "info" }, "Use this when a Provincial Manager is sick, on leave, or otherwise unavailable \u2014 grant another Provincial Manager full access to that province until revoked."),
             React.createElement(Sel, { label: "Province", value: province, onChange: e => setProvince(e.target.value) },
                 Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, p))),
             React.createElement(Sel, { label: "Grant Access To", value: staffId, onChange: e => setStaffId(e.target.value) },
-                React.createElement("option", { value: "" }, "Select a Provincial System Manager..."),
+                React.createElement("option", { value: "" }, "Select a Provincial Manager..."),
                 pms.map(s => React.createElement("option", { key: s.id, value: s.id }, `${s.name} (${s.province})`))),
             React.createElement(Inp, { label: "Note (optional)", value: note, onChange: e => setNote(e.target.value), placeholder: "e.g. Covering for John while on leave" }),
             React.createElement(Btn, { color: C.purple, full: true, onClick: grant }, "\uD83D\uDD11 Grant Access")),
@@ -4986,6 +5045,7 @@ function ProvincialDashboard({ db, user, onReport, onViewOverdue }) {
         React.createElement("div", { style: { opacity: 1, pointerEvents: "auto", marginBottom: 10 } },
             React.createElement("select", { value: selectedProvince, onChange: e => setSelectedProvince(e.target.value), style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13, fontWeight: 700, background: "#fff" } },
                 Object.keys(PROVINCES).map(p => React.createElement("option", { key: p, value: p }, `${p}${p === user.province ? " (My Province)" : ""}`)))),
+        React.createElement("div", { style: { opacity: 1, pointerEvents: "auto" } }, React.createElement(SlidingPhotosBanner, null)),
         !hasFullAccess && React.createElement("div", { style: { opacity: 1, pointerEvents: "none" } },
             React.createElement(Alrt, { type: "warn" }, "\uD83D\uDC41\uFE0F View-only \u2014 you can see performance for this province, but can't run reports or take action here. Ask an Admin, HR, or the Director to grant you full access if you need to help cover it.")),
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.teal})`, borderRadius: 14, padding: "16px 18px", marginBottom: 14, color: "#fff" } },
@@ -5032,6 +5092,7 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
     const ddocLoans = loans.filter(l => l.type === "Deduction");
     const ddocAmount = ddocLoans.reduce((s, l) => s + (l.principal || 0), 0);
     return (React.createElement("div", null,
+        React.createElement(SlidingPhotosBanner, null),
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
                 React.createElement(PalianLogo, { size: 30 }),
@@ -5120,6 +5181,7 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
     const branchDdocLoans = loans.filter(l => l.type === "Deduction");
     const branchConsultants = (db.staff || []).filter(s => s.branch === branch && s.role === "consultant");
     return (React.createElement("div", null,
+        React.createElement(SlidingPhotosBanner, null),
         React.createElement("div", { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, borderRadius: 16, padding: "18px 16px", marginBottom: 14, color: "#fff" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
                 React.createElement(PalianLogo, { size: 26 }),
@@ -5301,7 +5363,6 @@ function AccountsFunds({ db, setDb, user }) {
 // ── MANAGER FUNDS ─────────────────────────────────────────────────────────────
 function ManagerFunds({ db, setDb, user }) {
     const canOverride = isHO(user.role) || isProvincial(user.role);
-    const canSetTarget = user.role === "admin" || user.role === "manager" || user.role === "provincial";
     const allBranches = isProvincial(user.role)
         ? (PROVINCES[user.province]?.towns || []).map(t => t[0])
         : [...new Set(db.staff.filter(s => s.branch && s.branch !== "Head Office").map(s => s.branch))].sort();
@@ -5315,16 +5376,8 @@ function ManagerFunds({ db, setDb, user }) {
         alert(!a ? "Enter amount." : `Insufficient: ${fmt(branchFund)}`);
         return;
     } const nd = { ...db, branchFunds: { ...db.branchFunds, [branch]: Math.max(0, branchFund - a) }, consultantFunds: { ...db.consultantFunds, [id]: (db.consultantFunds[id] || 0) + a } }; saveDB(nd); setDb(nd); setCAmts(x => ({ ...x, [id]: "" })); alert(`✅ ${fmt(a)} → ${name}`); }
-    async function setTgt(id, name) {
-        const t = parseFloat(cTgts[id] || 0);
-        if (!t) return;
-        const nd = { ...db, consultantTargets: { ...db.consultantTargets, [id]: t } };
-        setDb(nd);
-        const result = await saveDB(nd);
-        setCTgts(x => ({ ...x, [id]: "" }));
-        if (result && result.ok === false) alert(`\u274C Target for ${name} did NOT save to the database:\n\n${(result.errors || []).join("\n")}\n\nIt will be lost on next reload.`);
-        else alert(`\u2705 Target set for ${name} and confirmed saved.`);
-    }
+    function setTgt(id, name) { const t = parseFloat(cTgts[id] || 0); if (!t)
+        return; const nd = { ...db, consultantTargets: { ...db.consultantTargets, [id]: t } }; saveDB(nd); setDb(nd); setCTgts(x => ({ ...x, [id]: "" })); alert(`✅ Target set for ${name}`); }
     return (React.createElement("div", null,
         canOverride && (React.createElement(Card, { style: { borderLeft: `4px solid ${C.purple}` } },
             React.createElement(ST, { color: C.purple }, "\uD83D\uDD11 Admin Override \u2014 Manage Any Branch"),
@@ -5351,13 +5404,10 @@ function ManagerFunds({ db, setDb, user }) {
                         " \u00B7 Target: ",
                         React.createElement("strong", null, fmt((db.consultantTargets || {})[s.id] || 0))),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+                        React.createElement("div", null,
                             React.createElement(Inp, { label: "Allocate (K)", type: "number", value: cAmts[s.id] || "", onChange: e => setCAmts(x => ({ ...x, [s.id]: e.target.value })), placeholder: "0.00" }),
                             React.createElement(Btn, { sm: true, color: C.teal, onClick: () => allocate(s.id, s.name), disabled: branchFund <= 0 }, "Allocate")),
-                    canSetTarget
-                        ? React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 } },
-                            React.createElement(Inp, { label: "Set Loan Target (K)", type: "number", value: cTgts[s.id] || "", onChange: e => setCTgts(x => ({ ...x, [s.id]: e.target.value })), placeholder: "0.00" }),
-                            React.createElement(Btn, { sm: true, color: C.purple, onClick: () => setTgt(s.id, s.name) }, "\uD83C\uDFAF Set Target"))
-                        : React.createElement("div", { style: { fontSize: 10, color: C.muted, fontStyle: "italic", paddingTop: 8 } }, "Only a Branch/Provincial System Manager or System Admin can set targets.")))))))));
+                        React.createElement("div", { style: { fontSize: 10, color: C.muted, fontStyle: "italic", paddingTop: 20 } }, "Targets are set by M&E only."))))))))));
 }
 
 // ── ACCOUNTS WITHDRAWAL (CEO + Director dual-approval) ─────────────────────────
@@ -5534,29 +5584,10 @@ function AdminAccountsTools({ db, setDb, user }) {
     const [targetId, setTargetId] = useState("");
     const [newAmount, setNewAmount] = useState("");
     const [busy, setBusy] = useState(false);
-    const [cleaning, setCleaning] = useState(false);
     const wdl = db.withdrawalRequests || [];
     const txns = db.moneyAccountTxns || [];
     const accounts = db.moneyAccounts || [];
     function reset() { setTargetId(""); setNewAmount(""); }
-    async function cleanOutMoney() {
-        if (!window.confirm("This will reset ALL money in the system to K0.00: Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds \u2014 leaving nothing behind. This cannot be undone. Continue?")) return;
-        if (!window.confirm("Really sure? This deletes real records from the database, not just this screen \u2014 no amounts will remain anywhere.")) return;
-        setCleaning(true);
-        const results = await Promise.all([
-            sb.from("money_accounts").delete().not("id", "is", null),
-            sb.from("money_account_txns").delete().not("id", "is", null),
-            sb.from("branch_funds").delete().not("branch", "is", null),
-            sb.from("provincial_funds").delete().not("province", "is", null),
-            sb.from("consultant_funds").delete().not("staff_id", "is", null),
-        ]);
-        const errs = results.map(r => r.error).filter(Boolean);
-        if (errs.length) { alert("\u26A0\uFE0F Could not fully clear database records: " + errs.map(e => e.message).join("; ")); setCleaning(false); return; }
-        const nd = { ...db, bankBalance: 0, moneyAccounts: [], moneyAccountTxns: [], branchFunds: {}, provincialFunds: {}, consultantFunds: {} };
-        saveDB(nd); setDb(nd);
-        setCleaning(false);
-        alert("\u2705 All money cleared to K0.00 \u2014 Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds. Nothing remains.");
-    }
     async function run() {
         if (!targetId) { alert("Select a record first."); return; }
         setBusy(true);
@@ -5608,11 +5639,7 @@ function AdminAccountsTools({ db, setDb, user }) {
             action === "delete_account" && React.createElement(Sel, { label: "Many Account", value: targetId, onChange: e => setTargetId(e.target.value) },
                 React.createElement("option", { value: "" }, "Select..."),
                 accounts.map(a => React.createElement("option", { key: a.id, value: a.id }, `${a.name} \u2014 ${fmt(a.balance)}`))),
-            React.createElement(Btn, { color: C.red, full: true, onClick: run, disabled: busy || !targetId }, busy ? "Working..." : "\u26A0\uFE0F Execute Action")),
-        React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}`, background: "#FFF3F0" } },
-            React.createElement(ST, { color: C.red }, "\u26A0\uFE0F Danger Zone \u2014 Clear All Money"),
-            React.createElement("div", { style: { fontSize: 12, color: C.muted, marginBottom: 10 } }, "Resets EVERY money figure in the system to K0.00 \u2014 Accounts Balance, Many Accounts, Branch Funds, Provincial Funds, and Consultant Funds \u2014 with no leftover amounts anywhere. Use this to clear out test data before going live \u2014 cannot be undone."),
-            React.createElement(Btn, { onClick: cleanOutMoney, color: C.red, full: true, disabled: cleaning }, cleaning ? "\u23F3 Clearing..." : "\uD83E\uDDF9 Clean Out All Money Data")));
+            React.createElement(Btn, { color: C.red, full: true, onClick: run, disabled: busy || !targetId }, busy ? "Working..." : "\u26A0\uFE0F Execute Action")));
 }
 // ── ADMIN TOOLS: LOANS & MONEY (System Admin only) ──────────────────────────
 function AdminLoansTools({ db, setDb, user }) {
@@ -5647,7 +5674,7 @@ function AdminLoansTools({ db, setDb, user }) {
     }
     return React.createElement("div", null,
         React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
-            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Loan System"),
+            React.createElement(ST, { color: C.red }, "\uD83D\uDEE0\uFE0F Admin Tools \u2014 Loans & Money"),
             React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F System Admin only. Use this when a client shows as \u201calready existing\u201d and blocks re-registration \u2014 this fully purges them (not a soft delete) so their NRC becomes free again."),
             React.createElement(Inp, { label: "Search client by name or NRC", value: search, onChange: e => { setSearch(e.target.value); setTargetId(""); }, placeholder: "Type to search..." }),
             matches.length > 0 && React.createElement(Sel, { label: "Matching Clients", value: targetId, onChange: e => setTargetId(e.target.value) },
@@ -5801,9 +5828,9 @@ function DocumentRequests({ db, setDb, user }) {
         if (!form.file) { alert("Attach the document file."); return; }
         setBusy(true);
         const id = nextDocRequestId(db.documentRequests);
-        const { url, error } = await uploadDocRequestFile(form.file, id, form.fileName);
+        const url = await uploadDocRequestFile(form.file, id, form.fileName);
         setBusy(false);
-        if (!url) { alert(`\u274C Upload failed:\n\n${error}\n\nPlease screenshot this exact message and report it.`); return; }
+        if (!url) { alert("Upload failed. Check your connection and try again."); return; }
         const req = { id: id, title: form.title.trim(), category: form.category, purpose: form.purpose, fileUrl: url, fileName: form.fileName, branch: user.branch || null, requestedBy: user.name, dateSubmitted: today(), status: "pending_ceo", ceo: { decision: "pending" }, director: { decision: "pending" }, audit: [{ action: "Submitted", by: user.name, date: today(), note: "" }] };
         const nd = { ...db, documentRequests: [req, ...(db.documentRequests || [])] };
         saveDB(nd); setDb(nd);
@@ -6255,10 +6282,9 @@ function Wizard({ db, setDb, user, onDone }) {
             nd.branchFunds = { ...nd.branchFunds, [branch]: Math.max(0, (nd.branchFunds[branch] || 0) - amt) };
         const seq = nd.loans.filter(l => l.branch === branch).length + 1;
         const loanNo = `LN-${info.provinceCode}${info.townCode}-${pad(seq)}`;
-        const extra = lf.type === "Collateral" ? { collateral: col } : lf.type === "Deduction" ? { deduction: parseFloat(ded.monthly) || 0 } : {};
+        const extra = lf.type === "Collateral" ? { collateral: col } : lf.type === "Deduction" ? { deduction: ded } : {};
         const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
-        const dedNote = lf.type === "Deduction" ? ` [Salary: ${ded.salary || "N/A"}, Payroll Date: ${ded.payrollDate || "N/A"}]` : "";
-        const loan = { loanNo, clientId: client.id, nrc: client.nrc, name: client.name, branch, province: info.province, branchCode: `${info.provinceCode}-${info.townCode}`, type: lf.type, principal: amt, interestRate: rate, interest, totalDue: total, period: lf.period, appDate: today(), disburseDate: lf.disburse, dueDate: lf.due, consultant: enteredStaff.name, consultantId: enteredStaff.id, approvalStatus: "Pending", approvedBy: "", approvedDate: "", remarks: (lf.remarks || "") + dedNote, loanNumForClient: nd.loans.filter(l => l.clientId === client.id).length + 1, signedLoanCopy: signedLoan, ...extra };
+        const loan = { loanNo, clientId: client.id, nrc: client.nrc, name: client.name, branch, province: info.province, branchCode: `${info.provinceCode}-${info.townCode}`, type: lf.type, principal: amt, interestRate: rate, interest, totalDue: total, period: lf.period, appDate: today(), disburseDate: lf.disburse, dueDate: lf.due, consultant: enteredStaff.name, consultantId: enteredStaff.id, approvalStatus: "Pending", approvedBy: "", approvedDate: "", remarks: lf.remarks, loanNumForClient: nd.loans.filter(l => l.clientId === client.id).length + 1, signedLoanCopy: signedLoan, ...extra };
         nd.loans.push(loan);
         saveDB(nd);
         setDb(nd);
@@ -6583,7 +6609,7 @@ function PaymentPlans({ db, setDb, user }) {
             React.createElement(Btn, { color: C.orange, full: true, onClick: submit }, "\uD83D\uDCE4 Submit Request")),
         React.createElement(Card, null,
             React.createElement(ST, null, `Payment Plan Requests (${plans.length})`),
-            !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch System Manager, Provincial System Manager, System Admin, or Director can approve payment plans."),
+            !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch Manager, Provincial Manager, System Admin, or Director can approve payment plans."),
             plans.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No payment plan requests yet.") :
                 plans.slice().reverse().map(p => (React.createElement("div", { key: p.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
@@ -6608,7 +6634,7 @@ function Approvals({ db, setDb, user }) {
             "Approvals (",
             pending.length,
             " pending)"),
-        !can && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only the Branch System Manager can approve loans."),
+        !can && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only the Branch Manager can approve loans."),
         pending.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 32 } },
             React.createElement("div", { style: { fontSize: 40 } }, "\u2705"),
             React.createElement("p", null, "No pending approvals."))
@@ -7313,16 +7339,16 @@ function dataURLtoBlob(dataurl) {
     return new Blob([u8], { type: mime });
 }
 async function uploadDocRequestFile(dataUrl, id, filename) {
-    if (!dataUrl) return { url: null, error: "No file selected" };
+    if (!dataUrl) return null;
     try {
         const blob = dataURLtoBlob(dataUrl);
         const ext = (filename && filename.includes(".")) ? filename.split(".").pop() : "pdf";
         const path = `document-requests/${id}.${ext}`;
         const { error } = await sb.storage.from("reports").upload(path, blob, { contentType: blob.type, upsert: true });
-        if (error) { console.error(error); return { url: null, error: error.message || JSON.stringify(error) }; }
+        if (error) { console.error(error); return null; }
         const { data } = sb.storage.from("reports").getPublicUrl(path);
-        return { url: data.publicUrl, error: null };
-    } catch (e) { console.error(e); return { url: null, error: e.message || String(e) }; }
+        return data.publicUrl;
+    } catch (e) { console.error(e); return null; }
 }
 async function uploadLeaveDoc(dataUrl, requestId) {
     if (!dataUrl) return null;
@@ -7336,6 +7362,19 @@ async function uploadLeaveDoc(dataUrl, requestId) {
         return data.publicUrl;
     } catch (e) { console.error(e); return null; }
 }
+async function uploadStaffPhoto(dataUrl, staffId) {
+    if (!dataUrl) return { url: null, error: "No photo selected." };
+    try {
+        const blob = dataURLtoBlob(dataUrl);
+        const path = `staff-photos/${staffId}.jpg`;
+        const { error } = await sb.storage.from("parcels").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+        if (error) return { url: null, error: error.message || JSON.stringify(error) };
+        const { data } = sb.storage.from("parcels").getPublicUrl(path);
+        return { url: data.publicUrl, error: null };
+    } catch (e) {
+        return { url: null, error: e.message || String(e) };
+    }
+}
 async function uploadParcelPhoto(dataUrl, trackingNo) {
     if (!dataUrl)
         return null;
@@ -7348,25 +7387,6 @@ async function uploadParcelPhoto(dataUrl, trackingNo) {
             return null;
         }
         const { data } = sb.storage.from("parcels").getPublicUrl(path);
-        return data.publicUrl;
-    }
-    catch (e) {
-        console.error(e);
-        return null;
-    }
-}
-async function uploadStaffPhoto(dataUrl, staffId) {
-    if (!dataUrl)
-        return null;
-    try {
-        const blob = dataURLtoBlob(dataUrl);
-        const path = `staff-photos/${staffId}.jpg`;
-        const { error } = await sb.storage.from("team-photos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
-        if (error) {
-            console.error(error);
-            return null;
-        }
-        const { data } = sb.storage.from("team-photos").getPublicUrl(path);
         return data.publicUrl;
     }
     catch (e) {
@@ -7421,9 +7441,9 @@ async function saveSalaryGrade(row) {
 const STANDARD_GRADES = [
     { grade_name: "Grade A+ (Executive Leadership)", roles: "CEO", min_amount: 30000, max_amount: 30000 },
     { grade_name: "Grade A (Executive)", roles: "Director", min_amount: 25000, max_amount: 25000 },
-    { grade_name: "Grade B+ (Provincial Leadership)", roles: "Provincial System Manager", min_amount: 20000, max_amount: 20000 },
+    { grade_name: "Grade B+ (Provincial Leadership)", roles: "Provincial Manager", min_amount: 20000, max_amount: 20000 },
     { grade_name: "Grade B+ (Senior Management)", roles: "Operations Manager, HR Manager, Accounts Manager", min_amount: 15000, max_amount: 16000 },
-    { grade_name: "Grade B (Middle Management)", roles: "Branch System Manager, Recovery Manager", min_amount: 10000, max_amount: 12000 },
+    { grade_name: "Grade B (Middle Management)", roles: "Branch Manager, Recovery Manager", min_amount: 10000, max_amount: 12000 },
     { grade_name: "Grade C+ (Entry/Support)", roles: "Loan Consultant, clerical staff", min_amount: 7000, max_amount: 7000 },
     { grade_name: "Grade C (Support)", roles: "Office Cleaner", min_amount: 3000, max_amount: 3000 },
 ];
@@ -7474,7 +7494,7 @@ function SysCard({ onClick, icon, label, ready }) {
 }
 function SystemSelect({ user, onSelect, onLogout }) {
     const cards = [
-        user.role !== "strategic" && { icon: "\uD83D\uDCB0", label: "Loan System", onClick: () => onSelect("loans") },
+        user.role !== "strategic" && { icon: "\uD83D\uDCB0", label: "Loans & Money", onClick: () => onSelect("loans") },
         { icon: "\uD83D\uDCE6", label: "PTDC", onClick: () => onSelect("transport") },
         ["accounts", "admin"].includes(user.role) && { icon: "\uD83C\uDFE6", label: "Accounts", onClick: () => onSelect("accounts") },
         ["ceo", "admin"].includes(user.role) && { icon: "\uD83C\uDFAF", label: "CEO System", onClick: () => onSelect("ceosystem") },
@@ -7843,6 +7863,7 @@ function TransportApp({ user, onLogout, onSwitch }) {
                     React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 11, cursor: "pointer" } }, "Logout")))),
         React.createElement("div", { style: { background: C.navy, display: "flex", borderBottom: `3px solid ${C.orange}`, overflowX: "auto" } }, [["dash", "🏠 Dashboard"], ["new", "➕ New"], ["all", "📦 All"], ...(isHO(user.role) ? [["prices", "🔑 Prices"]] : [])].map(([id, lb]) => (React.createElement("button", { key: id, onClick: () => setTab(id), style: { flex: 1, padding: "11px 8px", background: "none", border: "none", color: tab === id ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: tab === id ? `3px solid ${C.orange}` : "3px solid transparent", marginBottom: -3, whiteSpace: "nowrap" } }, lb)))),
         React.createElement("div", { style: { padding: 14, maxWidth: 720, margin: "0 auto" } },
+            tab === "dash" && React.createElement(SlidingPhotosBanner, null),
             tab === "dash" && React.createElement(PTDDashboard, { user: user }),
             tab === "new" && React.createElement(NewParcelForm, { user: user, onBooked: () => { } }),
             tab === "all" && React.createElement(ParcelList, { user: user }),
