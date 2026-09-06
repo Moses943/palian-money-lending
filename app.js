@@ -6509,18 +6509,48 @@ function PaymentPlans({ db, setDb, user }) {
         alert("✅ Payment Plan request submitted for approval.");
     }
     function act(id, status) {
-        const nd = { ...db, paymentPlans: db.paymentPlans.map(p => p.id === id ? { ...p, status, approvedBy: user.name, approvedDate: today() } : p) };
+        const plan = db.paymentPlans.find(p => p.id === id);
+        let nd;
+        let surcharge = 0;
+        if (status === "Approved" && plan) {
+            const loan = db.loans.find(l => l.loanNo === plan.loanNo);
+            surcharge = loan ? loan.totalDue * 0.10 : 0;
+            nd = {
+                ...db,
+                paymentPlans: db.paymentPlans.map(p => p.id === id ? { ...p, status, approvedBy: user.name, approvedDate: today(), surchargeApplied: surcharge } : p),
+                loans: loan ? db.loans.map(l => l.loanNo === plan.loanNo ? { ...l, totalDue: l.totalDue + surcharge, remarks: (l.remarks || "") + ` [+10% Payment Plan fee: ${fmt(surcharge)} on ${today()}]` } : l) : db.loans,
+            };
+        } else {
+            nd = { ...db, paymentPlans: db.paymentPlans.map(p => p.id === id ? { ...p, status, approvedBy: user.name, approvedDate: today() } : p) };
+        }
         saveDB(nd);
         setDb(nd);
+        if (status === "Approved") alert(`\u2705 Payment Plan approved. A 10% fee of ${fmt(surcharge)} has been added to the loan's total due.`);
     }
+    const activePlans = plans.filter(p => p.status === "Approved");
     return (React.createElement("div", null,
         React.createElement(Card, null,
             React.createElement(ST, null, "\uD83D\uDCDD Request a Payment Plan"),
-            React.createElement(Alrt, { type: "info" }, "Use this when a client can't cover the full accrued penalty/interest right now. Once approved, reduced payments are allowed on that loan."),
+            React.createElement(Alrt, { type: "info" }, "Use this when a client can't cover the full accrued penalty/interest right now. Once approved, reduced payments are allowed on that loan, and a 10% fee is added to the loan's total due. The loan is automatically taken off this list once it's fully paid."),
             React.createElement(Inp, { label: "Loan No.", req: true, value: loanNo, onChange: e => setLoanNo(e.target.value.toUpperCase()), placeholder: "LN-LSLS-0001" }),
             React.createElement(Inp, { label: "Proposed Payment Amount (K)", type: "number", value: proposedAmount, onChange: e => setProposedAmount(e.target.value), placeholder: "0.00" }),
             React.createElement(Inp, { label: "Reason", req: true, value: reason, onChange: e => setReason(e.target.value), placeholder: "Why does this client need a payment plan?" }),
             React.createElement(Btn, { color: C.orange, full: true, onClick: submit }, "\uD83D\uDCE4 Submit Request")),
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, `\uD83D\uDCCA Payment Plan Report \u2014 Currently Active (${activePlans.length})`),
+            activePlans.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "No loans are currently on an active payment plan.") :
+                React.createElement("div", { style: { overflowX: "auto" } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+                        React.createElement("thead", null, React.createElement("tr", null,
+                            ["Loan No.", "Approved", "10% Fee Added", "Balance Now"].map(h => React.createElement("th", { key: h, style: { textAlign: "left", padding: "6px 8px", color: C.muted, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${C.border}` } }, h)))),
+                        React.createElement("tbody", null, activePlans.map(p => {
+                            const l = db.loans.find(x => x.loanNo === p.loanNo);
+                            return React.createElement("tr", { key: p.id },
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, color: C.navy } }, p.loanNo),
+                                React.createElement("td", { style: { padding: "6px 8px" } }, p.approvedDate),
+                                React.createElement("td", { style: { padding: "6px 8px" } }, fmt(p.surchargeApplied || 0)),
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700 } }, l ? fmt(getBal(l, db.payments)) : "\u2014"));
+                        }))))),
         React.createElement(Card, null,
             React.createElement(ST, null, `Payment Plan Requests (${plans.length})`),
             !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch System Manager, Provincial System Manager, System Admin, or Director can approve payment plans."),
@@ -6528,12 +6558,14 @@ function PaymentPlans({ db, setDb, user }) {
                 plans.slice().reverse().map(p => (React.createElement("div", { key: p.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
                         React.createElement("strong", { style: { color: C.navy } }, p.loanNo),
-                        React.createElement(Badge, { s: p.status === "Approved" ? "Cleared" : p.status === "Rejected" ? "Rejected" : "Pending" })),
+                        React.createElement(Badge, { s: p.status === "Approved" ? "Active" : p.status === "Cleared" ? "Cleared" : p.status === "Rejected" ? "Rejected" : "Pending" })),
                     React.createElement(IR, { label: "Requested By", value: `${p.requestedBy} (${p.requestedByRole})` }),
                     React.createElement(IR, { label: "Date", value: p.requestedDate }),
                     p.proposedAmount > 0 && React.createElement(IR, { label: "Proposed Amount", value: fmt(p.proposedAmount) }),
                     React.createElement(IR, { label: "Reason", value: p.reason }),
+                    p.surchargeApplied > 0 && React.createElement(IR, { label: "10% Fee Added", value: fmt(p.surchargeApplied) }),
                     p.status !== "Pending" && React.createElement(IR, { label: "Decided By", value: `${p.approvedBy} on ${p.approvedDate}` }),
+                    p.status === "Cleared" && React.createElement(IR, { label: "Removed from Active List", value: p.clearedDate }),
                     p.status === "Pending" && canApprove && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
                         React.createElement(Btn, { sm: true, color: C.green, onClick: () => act(p.id, "Approved"), style: { flex: 1 } }, "\u2705 Approve"),
                         React.createElement(Btn, { sm: true, color: C.red, onClick: () => act(p.id, "Rejected"), style: { flex: 1 } }, "\u274C Reject"))))))));
@@ -6613,7 +6645,11 @@ function Payments({ db, setDb, user, onReport }) {
         setErr("");
         const newBalance = Math.max(0, totalOwedNow - a);
         const r = { id: `RCP-${pad(db.payments.length + 1)}`, loanNo: loan.loanNo, clientId: loan.clientId, name: loan.name, branch, amount: a, date: dt, method: meth, recordedBy: user.name, totalDue: loan.totalDue, newBalance };
-        const nd = { ...db, payments: [...db.payments, r] };
+        const nd = {
+            ...db,
+            payments: [...db.payments, r],
+            ...(newBalance <= 0 && hasApprovedPlan ? { paymentPlans: db.paymentPlans.map(p => p.loanNo === loan.loanNo && p.status === "Approved" ? { ...p, status: "Cleared", clearedDate: today() } : p) } : {}),
+        };
         saveDB(nd);
         setDb(nd);
         setRcpt(r);
