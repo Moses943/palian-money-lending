@@ -25,7 +25,7 @@ const TI = buildTI();
 function gBI(town) { return TI[town] || { province: "—", provinceCode: "HO", townCode: "HOQ" }; }
 const HO_ROLES = ["admin", "ceo", "accounts", "hr", "director", "strategic"];
 const C = { navy: "#0F2D5C", blue: "#1565C0", orange: "#FF6F00", amber: "#FFB300", red: "#C62828", green: "#2E7D32", teal: "#00695C", purple: "#6A1B9A", gold: "#F9A825", muted: "#607D8B", light: "#F5F7FA", white: "#FFFFFF", border: "#E0E7EF", text: "#1A2744" };
-const SC = { Active: C.green, Overdue: C.orange, Defaulted: C.red, Cleared: C.blue, Pending: C.gold, Rejected: C.muted };
+const SC = { Active: C.green, Overdue: C.orange, Defaulted: C.red, Cleared: C.blue, Pending: C.gold, Rejected: C.muted, Current: C.green, Late: C.gold, Critical: C.red, Completed: C.blue };
 // ── STORAGE (Supabase — shared live database across all branches) ────────────
 let MDB = null;
 // Filled in by config.js (loaded before this file) — see index.html
@@ -58,8 +58,15 @@ function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.n
 function loanOut(l) { return { loan_no: l.loanNo, client_id: l.clientId, nrc: l.nrc, name: l.name, branch: l.branch, province: l.province, branch_code: l.branchCode, type: l.type, principal: l.principal, interest_rate: l.interestRate, interest: l.interest, total_due: l.totalDue, period: l.period, app_date: l.appDate || null, disburse_date: l.disburseDate || null, due_date: l.dueDate || null, consultant: l.consultant, consultant_id: l.consultantId, approval_status: l.approvalStatus, approved_by: l.approvedBy || null, approved_date: l.approvedDate || null, remarks: l.remarks, collateral: l.collateral || null, deduction: l.deduction || null, signed_loan_copy: l.signedLoanCopy || null, ddacc_status: l.ddaccStatus || "Pending", collateral_status: l.collateralStatus || "Held" }; }
 function paymentIn(r) { return { id: r.id, loanNo: r.loan_no, clientId: r.client_id, name: r.name, branch: r.branch, amount: r.amount, date: r.date, method: r.method, recordedBy: r.recorded_by, totalDue: r.total_due, newBalance: r.new_balance }; }
 function paymentOut(p) { return { id: p.id, loan_no: p.loanNo, client_id: p.clientId, name: p.name, branch: p.branch, amount: p.amount, date: p.date || null, method: p.method, recorded_by: p.recordedBy, total_due: p.totalDue, new_balance: p.newBalance }; }
-function paymentPlanIn(r) { return { id: r.id, loanNo: r.loan_no, requestedBy: r.requested_by, requestedByRole: r.requested_by_role, requestedDate: r.requested_date, proposedAmount: r.proposed_amount || 0, reason: r.reason || "", status: r.status, approvedBy: r.approved_by || "", approvedDate: r.approved_date || null }; }
-function paymentPlanOut(p) { return { id: p.id, loan_no: p.loanNo, requested_by: p.requestedBy, requested_by_role: p.requestedByRole, requested_date: p.requestedDate || null, proposed_amount: p.proposedAmount || 0, reason: p.reason || "", status: p.status, approved_by: p.approvedBy || null, approved_date: p.approvedDate || null }; }
+function paymentPlanIn(r) { return { id: r.id, planNumber: r.payment_plan_number || r.id, loanNo: r.loan_no, clientId: r.client_id || null, consultantId: r.consultant_id || null, branch: r.branch || "", province: r.province || "", requestedBy: r.requested_by, requestedByRole: r.requested_by_role, requestedDate: r.requested_date, loanDueDate: r.loan_due_date || null, actualAmount: r.actual_amount || 0, chargePercentage: r.charge_percentage != null ? r.charge_percentage : 0.10, chargeAmount: r.charge_amount || 0, amountAfterCharge: r.amount_after_charge || 0, proposedAmount: r.proposed_amount || 0, reason: r.reason || "", status: r.status, approvedBy: r.approved_by || "", approvedDate: r.approved_date || null, createdBy: r.created_by || "SYSTEM", audit: r.audit || [], completedAt: r.completed_at || null }; }
+function paymentPlanOut(p) { return { id: p.id, payment_plan_number: p.planNumber || p.id, loan_no: p.loanNo, client_id: p.clientId || null, consultant_id: p.consultantId || null, branch: p.branch || null, province: p.province || null, requested_by: p.requestedBy, requested_by_role: p.requestedByRole, requested_date: p.requestedDate || null, loan_due_date: p.loanDueDate || null, actual_amount: p.actualAmount || 0, charge_percentage: p.chargePercentage != null ? p.chargePercentage : 0.10, charge_amount: p.chargeAmount || 0, amount_after_charge: p.amountAfterCharge || 0, proposed_amount: p.proposedAmount || 0, reason: p.reason || "", status: p.status, approved_by: p.approvedBy || null, approved_date: p.approvedDate || null, created_by: p.createdBy || "SYSTEM", audit: p.audit || [], completed_at: p.completedAt || null }; }
+function nextPaymentPlanNumber(list) {
+    const maxNum = (list || []).reduce((max, p) => {
+        const m = /^PP-(\d+)$/.exec(p.planNumber || p.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `PP-${pad(maxNum + 1)}`;
+}
 function messageIn(r) { return { id: r.id, senderId: r.sender_id, senderName: r.sender_name, senderRole: r.sender_role, sentDate: r.sent_date, sentTime: r.sent_time, recipientType: r.recipient_type, recipientPosition: r.recipient_position || "", recipientIds: r.recipient_ids || [], text: r.text || "", attachmentUrl: r.attachment_url || "", attachmentType: r.attachment_type || "", attachmentName: r.attachment_name || "" }; }
 function messageOut(m) { return { id: m.id, sender_id: m.senderId, sender_name: m.senderName, sender_role: m.senderRole, sent_date: m.sentDate, sent_time: m.sentTime, recipient_type: m.recipientType, recipient_position: m.recipientPosition || null, recipient_ids: m.recipientIds || [], text: m.text || "", attachment_url: m.attachmentUrl || null, attachment_type: m.attachmentType || null, attachment_name: m.attachmentName || null }; }
 function withdrawalIn(r) { return { id: r.id, dateSubmitted: r.date_submitted, branch: r.branch, province: r.province, requestedBy: r.requested_by, requestedById: r.requested_by_id || "", category: r.category, amount: r.amount, purpose: r.purpose, status: r.status, ceo: { decision: r.ceo_decision || "pending", by: r.ceo_by || null, date: r.ceo_date || null, comment: r.ceo_comment || "" }, director: { decision: r.director_decision || "pending", by: r.director_by || null, date: r.director_date || null, comment: r.director_comment || "" }, processed: r.processed_date ? { date: r.processed_date, by: r.processed_by || "", method: r.processed_method || "", reference: r.processed_reference || "" } : null, audit: r.audit || [], comments: r.comments || [] }; }
@@ -351,6 +358,72 @@ function scopePayments(db, user) {
     return bP(db, user.branch);
 }
 function getBal(loan, pmts) { return Math.max(0, (loan.totalDue || 0) - pmts.filter(p => p.loanNo === loan.loanNo).reduce((s, p) => s + p.amount, 0)); }
+function ppDaysLate(plan) {
+    if (!plan.loanDueDate)
+        return 0;
+    const d = Math.floor((new Date() - new Date(plan.loanDueDate)) / 86400000);
+    return d > 0 ? d : 0;
+}
+function ppAmountPaid(plan, payments) {
+    return (payments || []).filter(p => p.loanNo === plan.loanNo && p.date >= plan.requestedDate).reduce((s, p) => s + p.amount, 0);
+}
+function ppBalance(plan, payments) {
+    return Math.max(0, (plan.amountAfterCharge || 0) - ppAmountPaid(plan, payments));
+}
+function ppStatus(plan, payments) {
+    if (plan.lifecycle === "Completed" || ppBalance(plan, payments) <= 0)
+        return "Completed";
+    const dl = ppDaysLate(plan);
+    if (dl > 30)
+        return "Critical";
+    if (dl >= 8)
+        return "Overdue";
+    if (dl >= 1)
+        return "Late";
+    return "Current";
+}
+function ppAddAudit(plan, action, by, note) {
+    return { ...plan, audit: [...(plan.audit || []), { action, by, date: today(), time: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), note }] };
+}
+function ppIsActive(p) {
+    if (p.lifecycle)
+        return p.lifecycle === "Active";
+    return p.status === "Approved" || p.status === "Pending";
+}
+function autoCreatePaymentPlans(db) {
+    const existing = new Set((db.paymentPlans || []).filter(ppIsActive).map(p => p.loanNo));
+    const newPlans = [];
+    const notices = [];
+    let seq = (db.paymentPlans || []).length;
+    (db.loans || []).forEach(loan => {
+        if (existing.has(loan.loanNo))
+            return;
+        if (!loan.dueDate)
+            return;
+        const daysLate = Math.floor((new Date() - new Date(loan.dueDate)) / 86400000);
+        if (daysLate < 10)
+            return;
+        const balance = getBal(loan, db.payments || []);
+        if (balance <= 0)
+            return;
+        seq++;
+        const chargeAmount = balance * 0.10;
+        const amountAfterCharge = balance + chargeAmount;
+        const client = (db.clients || []).find(c => c.id === loan.clientId);
+        const plan = ppAddAudit({
+            id: `PP-${pad(seq)}`, planNumber: `PP-${pad(seq)}`, loanNo: loan.loanNo, clientId: loan.clientId, consultantId: loan.consultantId,
+            branch: loan.branch, province: loan.province, requestedBy: "SYSTEM", requestedByRole: "System", requestedDate: today(),
+            loanDueDate: loan.dueDate, actualAmount: balance, chargePercentage: 0.10, chargeAmount, amountAfterCharge,
+            proposedAmount: 0, reason: "Loan reached 10-day overdue threshold", status: "Active", lifecycle: "Active",
+            approvedBy: "", approvedDate: null, createdBy: "SYSTEM", audit: [], completedAt: null,
+        }, "Auto-Created", "SYSTEM", `Loan reached 10-day overdue threshold. Original Balance: ${fmt(balance)}, 10% Charge: ${fmt(chargeAmount)}, Total Payable: ${fmt(amountAfterCharge)}, Days Late: ${daysLate}`);
+        newPlans.push(plan);
+        notices.push({ id: `MSG-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, senderId: "system", senderName: "System", senderRole: "system", sentDate: today(), sentTime: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), recipientType: "position", recipientPosition: "admin", recipientIds: [], text: `\u26A0\uFE0F Payment Plan Automatically Created\n\nClient: ${client ? client.name : loan.name}\nLoan No: ${loan.loanNo}\nDays Late: ${daysLate}\nOutstanding Amount: ${fmt(balance)}\n10% Charge: ${fmt(chargeAmount)}\nTotal Payable: ${fmt(amountAfterCharge)}`, attachmentUrl: "", attachmentType: "", attachmentName: "" });
+    });
+    if (newPlans.length === 0)
+        return null;
+    return { paymentPlans: [...(db.paymentPlans || []), ...newPlans], messages: [...notices, ...(db.messages || [])] };
+}
 function getDOD(loan) { if (!loan.dueDate)
     return 0; const d = Math.floor((new Date() - new Date(loan.dueDate)) / 86400000); return d > 0 ? d : 0; }
 function rawTimeStatus(loan) {
@@ -6491,84 +6564,230 @@ function MessageRow({ m, unread, onOpen }) {
         m.attachmentUrl && React.createElement("a", { href: m.attachmentUrl, target: "_blank", rel: "noreferrer", onClick: e => e.stopPropagation(), style: { fontSize: 12, color: C.blue } }, "\uD83D\uDCCE ", m.attachmentName || "Attachment"));
 }
 function PaymentPlans({ db, setDb, user }) {
-    const [loanNo, setLoanNo] = useState("");
-    const [proposedAmount, setProposedAmount] = useState("");
-    const [reason, setReason] = useState("");
-    const canApprove = user.role === "manager" || user.role === "admin" || user.role === "director" || isProvincial(user.role);
-    const isHORole = isHO(user.role);
-    const plans = isHORole || canApprove ? (db.paymentPlans || []) : (db.paymentPlans || []).filter(p => { const l = db.loans.find(x => x.loanNo === p.loanNo); return l && l.branch === user.branch; });
-    function submit() {
-        const l = db.loans.find(x => x.loanNo === loanNo.trim().toUpperCase());
-        if (!l) { alert("Loan not found. Check the loan number."); return; }
-        if (!reason.trim()) { alert("Enter a reason for the payment plan."); return; }
-        const row = { id: `PP-${pad((db.paymentPlans || []).length + 1)}`, loanNo: l.loanNo, requestedBy: user.name, requestedByRole: user.roleLabel || user.role, requestedDate: today(), proposedAmount: parseFloat(proposedAmount) || 0, reason: reason.trim(), status: "Pending", approvedBy: "", approvedDate: null };
-        const nd = { ...db, paymentPlans: [...(db.paymentPlans || []), row] };
-        saveDB(nd);
-        setDb(nd);
-        setLoanNo(""); setProposedAmount(""); setReason("");
-        alert("✅ Payment Plan request submitted for approval.");
-    }
-    function act(id, status) {
-        const plan = db.paymentPlans.find(p => p.id === id);
-        let nd;
-        let surcharge = 0;
-        if (status === "Approved" && plan) {
-            const loan = db.loans.find(l => l.loanNo === plan.loanNo);
-            surcharge = loan ? loan.totalDue * 0.10 : 0;
-            nd = {
-                ...db,
-                paymentPlans: db.paymentPlans.map(p => p.id === id ? { ...p, status, approvedBy: user.name, approvedDate: today(), surchargeApplied: surcharge } : p),
-                loans: loan ? db.loans.map(l => l.loanNo === plan.loanNo ? { ...l, totalDue: l.totalDue + surcharge, remarks: (l.remarks || "") + ` [+10% Payment Plan fee: ${fmt(surcharge)} on ${today()}]` } : l) : db.loans,
-            };
-        } else {
-            nd = { ...db, paymentPlans: db.paymentPlans.map(p => p.id === id ? { ...p, status, approvedBy: user.name, approvedDate: today() } : p) };
+    const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState("All");
+    const [branchFilter, setBranchFilter] = useState("All");
+    const [provinceFilter, setProvinceFilter] = useState("All");
+    const [consultantFilter, setConsultantFilter] = useState("All");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+    const [sortBy, setSortBy] = useState("dateDesc");
+    const [selectedId, setSelectedId] = useState(null);
+    const [overrideLoanNo, setOverrideLoanNo] = useState("");
+
+    const isAdmin = user.role === "admin";
+    const isDirector = user.role === "director";
+    const isManagement = user.role === "manager" || isProvincial(user.role) || isAdmin || isDirector;
+    const isConsultant = user.role === "consultant";
+    const canManualCreate = isAdmin || isDirector;
+
+    const scopedLoanNos = new Set(scopeLoans(db, user).map(l => l.loanNo));
+    let plans = (db.paymentPlans || []).filter(p => p.actualAmount > 0 && scopedLoanNos.has(p.loanNo));
+    if (isConsultant) plans = plans.filter(p => p.consultantId === user.id);
+
+    const payments = db.payments || [];
+    const enriched = plans.map(p => {
+        const loan = db.loans.find(l => l.loanNo === p.loanNo);
+        const client = db.clients.find(c => c.id === p.clientId);
+        return { plan: p, loan, client, daysLate: ppDaysLate(p), amountPaid: ppAmountPaid(p, payments), balance: ppBalance(p, payments), status: ppStatus(p, payments) };
+    });
+
+    const branches = [...new Set(enriched.map(e => e.plan.branch).filter(Boolean))].sort();
+    const provinces = [...new Set(enriched.map(e => e.plan.province).filter(Boolean))].sort();
+    const consultants = [...new Set(enriched.map(e => e.loan?.consultant).filter(Boolean))].sort();
+
+    let filtered = enriched.filter(e => {
+        if (statusFilter !== "All" && e.status !== statusFilter) return false;
+        if (branchFilter !== "All" && e.plan.branch !== branchFilter) return false;
+        if (provinceFilter !== "All" && e.plan.province !== provinceFilter) return false;
+        if (consultantFilter !== "All" && e.loan?.consultant !== consultantFilter) return false;
+        if (dateFrom && e.plan.requestedDate < dateFrom) return false;
+        if (dateTo && e.plan.requestedDate > dateTo) return false;
+        if (search.trim()) {
+            const q = search.trim().toLowerCase();
+            const hay = [e.client?.name, e.plan.loanNo, e.client?.nrc, e.client?.tpin, e.loan?.consultant, e.plan.branch, e.plan.province].join(" ").toLowerCase();
+            if (!hay.includes(q)) return false;
         }
-        saveDB(nd);
-        setDb(nd);
-        if (status === "Approved") alert(`\u2705 Payment Plan approved. A 10% fee of ${fmt(surcharge)} has been added to the loan's total due.`);
+        return true;
+    });
+    filtered.sort((a, b) => {
+        if (sortBy === "balanceHigh") return b.balance - a.balance;
+        if (sortBy === "balanceLow") return a.balance - b.balance;
+        if (sortBy === "daysLate") return b.daysLate - a.daysLate;
+        if (sortBy === "consultant") return (a.loan?.consultant || "").localeCompare(b.loan?.consultant || "");
+        if (sortBy === "client") return (a.client?.name || "").localeCompare(b.client?.name || "");
+        return b.plan.requestedDate.localeCompare(a.plan.requestedDate);
+    });
+
+    const totals = enriched.reduce((s, e) => ({
+        count: s.count + 1,
+        amount: s.amount + e.plan.actualAmount,
+        charges: s.charges + e.plan.chargeAmount,
+        payable: s.payable + e.plan.amountAfterCharge,
+        paid: s.paid + e.amountPaid,
+        outstanding: s.outstanding + e.balance,
+        late: s.late + (e.status === "Late" ? 1 : 0),
+        overdue: s.overdue + (e.status === "Overdue" ? 1 : 0),
+        critical: s.critical + (e.status === "Critical" ? 1 : 0),
+        completed: s.completed + (e.status === "Completed" ? 1 : 0),
+    }), { count: 0, amount: 0, charges: 0, payable: 0, paid: 0, outstanding: 0, late: 0, overdue: 0, critical: 0, completed: 0 });
+
+    function manualCreate() {
+        const l = db.loans.find(x => x.loanNo === overrideLoanNo.trim().toUpperCase());
+        if (!l) { alert("Loan not found. Check the loan number."); return; }
+        if ((db.paymentPlans || []).some(p => p.loanNo === l.loanNo && ppIsActive(p))) { alert("This loan already has an active Payment Plan."); return; }
+        const balance = getBal(l, db.payments || []);
+        if (balance <= 0) { alert("This loan has no outstanding balance."); return; }
+        const chargeAmount = balance * 0.10;
+        const amountAfterCharge = balance + chargeAmount;
+        const seq = (db.paymentPlans || []).length + 1;
+        const plan = ppAddAudit({
+            id: `PP-${pad(seq)}`, planNumber: `PP-${pad(seq)}`, loanNo: l.loanNo, clientId: l.clientId, consultantId: l.consultantId,
+            branch: l.branch, province: l.province, requestedBy: user.name, requestedByRole: user.roleLabel || user.role, requestedDate: today(),
+            loanDueDate: l.dueDate, actualAmount: balance, chargePercentage: 0.10, chargeAmount, amountAfterCharge,
+            proposedAmount: 0, reason: "Manually created override", status: "Active", lifecycle: "Active",
+            approvedBy: user.name, approvedDate: today(), createdBy: user.name, audit: [], completedAt: null,
+        }, "Manually Created", user.name, `Manual override by ${user.name} (${user.roleLabel || user.role}). Balance: ${fmt(balance)}, 10% Charge: ${fmt(chargeAmount)}, Total Payable: ${fmt(amountAfterCharge)}`);
+        const nd = { ...db, paymentPlans: [...(db.paymentPlans || []), plan] };
+        saveDB(nd); setDb(nd);
+        setOverrideLoanNo("");
+        alert(`\u2705 Payment Plan ${plan.planNumber} created manually for ${l.loanNo}.`);
     }
-    const activePlans = plans.filter(p => p.status === "Approved");
+
+    function exportCSV() {
+        const rows = [["#", "Client Name", "Loan No.", "Loan Consultant", "Branch", "Province", "Date Initiated", "Actual Amount", "10% Charge", "Amount After 10%", "Amount Paid", "Balance", "Days Late", "Payment Status"]];
+        filtered.forEach((e, i) => rows.push([i + 1, e.client?.name || e.loan?.name || "", e.plan.loanNo, e.loan?.consultant || "", e.plan.branch, e.plan.province, e.plan.requestedDate, e.plan.actualAmount, e.plan.chargeAmount, e.plan.amountAfterCharge, e.amountPaid, e.balance, e.daysLate, e.status]));
+        const csv = "\uFEFF" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        a.download = `Payment_Plans_${today()}.csv`;
+        a.click();
+    }
+
+    function printPlan(e) {
+        const w = window.open("", "_blank", "width=480,height=800");
+        if (!w) return;
+        const history = payments.filter(p => p.loanNo === e.plan.loanNo && p.date >= e.plan.requestedDate);
+        let runningBal = e.plan.amountAfterCharge;
+        const historyRows = history.map(p => { runningBal -= p.amount; return `<tr><td>${p.date}</td><td>${p.id}</td><td>${fmt(p.amount)}</td><td>${p.recordedBy}</td><td>${fmt(Math.max(0, runningBal))}</td></tr>`; }).join("");
+        w.document.write(`<!DOCTYPE html><html><head><title>Payment Plan ${e.plan.planNumber}</title><style>body{font-family:Arial;padding:24px;max-width:600px;margin:0 auto;font-size:13px}.hdr{text-align:center;margin-bottom:16px}h2{color:#0F2D5C;font-size:16px;margin:6px 0 2px}.sub{color:#888;font-size:11px}hr{border:none;border-top:1px dashed #ccc;margin:12px 0}.row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5}.lb{color:#888}.vl{font-weight:700}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th,td{padding:5px;text-align:left;border-bottom:1px solid #eee}th{color:#888;text-transform:uppercase;font-size:9px}.ft{text-align:center;font-size:10px;color:#888;margin-top:24px;line-height:1.6}@media print{.np{display:none}}</style></head><body>
+        <div class="hdr">${LSVG}<h2>PALIAN MONEY LENDING LIMITED</h2><div class="sub">Payment Plan \u2014 ${e.plan.planNumber}</div></div>
+        <hr><div class="row"><span class="lb">Client</span><span class="vl">${e.client?.name || e.loan?.name || ""}</span></div><div class="row"><span class="lb">NRC</span><span class="vl">${e.client?.nrc || ""}</span></div><div class="row"><span class="lb">TPIN</span><span class="vl">${e.client?.tpin || ""}</span></div><div class="row"><span class="lb">Phone</span><span class="vl">${e.client?.phone || ""}</span></div>
+        <hr><div class="row"><span class="lb">Loan No.</span><span class="vl">${e.plan.loanNo}</span></div><div class="row"><span class="lb">Consultant</span><span class="vl">${e.loan?.consultant || ""}</span></div><div class="row"><span class="lb">Branch</span><span class="vl">${e.plan.branch}</span></div><div class="row"><span class="lb">Province</span><span class="vl">${e.plan.province}</span></div><div class="row"><span class="lb">Loan Due Date</span><span class="vl">${e.plan.loanDueDate || ""}</span></div><div class="row"><span class="lb">Days Late</span><span class="vl">${e.daysLate}</span></div>
+        <hr><div class="row"><span class="lb">Date Initiated</span><span class="vl">${e.plan.requestedDate}</span></div><div class="row"><span class="lb">Actual Amount</span><span class="vl">${fmt(e.plan.actualAmount)}</span></div><div class="row"><span class="lb">10% Charge</span><span class="vl">${fmt(e.plan.chargeAmount)}</span></div><div class="row"><span class="lb">Total Payable</span><span class="vl">${fmt(e.plan.amountAfterCharge)}</span></div><div class="row"><span class="lb">Amount Paid</span><span class="vl">${fmt(e.amountPaid)}</span></div><div class="row"><span class="lb">Balance</span><span class="vl" style="color:${e.balance <= 0 ? "#2E7D32" : "#C62828"}">${e.balance <= 0 ? "\u2705 CLEARED" : fmt(e.balance)}</span></div><div class="row"><span class="lb">Status</span><span class="vl">${e.status}</span></div>
+        <table><thead><tr><th>Date</th><th>Receipt No.</th><th>Amount</th><th>Received By</th><th>Balance</th></tr></thead><tbody>${historyRows || '<tr><td colspan="5" style="text-align:center;color:#888">No payments recorded yet</td></tr>'}</tbody></table>
+        <div style="text-align:right;margin-top:14px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:70px;opacity:0.9" alt="Official Stamp"/></div>
+        <div class="ft">Authorized Signature: _________________________</div>
+        <br><button class="np" onclick="window.print()" style="width:100%;padding:11px;background:#0F2D5C;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700;">\uD83D\uDDA8\uFE0F Print</button></body></html>`);
+        w.document.close();
+    }
+
+    const selected = selectedId ? enriched.find(e => e.plan.id === selectedId) : null;
+    if (selected) {
+        return (React.createElement("div", null,
+            React.createElement(Btn, { onClick: () => setSelectedId(null), color: C.navy, style: { marginBottom: 12 } }, "\u2190 Back to Payment Plans"),
+            React.createElement(Card, null,
+                React.createElement(ST, null, `Payment Plan ${selected.plan.planNumber}`),
+                React.createElement(Badge, { s: selected.status }),
+                React.createElement("div", { style: { marginTop: 14 } },
+                    React.createElement(IR, { label: "Client", value: selected.client?.name || selected.loan?.name || "\u2014" }),
+                    React.createElement(IR, { label: "NRC", value: selected.client?.nrc || "\u2014" }),
+                    React.createElement(IR, { label: "TPIN", value: selected.client?.tpin || "\u2014" }),
+                    React.createElement(IR, { label: "Phone", value: selected.client?.phone || "\u2014" }),
+                    React.createElement(IR, { label: "Loan No.", value: selected.plan.loanNo }),
+                    React.createElement(IR, { label: "Consultant", value: selected.loan?.consultant || "\u2014" }),
+                    React.createElement(IR, { label: "Branch", value: selected.plan.branch }),
+                    React.createElement(IR, { label: "Province", value: selected.plan.province }),
+                    React.createElement(IR, { label: "Loan Due Date", value: selected.plan.loanDueDate || "\u2014" }),
+                    React.createElement(IR, { label: "Days Late", value: selected.daysLate }),
+                    React.createElement(IR, { label: "Date Initiated", value: selected.plan.requestedDate }),
+                    React.createElement(IR, { label: "Actual Amount", value: fmt(selected.plan.actualAmount) }),
+                    React.createElement(IR, { label: "10% Charge", value: fmt(selected.plan.chargeAmount) }),
+                    React.createElement(IR, { label: "Total Payable", value: fmt(selected.plan.amountAfterCharge) }),
+                    React.createElement(IR, { label: "Amount Paid", value: fmt(selected.amountPaid) }),
+                    React.createElement(IR, { label: "Balance", value: selected.balance <= 0 ? "\u2705 CLEARED" : fmt(selected.balance) })),
+                React.createElement(Btn, { color: C.blue, full: true, onClick: () => printPlan(selected), style: { marginTop: 12 } }, "\uD83D\uDDA8\uFE0F Print Payment Plan")),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "Payment History"),
+                (() => {
+                    const history = payments.filter(p => p.loanNo === selected.plan.loanNo && p.date >= selected.plan.requestedDate);
+                    if (history.length === 0) return React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "No payments recorded yet.");
+                    let runningBal = selected.plan.amountAfterCharge;
+                    return React.createElement("div", { style: { overflowX: "auto" } },
+                        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+                            React.createElement("thead", null, React.createElement("tr", null,
+                                ["Date", "Receipt No.", "Amount", "Received By", "Balance"].map(h => React.createElement("th", { key: h, style: { textAlign: "left", padding: "6px 8px", color: C.muted, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${C.border}` } }, h)))),
+                            React.createElement("tbody", null, history.map(p => { runningBal -= p.amount; return React.createElement("tr", { key: p.id },
+                                React.createElement("td", { style: { padding: "6px 8px" } }, p.date),
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700 } }, p.id),
+                                React.createElement("td", { style: { padding: "6px 8px" } }, fmt(p.amount)),
+                                React.createElement("td", { style: { padding: "6px 8px" } }, p.recordedBy),
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700 } }, fmt(Math.max(0, runningBal)))); }))));
+                })()),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "Audit Trail"),
+                (selected.plan.audit || []).length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "No audit entries.") :
+                    selected.plan.audit.map((a, i) => React.createElement("div", { key: i, style: { borderLeft: `3px solid ${C.blue}`, paddingLeft: 10, marginBottom: 10 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy } }, a.action, " \u2014 ", a.by),
+                        React.createElement("div", { style: { fontSize: 10, color: C.muted } }, a.date, " ", a.time),
+                        React.createElement("div", { style: { fontSize: 12, marginTop: 2 } }, a.note))))));
+    }
+
     return (React.createElement("div", null,
+        React.createElement(Alrt, { type: "info" }, "\uD83E\uDD16 Payment Plans are created automatically when a loan reaches 10 days overdue with an outstanding balance \u2014 no manual request needed. A 10% charge is applied once, at creation."),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, marginBottom: 14 } },
+            React.createElement(StatCard, { label: "Total Plans", value: totals.count, color: C.navy }),
+            React.createElement(StatCard, { label: "Total Amount", value: fmt(totals.amount), color: C.blue, small: true }),
+            React.createElement(StatCard, { label: "10% Charges", value: fmt(totals.charges), color: C.purple, small: true }),
+            React.createElement(StatCard, { label: "Total Payable", value: fmt(totals.payable), color: C.navy, small: true }),
+            React.createElement(StatCard, { label: "Total Paid", value: fmt(totals.paid), color: C.green, small: true }),
+            React.createElement(StatCard, { label: "Outstanding", value: fmt(totals.outstanding), color: C.red, small: true }),
+            React.createElement(StatCard, { label: "Late", value: totals.late, color: C.gold }),
+            React.createElement(StatCard, { label: "Overdue", value: totals.overdue, color: C.orange }),
+            React.createElement(StatCard, { label: "Critical", value: totals.critical, color: C.red }),
+            React.createElement(StatCard, { label: "Completed", value: totals.completed, color: C.green })),
+        canManualCreate && React.createElement(Card, null,
+            React.createElement(ST, null, "\u2795 Manually Create a Payment Plan (Override)"),
+            React.createElement(Alrt, { type: "warn" }, "Only use this for exceptional cases. Normally, Payment Plans are created automatically." ),
+            React.createElement(Inp, { label: "Loan No.", value: overrideLoanNo, onChange: e => setOverrideLoanNo(e.target.value.toUpperCase()), placeholder: "LN-LSLS-0001" }),
+            React.createElement(Btn, { color: C.orange, full: true, onClick: manualCreate }, "Create Payment Plan Now")),
         React.createElement(Card, null,
-            React.createElement(ST, null, "\uD83D\uDCDD Request a Payment Plan"),
-            React.createElement(Alrt, { type: "info" }, "Use this when a client can't cover the full accrued penalty/interest right now. Once approved, reduced payments are allowed on that loan, and a 10% fee is added to the loan's total due. The loan is automatically taken off this list once it's fully paid."),
-            React.createElement(Inp, { label: "Loan No.", req: true, value: loanNo, onChange: e => setLoanNo(e.target.value.toUpperCase()), placeholder: "LN-LSLS-0001" }),
-            React.createElement(Inp, { label: "Proposed Payment Amount (K)", type: "number", value: proposedAmount, onChange: e => setProposedAmount(e.target.value), placeholder: "0.00" }),
-            React.createElement(Inp, { label: "Reason", req: true, value: reason, onChange: e => setReason(e.target.value), placeholder: "Why does this client need a payment plan?" }),
-            React.createElement(Btn, { color: C.orange, full: true, onClick: submit }, "\uD83D\uDCE4 Submit Request")),
+            React.createElement(Inp, { label: "Search (Client, Loan No., NRC, TPIN, Consultant, Branch, Province)", value: search, onChange: e => setSearch(e.target.value), placeholder: "Type to search..." }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8 } },
+                React.createElement(Sel, { label: "Status", value: statusFilter, onChange: e => setStatusFilter(e.target.value) },
+                    ["All", "Current", "Late", "Overdue", "Critical", "Completed"].map(s => React.createElement("option", { key: s, value: s }, s))),
+                isManagement && React.createElement(Sel, { label: "Branch", value: branchFilter, onChange: e => setBranchFilter(e.target.value) },
+                    ["All", ...branches].map(s => React.createElement("option", { key: s, value: s }, s))),
+                isManagement && React.createElement(Sel, { label: "Province", value: provinceFilter, onChange: e => setProvinceFilter(e.target.value) },
+                    ["All", ...provinces].map(s => React.createElement("option", { key: s, value: s }, s))),
+                isManagement && React.createElement(Sel, { label: "Consultant", value: consultantFilter, onChange: e => setConsultantFilter(e.target.value) },
+                    ["All", ...consultants].map(s => React.createElement("option", { key: s, value: s }, s))),
+                React.createElement(Sel, { label: "Sort By", value: sortBy, onChange: e => setSortBy(e.target.value) },
+                    [["dateDesc", "Date Initiated"], ["balanceHigh", "Highest Balance"], ["balanceLow", "Lowest Balance"], ["daysLate", "Most Days Late"], ["consultant", "Consultant"], ["client", "Client Name"]].map(([v, l]) => React.createElement("option", { key: v, value: v }, l)))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 } },
+                React.createElement(Inp, { label: "From Date", type: "date", value: dateFrom, onChange: e => setDateFrom(e.target.value) }),
+                React.createElement(Inp, { label: "To Date", type: "date", value: dateTo, onChange: e => setDateTo(e.target.value) })),
+            (isManagement) && React.createElement(Btn, { color: C.blue, onClick: exportCSV, style: { marginTop: 8 } }, "\u2B07\uFE0F Export to Excel (CSV)")),
         React.createElement(Card, null,
-            React.createElement(ST, { color: C.purple }, `\uD83D\uDCCA Payment Plan Report \u2014 Currently Active (${activePlans.length})`),
-            activePlans.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 20 } }, "No loans are currently on an active payment plan.") :
+            React.createElement(ST, null, `Payment Plans (${filtered.length})`),
+            filtered.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No payment plans match your filters.") :
                 React.createElement("div", { style: { overflowX: "auto" } },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
                         React.createElement("thead", null, React.createElement("tr", null,
-                            ["Loan No.", "Approved", "10% Fee Added", "Balance Now"].map(h => React.createElement("th", { key: h, style: { textAlign: "left", padding: "6px 8px", color: C.muted, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${C.border}` } }, h)))),
-                        React.createElement("tbody", null, activePlans.map(p => {
-                            const l = db.loans.find(x => x.loanNo === p.loanNo);
-                            return React.createElement("tr", { key: p.id },
-                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, color: C.navy } }, p.loanNo),
-                                React.createElement("td", { style: { padding: "6px 8px" } }, p.approvedDate),
-                                React.createElement("td", { style: { padding: "6px 8px" } }, fmt(p.surchargeApplied || 0)),
-                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700 } }, l ? fmt(getBal(l, db.payments)) : "\u2014"));
-                        }))))),
-        React.createElement(Card, null,
-            React.createElement(ST, null, `Payment Plan Requests (${plans.length})`),
-            !canApprove && React.createElement(Alrt, { type: "warn" }, "\uD83D\uDD12 Only a Branch System Manager, Provincial System Manager, System Admin, or Director can approve payment plans."),
-            plans.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No payment plan requests yet.") :
-                plans.slice().reverse().map(p => (React.createElement("div", { key: p.id, style: { border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 } },
-                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } },
-                        React.createElement("strong", { style: { color: C.navy } }, p.loanNo),
-                        React.createElement(Badge, { s: p.status === "Approved" ? "Active" : p.status === "Cleared" ? "Cleared" : p.status === "Rejected" ? "Rejected" : "Pending" })),
-                    React.createElement(IR, { label: "Requested By", value: `${p.requestedBy} (${p.requestedByRole})` }),
-                    React.createElement(IR, { label: "Date", value: p.requestedDate }),
-                    p.proposedAmount > 0 && React.createElement(IR, { label: "Proposed Amount", value: fmt(p.proposedAmount) }),
-                    React.createElement(IR, { label: "Reason", value: p.reason }),
-                    p.surchargeApplied > 0 && React.createElement(IR, { label: "10% Fee Added", value: fmt(p.surchargeApplied) }),
-                    p.status !== "Pending" && React.createElement(IR, { label: "Decided By", value: `${p.approvedBy} on ${p.approvedDate}` }),
-                    p.status === "Cleared" && React.createElement(IR, { label: "Removed from Active List", value: p.clearedDate }),
-                    p.status === "Pending" && canApprove && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
-                        React.createElement(Btn, { sm: true, color: C.green, onClick: () => act(p.id, "Approved"), style: { flex: 1 } }, "\u2705 Approve"),
-                        React.createElement(Btn, { sm: true, color: C.red, onClick: () => act(p.id, "Rejected"), style: { flex: 1 } }, "\u274C Reject"))))))));
+                            ["#", "Client", "Loan No.", "Consultant", "Date", "Actual", "10%", "Payable", "Paid", "Balance", "Days Late", "Status"].map(h => React.createElement("th", { key: h, style: { textAlign: "left", padding: "6px 8px", color: C.muted, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" } }, h)))),
+                        React.createElement("tbody", null, filtered.map((e, i) => React.createElement("tr", { key: e.plan.id, onClick: () => setSelectedId(e.plan.id), style: { cursor: "pointer" } },
+                            React.createElement("td", { style: { padding: "6px 8px" } }, i + 1),
+                            React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, color: C.navy, whiteSpace: "nowrap" } }, e.client?.name || e.loan?.name || "\u2014"),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, e.plan.loanNo),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, e.loan?.consultant || "\u2014"),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, e.plan.requestedDate),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, fmt(e.plan.actualAmount)),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, fmt(e.plan.chargeAmount)),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, fmt(e.plan.amountAfterCharge)),
+                            React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, fmt(e.amountPaid)),
+                            React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, whiteSpace: "nowrap" } }, fmt(e.balance)),
+                            React.createElement("td", { style: { padding: "6px 8px" } }, e.daysLate),
+                            React.createElement("td", { style: { padding: "6px 8px" } }, React.createElement(Badge, { s: e.status }))))))))));
 }
 function Approvals({ db, setDb, user }) {
     const isHORole = isHO(user.role);
@@ -6621,7 +6840,7 @@ function Payments({ db, setDb, user, onReport }) {
     const di = loan ? getDI(loan, db.payments) : 0;
     const stNow = loan ? getSt(loan, db.payments) : null;
     const extraDue = stNow === "Defaulted" ? getDI(loan, db.payments) : stNow === "Overdue" ? getPen(loan, db.payments) : 0;
-    const hasApprovedPlan = loan ? (db.paymentPlans || []).some(p => p.loanNo === loan.loanNo && p.status === "Approved") : false;
+    const hasApprovedPlan = loan ? (db.paymentPlans || []).some(p => p.loanNo === loan.loanNo && ppIsActive(p)) : false;
     const allPayments = scopePayments(db, user);
     function record() {
         if (!loan) {
@@ -6648,7 +6867,7 @@ function Payments({ db, setDb, user, onReport }) {
         const nd = {
             ...db,
             payments: [...db.payments, r],
-            ...(newBalance <= 0 && hasApprovedPlan ? { paymentPlans: db.paymentPlans.map(p => p.loanNo === loan.loanNo && p.status === "Approved" ? { ...p, status: "Cleared", clearedDate: today() } : p) } : {}),
+            ...(newBalance <= 0 && hasApprovedPlan ? { paymentPlans: db.paymentPlans.map(p => p.loanNo === loan.loanNo && ppIsActive(p) ? ppAddAudit({ ...p, status: "Completed", lifecycle: "Completed", completedAt: today() }, "Completed", user.name, `Balance reached K0.00 after payment ${r.id}`) : p) } : {}),
         };
         saveDB(nd);
         setDb(nd);
@@ -8131,8 +8350,16 @@ function App() {
         (async () => {
             try {
                 const p = await loadDB();
-                MDB = p;
-                setDb(p);
+                const autoResult = autoCreatePaymentPlans(p);
+                if (autoResult) {
+                    const merged = { ...p, ...autoResult };
+                    MDB = merged;
+                    setDb(merged);
+                    saveDB(merged);
+                } else {
+                    MDB = p;
+                    setDb(p);
+                }
             }
             catch (e) {
                 console.error("loadDB error", e);
