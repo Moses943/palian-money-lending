@@ -359,6 +359,16 @@ async function logLogoutToDB(logId) {
 // ── CALCULATIONS ──────────────────────────────────────────────────────────────
 const fmt = n => "K " + Number(n || 0).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().split("T")[0];
+function addMonths(dateStr, months) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().split("T")[0];
+}
+function periodToMonths(period) {
+    const m = /(\d+)/.exec(period || "");
+    return m ? parseInt(m[1], 10) : 1;
+}
 const pad = (n, l = 4) => String(n).padStart(l, "0");
 // Base the next client id on the highest existing CLT-#### number, not the
 // array's current length -- length breaks after any deletion (reuses an id)
@@ -482,6 +492,21 @@ function getSt(loan, pmts) {
     if (getTotalOwed(loan, pmts) <= 0.005)
         return "Cleared";
     return rawTimeStatus(loan);
+}
+function hasEverDefaulted(loan, payments) {
+    if (getSt(loan, payments) === "Defaulted")
+        return true;
+    if (getSt(loan, payments) !== "Cleared" || !loan.dueDate)
+        return false;
+    const loanPayments = payments.filter(p => p.loanNo === loan.loanNo).sort((a, b) => a.date.localeCompare(b.date));
+    if (loanPayments.length === 0)
+        return false;
+    const lastPaymentDate = loanPayments[loanPayments.length - 1].date;
+    const daysLate = Math.floor((new Date(lastPaymentDate) - new Date(loan.dueDate)) / 86400000);
+    return daysLate >= 30;
+}
+function clientHasDefaultHistory(clientId, loans, payments) {
+    return loans.filter(l => l.clientId === clientId).some(l => hasEverDefaulted(l, payments));
 }
 function calcPAYE(t) { if (t <= 4800)
     return 0; let x = Math.min(t - 4800, 2100) * 0.25; if (t > 6900)
@@ -5364,6 +5389,12 @@ function HODashboard({ db, user, onReport, onViewOverdue }) {
                 [["Number Submitted", ddocLoans.length], ["Amount to Date", fmt(ddocAmount)]].map(([l, v]) => React.createElement("div", { key: l },
                     React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
                     React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "\uD83D\uDD10 Collateral Loans"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+                [["Number of Loans", loans.filter(l => l.type === "Collateral").length], ["Amount to Date", fmt(loans.filter(l => l.type === "Collateral").reduce((s, l) => s + (l.principal || 0), 0))]].map(([l, v]) => React.createElement("div", { key: l },
+                    React.createElement("div", { style: { color: C.muted, fontSize: 10, fontWeight: 600 } }, l),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, v))))),
         totalDisbursedToBranches > 0 && React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "🔑 Branch Disbursements by Category"),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
@@ -5444,8 +5475,9 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
             React.createElement(IR, { label: "Loan Target", value: fmt((db.consultantTargets || {})[user.id] || 0) }),
             React.createElement(IR, { label: "Disbursed", value: fmt(myApplied) }),
             React.createElement(IR, { label: "Collected", value: fmt(myPaid) }),
-            React.createElement(IR, { label: "Total DDACC Loans", value: myLoans.filter(l => l.ddaccStatus === "Submitted" || l.ddaccStatus === "Approved").length }),
-            React.createElement(IR, { label: "Total Collateral Loans", value: myLoans.filter(l => l.type === "Collateral").length })),
+            React.createElement(IR, { label: "Total Deduction Loans", value: myLoans.filter(l => l.type === "Deduction").length }),
+            React.createElement(IR, { label: "Total Collateral Loans", value: myLoans.filter(l => l.type === "Collateral").length }),
+            React.createElement(IR, { label: "DDACC Submitted/Approved", value: myLoans.filter(l => l.ddaccStatus === "Submitted" || l.ddaccStatus === "Approved").length })),
         user.role === "manager" && React.createElement(Card, null,
             React.createElement(ST, { color: C.teal }, "\uD83C\uDFE6 Branch Account Summary"),
             React.createElement(IR, { label: "Branch Account", value: fmt(branchFund) }),
@@ -5454,6 +5486,9 @@ function BranchDashboard({ db, user, onNewLoan, onReport, onViewOverdue }) {
         user.role === "manager" && React.createElement(Card, null,
             React.createElement(ST, { color: C.teal }, "🏦 DDOC (Direct Deduction) Loans"),
             React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, `${branchDdocLoans.length} loans · ${fmt(branchDdocLoans.reduce((s, l) => s + (l.principal || 0), 0))}`)),
+        user.role === "manager" && React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "\uD83D\uDD10 Collateral Loans"),
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, `${loans.filter(l => l.type === "Collateral").length} loans \u00B7 ${fmt(loans.filter(l => l.type === "Collateral").reduce((s, l) => s + (l.principal || 0), 0))}`)),
         user.role === "manager" && branchConsultants.length > 0 && React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "💰 Loan Fund by Consultant"),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
@@ -6474,7 +6509,7 @@ function Wizard({ db, setDb, user, onDone }) {
     const [cf, setCf] = useState({ name: "", sex: "", dob: "", phone: "", phone2: "", phone3: "", whatsapp: "", email: "", address: "", company: "", bank: "", accountNo: "", bankCode: "", tpin: "", nok_name: "", nok_phone: "", nok_relationship: "", nok_address: "" });
     const [photo, setPhoto] = useState(null);
     const [docs, setDocs] = useState({ nrcPhoto: null, payslip: null, bankStatement: null });
-    const [lf, setLf] = useState({ type: "", amount: "", rate: "0.35", period: "1 Month", disburse: today(), due: "", remarks: "" });
+    const [lf, setLf] = useState({ type: "", amount: "", rate: "0.35", period: "1 Month", disburse: today(), due: addMonths(today(), 1), remarks: "" });
     const [col, setCol] = useState({ item: "Television", desc: "", value: "", serial: "", location: "", photo: null });
     const [ded, setDed] = useState({ salary: "", monthly: "", payrollDate: "" });
     const [signedLoan, setSignedLoan] = useState(null);
@@ -6536,14 +6571,14 @@ function Wizard({ db, setDb, user, onDone }) {
             client = { id: nextClientId(db.clients), regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs };
             nd.clients.push(client);
         }
-        if (user.role === "consultant")
-            nd.consultantFunds = { ...nd.consultantFunds, [user.id]: Math.max(0, (nd.consultantFunds[user.id] || 0) - amt) };
+        const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
+        if (enteredStaff.role === "consultant")
+            nd.consultantFunds = { ...nd.consultantFunds, [enteredStaff.id]: Math.max(0, (nd.consultantFunds[enteredStaff.id] || 0) - amt) };
         else
             nd.branchFunds = { ...nd.branchFunds, [branch]: Math.max(0, (nd.branchFunds[branch] || 0) - amt) };
         const seq = nd.loans.filter(l => l.branch === branch).length + 1;
         const loanNo = `LN-${info.provinceCode}${info.townCode}-${pad(seq)}`;
         const extra = lf.type === "Collateral" ? { collateral: col } : lf.type === "Deduction" ? { deduction: parseFloat(ded.monthly) || 0 } : {};
-        const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
         const dedNote = lf.type === "Deduction" ? ` [Salary: ${ded.salary || "N/A"}, Payroll Date: ${ded.payrollDate || "N/A"}]` : "";
         const loan = { loanNo, clientId: client.id, nrc: client.nrc, name: client.name, branch, province: info.province, branchCode: `${info.provinceCode}-${info.townCode}`, type: lf.type, principal: amt, interestRate: rate, interest, totalDue: total, period: lf.period, appDate: today(), disburseDate: lf.disburse, dueDate: lf.due, consultant: enteredStaff.name, consultantId: enteredStaff.id, approvalStatus: "Pending", approvedBy: "", approvedDate: "", remarks: (lf.remarks || "") + dedNote, loanNumForClient: nd.loans.filter(l => l.clientId === client.id).length + 1, signedLoanCopy: signedLoan, ...extra };
         nd.loans.push(loan);
@@ -6632,11 +6667,11 @@ function Wizard({ db, setDb, user, onDone }) {
                     React.createElement(Inp, { label: "Physical Address", req: true, value: cf.address, onChange: e => setCf(f => ({ ...f, address: e.target.value })) }),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                         React.createElement(Inp, { label: "Employer", value: cf.company, onChange: e => setCf(f => ({ ...f, company: e.target.value })) }),
-                        React.createElement(Sel, { label: "Bank Name", value: cf.bank, onChange: e => setCf(f => ({ ...f, bank: e.target.value })) },
+                        React.createElement(Sel, { label: "Bank Name", value: cf.bank, disabled: lf.type === "Collateral", onChange: e => setCf(f => ({ ...f, bank: e.target.value })) },
                         React.createElement("option", { value: "" }, "-- Select Bank --"),
                         ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
-                        React.createElement(Inp, { label: "Account No.", value: cf.accountNo, onChange: e => setCf(f => ({ ...f, accountNo: e.target.value })) }),
-                        React.createElement(Inp, { label: "Bank Code", value: cf.bankCode, onChange: e => setCf(f => ({ ...f, bankCode: e.target.value })), placeholder: "e.g. 060144" }),
+                        React.createElement(Inp, { label: "Account No.", value: cf.accountNo, disabled: lf.type === "Collateral", onChange: e => setCf(f => ({ ...f, accountNo: e.target.value })) }),
+                        React.createElement(Inp, { label: "Bank Code", value: cf.bankCode, disabled: lf.type === "Collateral", onChange: e => setCf(f => ({ ...f, bankCode: e.target.value })), placeholder: "e.g. 060144" }),
                         React.createElement(Inp, { label: "TPIN No.", value: cf.tpin, onChange: e => setCf(f => ({ ...f, tpin: e.target.value })) })),
                     React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "8px 0 10px", borderLeft: `3px solid ${C.teal}`, paddingLeft: 8 } }, "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67 Next of Kin"),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
@@ -6676,14 +6711,14 @@ function Wizard({ db, setDb, user, onDone }) {
                     React.createElement("option", { value: "0.25" }, "25%"),
                     React.createElement("option", { value: "0.23" }, "23%"),
                     React.createElement("option", { value: "0.20" }, "20%")),
-                React.createElement(Sel, { label: "Period", value: lf.period, onChange: e => setLf(f => ({ ...f, period: e.target.value })) },
+                React.createElement(Sel, { label: "Period", value: lf.period, onChange: e => setLf(f => ({ ...f, period: e.target.value, due: addMonths(f.disburse, periodToMonths(e.target.value)) })) },
                     React.createElement("option", null, "1 Month"),
                     React.createElement("option", null, "2 Months"),
                     React.createElement("option", null, "3 Months"),
                     React.createElement("option", null, "6 Months"),
                     React.createElement("option", null, "12 Months")),
-                React.createElement(Inp, { label: "Disbursement Date", req: true, type: "date", value: lf.disburse, onChange: e => setLf(f => ({ ...f, disburse: e.target.value })) }),
-                React.createElement(Inp, { label: "Due Date", type: "date", value: lf.due, onChange: e => setLf(f => ({ ...f, due: e.target.value })) })),
+                React.createElement(Inp, { label: "Disbursement Date", req: true, type: "date", value: lf.disburse, onChange: e => setLf(f => ({ ...f, disburse: e.target.value, due: addMonths(e.target.value, periodToMonths(f.period)) })) }),
+                React.createElement(Inp, { label: "Due Date (automatic)", type: "date", value: lf.due, disabled: true })),
             React.createElement(Inp, { label: "Remarks", value: lf.remarks, onChange: e => setLf(f => ({ ...f, remarks: e.target.value })) }),
             lf.type === "Collateral" && (React.createElement("div", null,
                 React.createElement(PhotoUpload, { label: "Collateral Photo", value: col.photo, onChange: v => setCol(c => ({ ...c, photo: v })) }),
@@ -7154,6 +7189,14 @@ function Payments({ db, setDb, user, onReport }) {
         setAmt("");
         setDt(today());
     }
+    function editPaymentDate(p) {
+        const newDate = window.prompt(`Correct the date for ${p.id} (currently ${p.date}). Enter new date as YYYY-MM-DD:`, p.date);
+        if (!newDate || newDate === p.date) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) { alert("Enter the date in YYYY-MM-DD format."); return; }
+        const nd = { ...db, payments: db.payments.map(x => x.id === p.id ? { ...x, date: newDate } : x) };
+        saveDB(nd); setDb(nd);
+        alert(`\u2705 ${p.id} date updated to ${newDate}.`);
+    }
     function printRcpt(r) {
         const kf = n => "K " + Number(n || 0).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const w = window.open("", "_blank", "width=400,height=680");
@@ -7243,6 +7286,7 @@ function Payments({ db, setDb, user, onReport }) {
                         React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 } },
                             React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: C.green } }, fmt(p.amount)),
                             React.createElement("div", { style: { display: "flex", gap: 4 } },
+                                (user.role === "admin" || user.role === "director" || user.role === "manager") && React.createElement(Btn, { color: C.gold, sm: true, onClick: () => editPaymentDate(p) }, "\u270F\uFE0F"),
                                 React.createElement(Btn, { color: C.blue, sm: true, onClick: () => printRcpt(p) }, "\uD83D\uDDA8\uFE0F"),
                                 l && React.createElement(Btn, { color: C.navy, sm: true, onClick: () => onReport(l, client) }, "\uD83D\uDCCB"),
                                 p.newBalance <= 0 && l && React.createElement(Btn, { color: C.green, sm: true, onClick: () => openClearanceCert(l, client, db) }, "\uD83D\uDCC4"),
@@ -7336,7 +7380,9 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                 React.createElement("div", { style: { display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 16 } },
                     c.passportPhoto ? React.createElement("img", { src: c.passportPhoto, alt: "", style: { width: 70, height: 70, borderRadius: 12, objectFit: "cover", border: `2px solid ${C.border}`, flexShrink: 0 } }) : React.createElement("div", { style: { width: 70, height: 70, borderRadius: 12, background: `linear-gradient(135deg,${C.navy},${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 } }, "\uD83D\uDC64"),
                     React.createElement("div", null,
-                        React.createElement("div", { style: { fontWeight: 800, fontSize: 17, color: C.navy } }, c.name),
+                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+                            React.createElement("div", { style: { fontWeight: 800, fontSize: 17, color: C.navy } }, c.name),
+                            clientHasDefaultHistory(c.id, cl, db.payments) && React.createElement("span", { style: { background: C.red, color: "#fff", padding: "2px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" } }, "\u26A0\uFE0F Defaulted Before")),
                         React.createElement("div", { style: { fontSize: 11, color: C.muted } },
                             "\uD83D\uDCCD ",
                             c.branch,
@@ -7410,7 +7456,9 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                 return (React.createElement("div", { key: c.id, onClick: () => setSel(c), style: { display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer" } },
                     c.passportPhoto ? React.createElement("img", { src: c.passportPhoto, alt: "", style: { width: 44, height: 44, borderRadius: 10, objectFit: "cover", flexShrink: 0 } }) : React.createElement("div", { style: { width: 44, height: 44, borderRadius: 10, background: `linear-gradient(135deg,${C.navy},${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 } }, "\uD83D\uDC64"),
                     React.createElement("div", { style: { flex: 1 } },
-                        React.createElement("div", { style: { fontWeight: 700, color: C.navy } }, c.name),
+                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
+                            React.createElement("div", { style: { fontWeight: 700, color: C.navy } }, c.name),
+                            clientHasDefaultHistory(c.id, cl, db.payments) && React.createElement("span", { style: { background: C.red, color: "#fff", padding: "1px 7px", borderRadius: 20, fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" } }, "\u26A0\uFE0F Defaulted Before")),
                         React.createElement("div", { style: { fontSize: 11, color: C.muted } }, c.nrc),
                         c.nok_name && React.createElement("div", { style: { fontSize: 10, color: C.teal, fontWeight: 600 } },
                             "NOK: ",
