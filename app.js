@@ -32,7 +32,7 @@ let MDB = null;
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, provincialFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [], documentRequests: [], provincialDelegations: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, provincialFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [], documentRequests: [], provincialDelegations: [], complianceChecks: [], regulatoryFilings: [], riskRegister: [] }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -79,6 +79,28 @@ function nextWithdrawalId(list) {
         return m ? Math.max(max, parseInt(m[1], 10)) : max;
     }, 0);
     return `PWD-${pad(maxNum + 1)}`;
+}
+const AML_KYC_ITEMS = [
+    { key: "idVerified", label: "ID Verification (NRC/Passport)" },
+    { key: "proofOfAddress", label: "Proof of Address" },
+    { key: "sourceOfFunds", label: "Source of Funds / Income Verification" },
+    { key: "pepScreening", label: "PEP (Politically Exposed Person) Screening" },
+    { key: "sanctionsScreening", label: "Sanctions List Screening" },
+    { key: "signedAgreement", label: "Signed Loan Agreement on File" },
+    { key: "biometricCapture", label: "Photo / Biometric Capture" },
+];
+function complianceCheckIn(r) { return { id: r.id, clientId: r.client_id, checklist: r.checklist || {}, overallStatus: r.overall_status || "Pending", updatedBy: r.updated_by || "", updatedDate: r.updated_date || null }; }
+function complianceCheckOut(c) { return { id: c.id, client_id: c.clientId, checklist: c.checklist || {}, overall_status: c.overallStatus || "Pending", updated_by: c.updatedBy || null, updated_date: c.updatedDate || null }; }
+function regulatoryFilingIn(r) { return { id: r.id, name: r.name, category: r.category || "", dueDate: r.due_date || null, status: r.status || "Upcoming", filedDate: r.filed_date || null, filedBy: r.filed_by || "", notes: r.notes || "", createdBy: r.created_by || "" }; }
+function regulatoryFilingOut(f) { return { id: f.id, name: f.name, category: f.category || null, due_date: f.dueDate || null, status: f.status || "Upcoming", filed_date: f.filedDate || null, filed_by: f.filedBy || null, notes: f.notes || null, created_by: f.createdBy || null }; }
+function riskRegisterIn(r) { return { id: r.id, riskNumber: r.risk_number || r.id, title: r.title, category: r.category || "", description: r.description || "", severity: r.severity || "Medium", likelihood: r.likelihood || "Medium", mitigation: r.mitigation || "", owner: r.owner || "", status: r.status || "Open", dateLogged: r.date_logged || null, loggedBy: r.logged_by || "", lastReviewed: r.last_reviewed || null, notes: r.notes || "" }; }
+function riskRegisterOut(r) { return { id: r.id, risk_number: r.riskNumber || r.id, title: r.title, category: r.category || null, description: r.description || null, severity: r.severity || "Medium", likelihood: r.likelihood || "Medium", mitigation: r.mitigation || null, owner: r.owner || null, status: r.status || "Open", date_logged: r.dateLogged || null, logged_by: r.loggedBy || null, last_reviewed: r.lastReviewed || null, notes: r.notes || null }; }
+function nextSeqId(list, prefix) {
+    const maxNum = (list || []).reduce((max, x) => {
+        const m = new RegExp(`^${prefix}-(\\d+)$`).exec(x.id || "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    return `${prefix}-${pad(maxNum + 1)}`;
 }
 function moneyAccountIn(r) { return { id: r.id, name: r.name, balance: r.balance }; }
 function moneyAccountOut(a) { return { id: a.id, name: a.name, balance: a.balance }; }
@@ -175,7 +197,7 @@ function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultant
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
     const results = { staff: null, clients: null, loans: null, payments: null, leaveRequests: null, loginLogs: null, branchFunds: null, consultantFunds: null, bankBalance: null, dailyReports: null, paymentPlans: null, messages: null, messageReads: null, branchDisbursements: null, withdrawalRequests: null, moneyAccounts: null, moneyAccountTxns: null };
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, pfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR, docR, delR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, pfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR, docR, delR, ccR, rfR, rrR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -197,12 +219,15 @@ async function loadDB() {
         sb.from("me_targets").select("*"),
         sb.from("document_requests").select("*").order("date_submitted", { ascending: false }).limit(500),
         sb.from("provincial_delegations").select("*"),
+        sb.from("compliance_checks").select("*"),
+        sb.from("regulatory_filings").select("*").order("due_date", { ascending: true }).limit(500),
+        sb.from("risk_register").select("*").order("date_logged", { ascending: false }).limit(500),
     ]);
     // Supabase-js returns { data, error } and does NOT throw on failure (bad
     // RLS policy, expired key, paused project, etc.) — checking .error here
     // is what stops a failed fetch from silently rendering as an empty/zero
     // dashboard with no indication anything went wrong.
-    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Provincial Funds", pfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR], ["Document Requests", docR], ["Provincial Delegations", delR]];
+    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Provincial Funds", pfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR], ["Document Requests", docR], ["Provincial Delegations", delR], ["Compliance Checks", ccR], ["Regulatory Filings", rfR], ["Risk Register", rrR]];
     const errors = labeled.filter(([, r]) => r && r.error).map(([label, r]) => `${label}: ${r.error.message}`);
     if (errors.length) {
         const err = new Error("Failed to load data from the database:\n\n" + errors.join("\n") + "\n\nThis is a connection/permissions problem, not missing data — check your Supabase project status and API key.");
@@ -232,6 +257,9 @@ async function loadDB() {
         meTargets: (meR.data || []).map(r => ({ id: r.id, kpi: r.kpi, scopeType: r.scope_type, scopeValue: r.scope_value, targetValue: r.target_value, period: r.period, notes: r.notes || "", createdBy: r.created_by, createdAt: r.created_at })),
         documentRequests: (docR.data || []).map(documentRequestIn),
         provincialDelegations: (delR.data || []).map(r => ({ id: r.id, province: r.province, grantedToStaffId: r.granted_to_staff_id, grantedToName: r.granted_to_name, grantedBy: r.granted_by, dateGranted: r.date_granted, active: r.active, note: r.note || "" })),
+        complianceChecks: (ccR.data || []).map(complianceCheckIn),
+        regulatoryFilings: (rfR.data || []).map(regulatoryFilingIn),
+        riskRegister: (rrR.data || []).map(riskRegisterIn),
     };
 }
 async function saveDB(db) {
@@ -270,6 +298,9 @@ async function saveDB(db) {
     await tryUpsert("M&E Targets", "me_targets", db.meTargets?.length ? db.meTargets.map(t => ({ id: t.id, kpi: t.kpi, scope_type: t.scopeType, scope_value: t.scopeValue || null, target_value: t.targetValue, period: t.period, notes: t.notes || null, created_by: t.createdBy, created_at: t.createdAt })) : null, { onConflict: "id" });
     await tryUpsert("Document Requests", "document_requests", db.documentRequests?.length ? db.documentRequests.map(documentRequestOut) : null, { onConflict: "id" });
     await tryUpsert("Provincial Delegations", "provincial_delegations", db.provincialDelegations?.length ? db.provincialDelegations.map(d => ({ id: d.id, province: d.province, granted_to_staff_id: d.grantedToStaffId, granted_to_name: d.grantedToName, granted_by: d.grantedBy, date_granted: d.dateGranted, active: d.active, note: d.note || null })) : null, { onConflict: "id" });
+    await tryUpsert("Compliance Checks", "compliance_checks", db.complianceChecks?.length ? db.complianceChecks.map(complianceCheckOut) : null, { onConflict: "id" });
+    await tryUpsert("Regulatory Filings", "regulatory_filings", db.regulatoryFilings?.length ? db.regulatoryFilings.map(regulatoryFilingOut) : null, { onConflict: "id" });
+    await tryUpsert("Risk Register", "risk_register", db.riskRegister?.length ? db.riskRegister.map(riskRegisterOut) : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
     await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null, { onConflict: "branch" });
     const pfRows = Object.entries(db.provincialFunds || {}).map(([province, amount]) => ({ province, amount }));
@@ -4476,6 +4507,249 @@ function MESystemApp({ db, setDb, user, onLogout, onSwitch }) {
             navItem && !navItem.ready ? React.createElement(MSoon, { label: navItem.label }) : (PAGES[page] ? PAGES[page]() : React.createElement(MSoon, { label: navItem ? navItem.label : "This section" }))));
 }
 
+// ── RISK & COMPLIANCE SYSTEM (standalone) ───────────────────────────────────
+const RC_NAV = [
+    { id: "dash", label: "Risk Dashboard", icon: "\uD83D\uDCCA" },
+    { id: "kyc", label: "AML/KYC Checklist", icon: "\uD83D\uDEC2" },
+    { id: "filings", label: "Regulatory Filings", icon: "\uD83D\uDCC5" },
+    { id: "register", label: "Risk Register", icon: "\u26A0\uFE0F" },
+];
+function rcFilingStatus(f) {
+    if (f.filedDate) return "Filed";
+    if (!f.dueDate) return "Upcoming";
+    const days = Math.floor((new Date(f.dueDate) - new Date()) / 86400000);
+    if (days < 0) return "Overdue";
+    if (days <= 30) return "Due Soon";
+    return "Upcoming";
+}
+function RCDashboard({ db }) {
+    const loans = db.loans || [];
+    const payments = db.payments || [];
+    const activeLoans = loans.filter(l => l.approvalStatus === "Approved");
+    const defaulted = activeLoans.filter(l => rawTimeStatus(l) === "Defaulted" || getSt(l, payments) === "Defaulted");
+    const totalPortfolio = activeLoans.reduce((s, l) => s + (l.totalDue || 0), 0);
+    const defaultedValue = defaulted.reduce((s, l) => s + getBal(l, payments), 0);
+    const defaultRate = totalPortfolio > 0 ? (defaultedValue / totalPortfolio * 100) : 0;
+    const byBranch = {};
+    activeLoans.forEach(l => { byBranch[l.branch] = (byBranch[l.branch] || 0) + (l.totalDue || 0); });
+    const branchRows = Object.entries(byBranch).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([b, v]) => ({ label: b, value: v, pct: totalPortfolio > 0 ? (v / totalPortfolio * 100) : 0 }));
+    const byProvince = {};
+    activeLoans.forEach(l => { byProvince[l.province] = (byProvince[l.province] || 0) + (l.totalDue || 0); });
+    const provinceRows = Object.entries(byProvince).sort((a, b) => b[1] - a[1]).map(([p, v]) => ({ label: p, value: v, pct: totalPortfolio > 0 ? (v / totalPortfolio * 100) : 0 }));
+    const plans = (db.paymentPlans || []).filter(p => p.actualAmount > 0);
+    const critical = plans.filter(p => ppStatus(p, payments) === "Critical").length;
+    const overdue = plans.filter(p => ppStatus(p, payments) === "Overdue").length;
+    const filings = db.regulatoryFilings || [];
+    const filingAlerts = filings.filter(f => ["Overdue", "Due Soon"].includes(rcFilingStatus(f)));
+    const checks = db.complianceChecks || [];
+    const verified = checks.filter(c => c.overallStatus === "Verified").length;
+    const flagged = checks.filter(c => c.overallStatus === "Flagged").length;
+    const openRisks = (db.riskRegister || []).filter(r => r.status === "Open" || r.status === "Monitoring").length;
+    const criticalRisks = (db.riskRegister || []).filter(r => r.severity === "Critical" && (r.status === "Open" || r.status === "Monitoring")).length;
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12, marginBottom: 16 } },
+            [["Default Rate", defaultRate.toFixed(1) + "%", defaultRate > 10 ? MC.red : defaultRate > 5 ? MC.amber : MC.green],
+            ["Portfolio Value", fmt(totalPortfolio), MC.accent],
+            ["Critical Payment Plans", critical, MC.red],
+            ["Overdue Payment Plans", overdue, MC.amber],
+            ["Filing Alerts", filingAlerts.length, filingAlerts.length > 0 ? MC.red : MC.green],
+            ["KYC Verified", verified, MC.green],
+            ["KYC Flagged", flagged, flagged > 0 ? MC.red : MC.green],
+            ["Open Risks", openRisks, MC.amber],
+            ["Critical Risks", criticalRisks, criticalRisks > 0 ? MC.red : MC.green]].map(([label, value, color]) => React.createElement(MCard, { key: label, style: { borderTop: `3px solid ${color}` } },
+                React.createElement("div", { style: { fontSize: 10, color: MC.muted, textTransform: "uppercase", marginBottom: 6 } }, label),
+                React.createElement("div", { style: { fontSize: 20, fontWeight: 800, color: "#fff" } }, value)))),
+        React.createElement(MCard, { style: { marginBottom: 14 } },
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 10 } }, "Portfolio Concentration by Branch"),
+            branchRows.length === 0 ? React.createElement("div", { style: { color: MC.muted, fontSize: 12 } }, "No active loans yet.") :
+                branchRows.map(r => React.createElement("div", { key: r.label, style: { marginBottom: 8 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: MC.text, marginBottom: 3 } },
+                        React.createElement("span", null, r.label), React.createElement("span", null, `${fmt(r.value)} (${r.pct.toFixed(1)}%)`)),
+                    React.createElement("div", { style: { background: MC.cardAlt, borderRadius: 6, height: 8, overflow: "hidden" } },
+                        React.createElement("div", { style: { width: `${r.pct}%`, height: "100%", background: r.pct > 30 ? MC.red : MC.accent } }))))),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 10 } }, "Portfolio Concentration by Province"),
+            provinceRows.length === 0 ? React.createElement("div", { style: { color: MC.muted, fontSize: 12 } }, "No active loans yet.") :
+                provinceRows.map(r => React.createElement("div", { key: r.label, style: { marginBottom: 8 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, color: MC.text, marginBottom: 3 } },
+                        React.createElement("span", null, r.label), React.createElement("span", null, `${fmt(r.value)} (${r.pct.toFixed(1)}%)`)),
+                    React.createElement("div", { style: { background: MC.cardAlt, borderRadius: 6, height: 8, overflow: "hidden" } },
+                        React.createElement("div", { style: { width: `${r.pct}%`, height: "100%", background: r.pct > 40 ? MC.red : MC.purple } }))))));
+}
+function RCCompliance({ db, setDb, user }) {
+    const [search, setSearch] = useState("");
+    const [selectedClientId, setSelectedClientId] = useState(null);
+    const clients = db.clients || [];
+    const checks = db.complianceChecks || [];
+    const filtered = search.trim() ? clients.filter(c => (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.nrc || "").includes(search)) : clients;
+    function getCheck(clientId) { return checks.find(c => c.clientId === clientId) || { id: `CC-${clientId}`, clientId, checklist: {}, overallStatus: "Pending" }; }
+    function computeOverall(checklist) {
+        const vals = AML_KYC_ITEMS.map(it => (checklist[it.key] || {}).status || "Pending");
+        if (vals.some(v => v === "Flagged")) return "Flagged";
+        if (vals.every(v => v === "Verified")) return "Verified";
+        return "Pending";
+    }
+    function toggleItem(clientId, itemKey, newStatus) {
+        const existing = getCheck(clientId);
+        const checklist = { ...existing.checklist, [itemKey]: { status: newStatus, checkedBy: user.name, checkedDate: today() } };
+        const overallStatus = computeOverall(checklist);
+        const updated = { ...existing, checklist, overallStatus, updatedBy: user.name, updatedDate: today() };
+        const nd = { ...db, complianceChecks: checks.some(c => c.clientId === clientId) ? checks.map(c => c.clientId === clientId ? updated : c) : [...checks, updated] };
+        saveDB(nd); setDb(nd);
+    }
+    if (selectedClientId) {
+        const client = clients.find(c => c.id === selectedClientId);
+        const check = getCheck(selectedClientId);
+        return React.createElement("div", null,
+            React.createElement("button", { onClick: () => setSelectedClientId(null), style: { background: "none", border: "none", color: MC.accent, fontSize: 13, cursor: "pointer", marginBottom: 12 } }, "\u2190 Back to Client List"),
+            React.createElement(MCard, null,
+                React.createElement("div", { style: { fontWeight: 800, color: "#fff", fontSize: 16, marginBottom: 4 } }, client?.name || "Unknown Client"),
+                React.createElement("div", { style: { fontSize: 11, color: MC.muted, marginBottom: 14 } }, client?.nrc, " \u00B7 ", client?.branch),
+                AML_KYC_ITEMS.map(item => {
+                    const st = (check.checklist[item.key] || {}).status || "Pending";
+                    return React.createElement("div", { key: item.key, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${MC.border}` } },
+                        React.createElement("div", { style: { fontSize: 13, color: MC.text } }, item.label),
+                        React.createElement("div", { style: { display: "flex", gap: 6 } },
+                            ["Verified", "Flagged", "Pending"].map(s => React.createElement("button", { key: s, onClick: () => toggleItem(selectedClientId, item.key, s), style: { padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, background: st === s ? (s === "Verified" ? MC.green : s === "Flagged" ? MC.red : MC.amber) : MC.cardAlt, color: st === s ? "#fff" : MC.muted } }, s))));
+                })));
+    }
+    return React.createElement("div", null,
+        React.createElement(MCard, { style: { marginBottom: 14 } },
+            React.createElement("input", { value: search, onChange: e => setSearch(e.target.value), placeholder: "Search client by name or NRC...", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13 } })),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 10 } }, `Clients (${filtered.length})`),
+            filtered.slice(0, 100).map(c => {
+                const check = getCheck(c.id);
+                const color = check.overallStatus === "Verified" ? MC.green : check.overallStatus === "Flagged" ? MC.red : MC.amber;
+                return React.createElement("div", { key: c.id, onClick: () => setSelectedClientId(c.id), style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${MC.border}`, cursor: "pointer" } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontSize: 13, color: "#fff", fontWeight: 600 } }, c.name),
+                        React.createElement("div", { style: { fontSize: 10, color: MC.muted } }, c.nrc, " \u00B7 ", c.branch)),
+                    React.createElement("span", { style: { padding: "3px 10px", borderRadius: 20, background: color, color: "#fff", fontSize: 10, fontWeight: 700 } }, check.overallStatus));
+            })));
+}
+function RCFilings({ db, setDb, user }) {
+    const [form, setForm] = useState({ name: "", category: "License", dueDate: "" });
+    const filings = db.regulatoryFilings || [];
+    function add() {
+        if (!form.name.trim() || !form.dueDate) { alert("Enter a filing name and due date."); return; }
+        const row = { id: nextSeqId(filings, "RF"), name: form.name.trim(), category: form.category, dueDate: form.dueDate, status: "Upcoming", filedDate: null, filedBy: "", notes: "", createdBy: user.name };
+        const nd = { ...db, regulatoryFilings: [...filings, row] };
+        saveDB(nd); setDb(nd);
+        setForm({ name: "", category: "License", dueDate: "" });
+    }
+    function markFiled(id) {
+        const nd = { ...db, regulatoryFilings: filings.map(f => f.id === id ? { ...f, filedDate: today(), filedBy: user.name, status: "Filed" } : f) };
+        saveDB(nd); setDb(nd);
+    }
+    const sorted = filings.slice().sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+    const colorFor = s => s === "Overdue" ? MC.red : s === "Due Soon" ? MC.amber : s === "Filed" ? MC.green : MC.accent;
+    return React.createElement("div", null,
+        React.createElement(MCard, { style: { marginBottom: 14 } },
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 10 } }, "\u2795 Add Regulatory Filing"),
+            React.createElement("input", { value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })), placeholder: "e.g. BOZ Microfinance License Renewal", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 8 } }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 } },
+                React.createElement("select", { value: form.category, onChange: e => setForm(f => ({ ...f, category: e.target.value })), style: { padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13 } },
+                    ["License", "Tax", "Statutory Return", "AML/CFT Report", "Other"].map(c => React.createElement("option", { key: c, value: c }, c))),
+                React.createElement("input", { type: "date", value: form.dueDate, onChange: e => setForm(f => ({ ...f, dueDate: e.target.value })), style: { padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13 } })),
+            React.createElement("button", { onClick: add, style: { width: "100%", padding: 11, background: MC.accent, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" } }, "Add Filing")),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 10 } }, `Filings (${sorted.length})`),
+            sorted.length === 0 ? React.createElement("div", { style: { color: MC.muted, fontSize: 12 } }, "No filings tracked yet.") :
+                sorted.map(f => { const st = rcFilingStatus(f); return React.createElement("div", { key: f.id, style: { padding: "10px 0", borderBottom: `1px solid ${MC.border}` } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 13, color: "#fff", fontWeight: 600 } }, f.name),
+                            React.createElement("div", { style: { fontSize: 10, color: MC.muted } }, f.category, " \u00B7 Due: ", f.dueDate)),
+                        React.createElement("span", { style: { padding: "3px 10px", borderRadius: 20, background: colorFor(st), color: "#fff", fontSize: 10, fontWeight: 700 } }, st)),
+                    st !== "Filed" && React.createElement("button", { onClick: () => markFiled(f.id), style: { marginTop: 8, padding: "6px 12px", background: MC.green, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, "\u2705 Mark as Filed"),
+                    st === "Filed" && React.createElement("div", { style: { marginTop: 6, fontSize: 10, color: MC.muted } }, "Filed by ", f.filedBy, " on ", f.filedDate)); })));
+}
+function RCRegister({ db, setDb, user }) {
+    const [form, setForm] = useState({ title: "", category: "Credit", description: "", severity: "Medium", likelihood: "Medium", mitigation: "", owner: "" });
+    const [statusFilter, setStatusFilter] = useState("All");
+    const risks = db.riskRegister || [];
+    function add() {
+        if (!form.title.trim()) { alert("Enter a risk title."); return; }
+        const row = { id: nextSeqId(risks, "RISK"), riskNumber: nextSeqId(risks, "RISK"), title: form.title.trim(), category: form.category, description: form.description, severity: form.severity, likelihood: form.likelihood, mitigation: form.mitigation, owner: form.owner, status: "Open", dateLogged: today(), loggedBy: user.name, lastReviewed: today(), notes: "" };
+        const nd = { ...db, riskRegister: [...risks, row] };
+        saveDB(nd); setDb(nd);
+        setForm({ title: "", category: "Credit", description: "", severity: "Medium", likelihood: "Medium", mitigation: "", owner: "" });
+    }
+    function setStatus(id, status) {
+        const nd = { ...db, riskRegister: risks.map(r => r.id === id ? { ...r, status, lastReviewed: today() } : r) };
+        saveDB(nd); setDb(nd);
+    }
+    const sevColor = s => s === "Critical" ? MC.red : s === "High" ? MC.amber : s === "Medium" ? MC.accent : MC.green;
+    const filtered = statusFilter === "All" ? risks : risks.filter(r => r.status === statusFilter);
+    return React.createElement("div", null,
+        React.createElement(MCard, { style: { marginBottom: 14 } },
+            React.createElement("div", { style: { fontWeight: 800, color: "#fff", marginBottom: 10 } }, "\u2795 Log a New Risk"),
+            React.createElement("input", { value: form.title, onChange: e => setForm(f => ({ ...f, title: e.target.value })), placeholder: "Risk title", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 8 } }),
+            React.createElement("textarea", { value: form.description, onChange: e => setForm(f => ({ ...f, description: e.target.value })), placeholder: "Description", rows: 2, style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 8, fontFamily: "inherit" } }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 } },
+                React.createElement("select", { value: form.category, onChange: e => setForm(f => ({ ...f, category: e.target.value })), style: { padding: "10px 8px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 12 } },
+                    ["Credit", "Operational", "Compliance", "Market", "Reputational"].map(c => React.createElement("option", { key: c, value: c }, c))),
+                React.createElement("select", { value: form.severity, onChange: e => setForm(f => ({ ...f, severity: e.target.value })), style: { padding: "10px 8px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 12 } },
+                    ["Low", "Medium", "High", "Critical"].map(c => React.createElement("option", { key: c, value: c }, c))),
+                React.createElement("select", { value: form.likelihood, onChange: e => setForm(f => ({ ...f, likelihood: e.target.value })), style: { padding: "10px 8px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 12 } },
+                    ["Low", "Medium", "High"].map(c => React.createElement("option", { key: c, value: c }, c)))),
+            React.createElement("input", { value: form.mitigation, onChange: e => setForm(f => ({ ...f, mitigation: e.target.value })), placeholder: "Mitigation plan", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 8 } }),
+            React.createElement("input", { value: form.owner, onChange: e => setForm(f => ({ ...f, owner: e.target.value })), placeholder: "Risk owner", style: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 13, marginBottom: 8 } }),
+            React.createElement("button", { onClick: add, style: { width: "100%", padding: 11, background: MC.accent, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" } }, "Log Risk")),
+        React.createElement(MCard, null,
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 } },
+                React.createElement("div", { style: { fontWeight: 800, color: "#fff" } }, `Risk Register (${filtered.length})`),
+                React.createElement("select", { value: statusFilter, onChange: e => setStatusFilter(e.target.value), style: { padding: "6px 10px", borderRadius: 6, border: `1px solid ${MC.border}`, background: MC.cardAlt, color: "#fff", fontSize: 11 } },
+                    ["All", "Open", "Monitoring", "Mitigated", "Closed"].map(s => React.createElement("option", { key: s, value: s }, s)))),
+            filtered.length === 0 ? React.createElement("div", { style: { color: MC.muted, fontSize: 12 } }, "No risks logged yet.") :
+                filtered.map(r => React.createElement("div", { key: r.id, style: { padding: "10px 0", borderBottom: `1px solid ${MC.border}` } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 13, color: "#fff", fontWeight: 600 } }, r.riskNumber, " \u2014 ", r.title),
+                            React.createElement("div", { style: { fontSize: 10, color: MC.muted, marginTop: 2 } }, r.category, " \u00B7 Owner: ", r.owner || "\u2014", " \u00B7 Logged: ", r.dateLogged)),
+                        React.createElement("span", { style: { padding: "3px 10px", borderRadius: 20, background: sevColor(r.severity), color: "#fff", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" } }, r.severity)),
+                    r.description && React.createElement("div", { style: { fontSize: 12, color: MC.text, marginTop: 6 } }, r.description),
+                    r.mitigation && React.createElement("div", { style: { fontSize: 11, color: MC.muted, marginTop: 4 } }, "Mitigation: ", r.mitigation),
+                    React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" } },
+                        ["Open", "Monitoring", "Mitigated", "Closed"].map(s => React.createElement("button", { key: s, onClick: () => setStatus(r.id, s), style: { padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, background: r.status === s ? MC.accent : MC.cardAlt, color: r.status === s ? "#fff" : MC.muted } }, s)))))));
+}
+function RiskComplianceApp({ db, setDb, user, onLogout, onSwitch }) {
+    const [page, setPage] = useState("dash");
+    const [isWide, setIsWide] = useState(typeof window !== "undefined" && window.innerWidth >= 1000);
+    useEffect(() => { const h = () => setIsWide(window.innerWidth >= 1000); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
+    const sbw = isWide ? 240 : 92;
+    const PAGES = {
+        dash: () => React.createElement(RCDashboard, { db: db }),
+        kyc: () => React.createElement(RCCompliance, { db: db, setDb: setDb, user: user }),
+        filings: () => React.createElement(RCFilings, { db: db, setDb: setDb, user: user }),
+        register: () => React.createElement(RCRegister, { db: db, setDb: setDb, user: user }),
+    };
+    const navItem = RC_NAV.find(n => n.id === page);
+    return React.createElement("div", { style: { fontFamily: "'Segoe UI',Arial,sans-serif", minHeight: "100vh", background: MC.bg, color: MC.text } },
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, width: sbw, background: MC.sidebar, borderRight: `1px solid ${MC.border}`, zIndex: 20, overflowY: "auto" } },
+            React.createElement("div", { style: { padding: isWide ? "20px 18px" : "16px 6px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${MC.border}`, marginBottom: 8 } },
+                React.createElement("div", { style: { width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg,${MC.red},${MC.amber})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 } }, "\u26A0\uFE0F"),
+                isWide && React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 900, fontSize: 14, color: "#fff" } }, "Risk & Compliance"),
+                    React.createElement("div", { style: { fontSize: 9, color: MC.muted, letterSpacing: 0.5 } }, "PALIAN MONEY LENDING"))),
+            React.createElement("div", { style: { padding: isWide ? "4px 10px" : "4px 4px", display: "flex", flexDirection: "column", gap: 2 } },
+                RC_NAV.map(n => React.createElement("button", { key: n.id, onClick: () => setPage(n.id), style: { display: "flex", alignItems: "center", justifyContent: isWide ? "flex-start" : "center", flexDirection: isWide ? "row" : "column", gap: isWide ? 10 : 2, textAlign: isWide ? "left" : "center", padding: isWide ? "10px 12px" : "8px 2px", borderRadius: 8, border: "none", cursor: "pointer", background: page === n.id ? MC.accent : "transparent", color: page === n.id ? "#fff" : MC.muted, fontWeight: 600, fontSize: isWide ? 13 : 8.5 } },
+                    React.createElement("span", { style: { fontSize: 14 } }, n.icon),
+                    isWide ? React.createElement("span", null, n.label) : React.createElement("span", { style: { wordBreak: "break-word" } }, n.label.split(" ")[0])))),
+            React.createElement("div", { style: { marginTop: "auto", padding: isWide ? "16px 18px" : "10px 6px", borderTop: `1px solid ${MC.border}` } },
+                isWide && React.createElement("div", { style: { fontSize: 11, color: "#fff", fontWeight: 700 } }, user.name),
+                isWide && React.createElement("div", { style: { fontSize: 9, color: MC.muted, marginBottom: 8 } }, user.roleLabel || user.role),
+                React.createElement("div", { style: { display: "flex", flexDirection: isWide ? "row" : "column", gap: isWide ? 10 : 4, alignItems: "center" } },
+                    React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: MC.muted, fontSize: isWide ? 10 : 8, cursor: "pointer", padding: 0 } }, "Switch"),
+                    React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: MC.muted, fontSize: isWide ? 10 : 8, cursor: "pointer", padding: 0 } }, "Logout")))),
+        React.createElement("div", { style: { marginLeft: sbw, padding: isWide ? "22px 28px" : 12 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
+                React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: "#fff" } }, navItem ? navItem.label : "Dashboard"),
+                React.createElement("div", { style: { fontSize: 12, color: MC.muted } }, new Date().toLocaleDateString("en", { month: "long", day: "numeric", year: "numeric" }))),
+            PAGES[page] ? PAGES[page]() : null));
+}
+
 // ── HR SYSTEM (standalone) ──────────────────────────────────────────────────
 // HRSystem already manages its own internal tabs (Dashboard/Staff/Leave/
 // Payroll etc.) via its own horizontal tab strip, so this wrapper only needs
@@ -7676,7 +7950,7 @@ function SystemSelect({ user, onSelect, onLogout }) {
         ["director", "admin"].includes(user.role) && { icon: "\uD83E\uDDED", label: "Director System", onClick: () => onSelect("directorsystem") },
         ["admin", "strategic"].includes(user.role) && { icon: "\uD83D\uDCC8", label: "M&E & Data Analysis", onClick: () => onSelect("mesystem") },
         ["hr", "admin"].includes(user.role) && { icon: "\uD83D\uDC65", label: "HR System", onClick: () => onSelect("hrsystem") },
-        user.role === "admin" && { icon: "\u26A0\uFE0F", label: "Risk & Compliance", ready: false },
+        ["admin", "director", "strategic"].includes(user.role) && { icon: "\u26A0\uFE0F", label: "Risk & Compliance", onClick: () => onSelect("riskcompliance") },
         user.role === "admin" && { icon: "\uD83D\uDEE0\uFE0F", label: "System Admin", onClick: () => onSelect("sysadmin") },
     ].filter(Boolean);
     return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", overflow: "hidden" } },
@@ -8422,6 +8696,8 @@ function App() {
         return React.createElement(HRSystemApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "sysadmin" && user.role === "admin")
         return React.createElement(SystemAdminApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
+    if (module === "riskcompliance" && ["admin", "director", "strategic"].includes(user.role))
+        return React.createElement(RiskComplianceApp, { db: db, setDb: setDb, user: user, onLogout: handleLogout, onSwitch: () => setModule(null) });
     if (module === "loans" && user.role === "strategic")
         return React.createElement(SystemSelect, { user: user, onSelect: setModule, onLogout: handleLogout });
     const hoRole = isHO(user.role);
