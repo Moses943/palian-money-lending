@@ -6588,8 +6588,11 @@ function Wizard({ db, setDb, user, onDone }) {
             client = { ...client, registeredById: enteredStaff.id, registeredByName: enteredStaff.name };
             nd.clients = nd.clients.map(c => c.id === client.id ? client : c);
         }
-        if (enteredStaff.role === "consultant")
+        if (enteredStaff.role === "consultant") {
             nd.consultantFunds = { ...nd.consultantFunds, [enteredStaff.id]: Math.max(0, (nd.consultantFunds[enteredStaff.id] || 0) - amt) };
+            if ((nd.consultantTargets || {})[enteredStaff.id] > 0)
+                nd.consultantTargets = { ...nd.consultantTargets, [enteredStaff.id]: Math.max(0, (nd.consultantTargets[enteredStaff.id] || 0) - amt) };
+        }
         else
             nd.branchFunds = { ...nd.branchFunds, [branch]: Math.max(0, (nd.branchFunds[branch] || 0) - amt) };
         const seq = nd.loans.filter(l => l.branch === branch).length + 1;
