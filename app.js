@@ -52,8 +52,8 @@ function isEffectivelyActive(s) {
     }
     return s.active !== false;
 }
-function clientIn(r) { return { id: r.id, branch: r.branch, province: r.province, name: r.name, nrc: r.nrc, sex: r.sex, dob: r.dob, phone: r.phone, phone2: r.phone_2 || "", phone3: r.phone_3 || "", whatsapp: r.whatsapp || "", email: r.email, address: r.address, company: r.company, bank: r.bank, accountNo: r.account_no, bankCode: r.bank_code, tpin: r.tpin, nok_name: r.nok_name, nok_phone: r.nok_phone, nok_relationship: r.nok_relationship, nok_address: r.nok_address, passportPhoto: r.passport_photo, docs: r.docs || {}, regDate: r.reg_date, deletionRequested: r.deletion_requested || false, deletionRequestedBy: r.deletion_requested_by || "", deletionRequestedDate: r.deletion_requested_date || null, deletionReason: r.deletion_reason || "" }; }
-function clientOut(c) { return { id: c.id, branch: c.branch, province: c.province, name: c.name, nrc: c.nrc, sex: c.sex, dob: c.dob || null, phone: c.phone, phone_2: c.phone2 || null, phone_3: c.phone3 || null, whatsapp: c.whatsapp || null, email: c.email, address: c.address, company: c.company, bank: c.bank, account_no: c.accountNo, bank_code: c.bankCode, tpin: c.tpin, nok_name: c.nok_name, nok_phone: c.nok_phone, nok_relationship: c.nok_relationship, nok_address: c.nok_address, passport_photo: c.passportPhoto || null, docs: c.docs || {}, reg_date: c.regDate || null, deletion_requested: c.deletionRequested || false, deletion_requested_by: c.deletionRequestedBy || null, deletion_requested_date: c.deletionRequestedDate || null, deletion_reason: c.deletionReason || null }; }
+function clientIn(r) { return { id: r.id, branch: r.branch, province: r.province, name: r.name, nrc: r.nrc, sex: r.sex, dob: r.dob, phone: r.phone, phone2: r.phone_2 || "", phone3: r.phone_3 || "", whatsapp: r.whatsapp || "", email: r.email, address: r.address, company: r.company, bank: r.bank, accountNo: r.account_no, bankCode: r.bank_code, tpin: r.tpin, nok_name: r.nok_name, nok_phone: r.nok_phone, nok_relationship: r.nok_relationship, nok_address: r.nok_address, passportPhoto: r.passport_photo, docs: r.docs || {}, regDate: r.reg_date, deletionRequested: r.deletion_requested || false, deletionRequestedBy: r.deletion_requested_by || "", deletionRequestedDate: r.deletion_requested_date || null, deletionReason: r.deletion_reason || "", registeredById: r.registered_by_id || null, registeredByName: r.registered_by_name || "" }; }
+function clientOut(c) { return { id: c.id, branch: c.branch, province: c.province, name: c.name, nrc: c.nrc, sex: c.sex, dob: c.dob || null, phone: c.phone, phone_2: c.phone2 || null, phone_3: c.phone3 || null, whatsapp: c.whatsapp || null, email: c.email, address: c.address, company: c.company, bank: c.bank, account_no: c.accountNo, bank_code: c.bankCode, tpin: c.tpin, nok_name: c.nok_name, nok_phone: c.nok_phone, nok_relationship: c.nok_relationship, nok_address: c.nok_address, passport_photo: c.passportPhoto || null, docs: c.docs || {}, reg_date: c.regDate || null, deletion_requested: c.deletionRequested || false, deletion_requested_by: c.deletionRequestedBy || null, deletion_requested_date: c.deletionRequestedDate || null, deletion_reason: c.deletionReason || null, registered_by_id: c.registeredById || null, registered_by_name: c.registeredByName || null }; }
 function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.nrc, name: r.name, branch: r.branch, province: r.province, branchCode: r.branch_code, type: r.type, principal: r.principal, interestRate: r.interest_rate, interest: r.interest, totalDue: r.total_due, period: r.period, appDate: r.app_date, disburseDate: r.disburse_date, dueDate: r.due_date, consultant: r.consultant, consultantId: r.consultant_id, approvalStatus: r.approval_status, approvedBy: r.approved_by, approvedDate: r.approved_date, remarks: r.remarks, collateral: r.collateral, deduction: r.deduction, signedLoanCopy: r.signed_loan_copy, ddaccStatus: r.ddacc_status || "Pending", collateralStatus: r.collateral_status || "Held" }; }
 function loanOut(l) { return { loan_no: l.loanNo, client_id: l.clientId, nrc: l.nrc, name: l.name, branch: l.branch, province: l.province, branch_code: l.branchCode, type: l.type, principal: l.principal, interest_rate: l.interestRate, interest: l.interest, total_due: l.totalDue, period: l.period, app_date: l.appDate || null, disburse_date: l.disburseDate || null, due_date: l.dueDate || null, consultant: l.consultant, consultant_id: l.consultantId, approval_status: l.approvalStatus, approved_by: l.approvedBy || null, approved_date: l.approvedDate || null, remarks: l.remarks, collateral: l.collateral || null, deduction: l.deduction || null, signed_loan_copy: l.signedLoanCopy || null, ddacc_status: l.ddaccStatus || "Pending", collateral_status: l.collateralStatus || "Held" }; }
 function paymentIn(r) { return { id: r.id, loanNo: r.loan_no, clientId: r.client_id, name: r.name, branch: r.branch, amount: r.amount, date: r.date, method: r.method, recordedBy: r.recorded_by, totalDue: r.total_due, newBalance: r.new_balance }; }
@@ -386,16 +386,25 @@ const isProvincial = r => r === "provincial";
 function scopeLoans(db, user) {
     if (isHO(user.role)) return db.loans;
     if (isProvincial(user.role)) return db.loans.filter(l => l.province === user.province);
+    if (user.role === "consultant") return bL(db, user.branch).filter(l => l.consultantId === user.id);
     return bL(db, user.branch);
 }
 function scopeClients(db, user) {
     if (isHO(user.role)) return db.clients;
     if (isProvincial(user.role)) return db.clients.filter(c => c.province === user.province);
+    if (user.role === "consultant") {
+        const myClientIds = new Set(db.loans.filter(l => l.consultantId === user.id).map(l => l.clientId));
+        return bC(db, user.branch).filter(c => !c.registeredById || c.registeredById === user.id || myClientIds.has(c.id));
+    }
     return bC(db, user.branch);
 }
 function scopePayments(db, user) {
     if (isHO(user.role)) return db.payments;
     if (isProvincial(user.role)) { const towns = (PROVINCES[user.province]?.towns || []).map(t => t[0]); return db.payments.filter(p => towns.includes(p.branch)); }
+    if (user.role === "consultant") {
+        const myLoanNos = new Set(db.loans.filter(l => l.consultantId === user.id).map(l => l.loanNo));
+        return bP(db, user.branch).filter(p => myLoanNos.has(p.loanNo));
+    }
     return bP(db, user.branch);
 }
 function getBal(loan, pmts) { return Math.max(0, (loan.totalDue || 0) - pmts.filter(p => p.loanNo === loan.loanNo).reduce((s, p) => s + p.amount, 0)); }
@@ -6535,6 +6544,9 @@ function Wizard({ db, setDb, user, onDone }) {
         const found = db.clients.find(c => c.nrc === n);
         if (found) {
             setEx(found);
+            if (found.registeredById && found.registeredById !== user.id && user.role !== "admin" && user.role !== "manager") {
+                setEnteredBy(found.registeredById);
+            }
             if (found.branch && found.branch !== branch)
                 setCrossBranch({ branch: found.branch, loans: db.loans.filter(l => l.clientId === found.id) });
             else
@@ -6566,12 +6578,16 @@ function Wizard({ db, setDb, user, onDone }) {
     } setStep(4); }
     function submit() {
         const nd = { ...db, clients: [...db.clients], loans: [...db.loans], payments: [...db.payments] };
+        const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
         let client = ex;
         if (!client) {
-            client = { id: nextClientId(db.clients), regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs };
+            client = { id: nextClientId(db.clients), regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs, registeredById: enteredStaff.id, registeredByName: enteredStaff.name };
             nd.clients.push(client);
         }
-        const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
+        else if (!client.registeredById) {
+            client = { ...client, registeredById: enteredStaff.id, registeredByName: enteredStaff.name };
+            nd.clients = nd.clients.map(c => c.id === client.id ? client : c);
+        }
         if (enteredStaff.role === "consultant")
             nd.consultantFunds = { ...nd.consultantFunds, [enteredStaff.id]: Math.max(0, (nd.consultantFunds[enteredStaff.id] || 0) - amt) };
         else
@@ -6622,7 +6638,8 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement(Btn, { onClick: checkNRC, full: true, color: C.blue }, "Check NRC \u2192"))),
         step === 2 && (React.createElement(Card, null,
             React.createElement(ST, null, ex ? `Found — ${ex.name}` : "New Client Registration"),
-            React.createElement(Sel, { label: "Entered By (who this loan is credited to)", value: enteredBy, onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.roleLabel || s.role))),
+            React.createElement(Sel, { label: "Entered By (who this loan is credited to)", value: enteredBy, disabled: user.role === "consultant", onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.roleLabel || s.role))),
+            user.role === "consultant" && ex && ex.registeredById && ex.registeredById !== user.id && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F This client belongs to ${ex.registeredByName || "another consultant"}. This loan will automatically be credited to them, not you.`),
             blockedLoan && (React.createElement(Alrt, { type: "error" },
                 "\uD83D\uDEAB ",
                 React.createElement("strong", null, "Loan Rejected \u2014 Existing Unresolved Loan"),
@@ -7326,7 +7343,8 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
         if (!cl.length) return c.regDate || "";
         return cl.reduce((max, l) => { const d = l.disburseDate || l.appDate || ""; return d > max ? d : max; }, "");
     }
-    const all = db.clients.filter(c => { const mQ = c.name.toLowerCase().includes(q.toLowerCase()) || c.nrc.toLowerCase().includes(q) || (c.phone || "").includes(q); const mB = isHORole ? (pf === "all" || c.province === pf) : isProvincial(user.role) ? c.province === user.province : c.branch === user.branch; return mQ && mB; }).sort((a, b) => latestLoanDate(b).localeCompare(latestLoanDate(a)));
+    const myOwnedIds = new Set(scopeClients(db, user).map(c => c.id));
+    const all = db.clients.filter(c => { const mQ = c.name.toLowerCase().includes(q.toLowerCase()) || c.nrc.toLowerCase().includes(q) || (c.phone || "").includes(q); const mB = isHORole ? (pf === "all" || c.province === pf) : isProvincial(user.role) ? c.province === user.province : c.branch === user.branch; const mOwn = user.role !== "consultant" || myOwnedIds.has(c.id); return mQ && mB && mOwn; }).sort((a, b) => latestLoanDate(b).localeCompare(latestLoanDate(a)));
     if (sel) {
         const c = sel;
         const cl = db.loans.filter(l => l.clientId === c.id);
@@ -7483,7 +7501,7 @@ function AllLoans({ db, user, onReport }) {
     const [q, setQ] = useState("");
     const [sf, setSf] = useState("");
     const [pf, setPf] = useState("all");
-    const filtered = db.loans.filter(l => { const st = getSt(l, db.payments); const mB = isHORole ? (pf === "all" || l.province === pf) : isProvincial(user.role) ? l.province === user.province : l.branch === user.branch; return (l.name.toLowerCase().includes(q.toLowerCase()) || l.nrc.includes(q) || l.loanNo.includes(q)) && (!sf || st === sf) && mB; });
+    const filtered = db.loans.filter(l => { const st = getSt(l, db.payments); const mB = isHORole ? (pf === "all" || l.province === pf) : isProvincial(user.role) ? l.province === user.province : l.branch === user.branch; const mOwn = user.role !== "consultant" || l.consultantId === user.id; return (l.name.toLowerCase().includes(q.toLowerCase()) || l.nrc.includes(q) || l.loanNo.includes(q)) && (!sf || st === sf) && mB && mOwn; });
     return (React.createElement(Card, null,
         React.createElement(ST, null,
             "All Loans (",
