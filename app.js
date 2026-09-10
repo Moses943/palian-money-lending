@@ -365,6 +365,16 @@ function addMonths(dateStr, months) {
     d.setMonth(d.getMonth() + months);
     return d.toISOString().split("T")[0];
 }
+function calcAge(dobStr) {
+    if (!dobStr) return null;
+    const dob = new Date(dobStr);
+    if (isNaN(dob.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - dob.getFullYear();
+    const m = now.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+    return age >= 0 ? age : null;
+}
 function periodToMonths(period) {
     const m = /(\d+)/.exec(period || "");
     return m ? parseInt(m[1], 10) : 1;
@@ -2583,15 +2593,15 @@ function Sidebar({ allTabs, tab, setTab, user, onSwitch, onLogout }) {
                 React.createElement("button", { onClick: onSwitch, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Switch"),
                 React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", padding: 0 } }, "Logout"))));
 }
-const iSt = { width: "100%", padding: "11px 13px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", background: "#FAFBFD" };
-function Inp({ label, req, note, ...p }) { return React.createElement("div", { style: { marginBottom: 12 } },
-    label && React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 } },
+const iSt = { width: "100%", padding: "8px 10px", border: `1.5px solid ${C.border}`, borderRadius: 7, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", background: "#FAFBFD" };
+function Inp({ label, req, note, ...p }) { return React.createElement("div", { style: { marginBottom: 8 } },
+    label && React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } },
         label,
         req && React.createElement("span", { style: { color: C.red } }, " *")),
     React.createElement("input", { style: iSt, ...p }),
-    note && React.createElement("div", { style: { fontSize: 10, color: C.muted, marginTop: 3 } }, note)); }
-function Sel({ label, req, children, ...p }) { return React.createElement("div", { style: { marginBottom: 12 } },
-    label && React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.navy, marginBottom: 4 } },
+    note && React.createElement("div", { style: { fontSize: 9.5, color: C.muted, marginTop: 2 } }, note)); }
+function Sel({ label, req, children, ...p }) { return React.createElement("div", { style: { marginBottom: 8 } },
+    label && React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } },
         label,
         req && React.createElement("span", { style: { color: C.red } }, " *")),
     React.createElement("select", { style: iSt, ...p }, children)); }
@@ -6561,14 +6571,20 @@ function Wizard({ db, setDb, user, onDone }) {
         }
         setStep(2);
     }
-    function step2Next() { if (blockedLoan)
-        return; if (ex) {
+    function step2Next() {
+        if (blockedLoan) return;
+        if (!lf.type) { alert("Select Collateral or Deduction."); return; }
+        if (lf.type === "Deduction" && (!cf.bank || !cf.accountNo || !cf.bankCode || !cf.tpin)) {
+            alert("For a Deduction loan, Bank Name, Account No., Bank Code, and TPIN are all required.");
+            return;
+        }
+        if (ex) { setStep(3); return; }
+        if (!cf.name || !cf.phone || !cf.sex || !cf.address) {
+            alert("Fill Name, Sex, Phone, Address.");
+            return;
+        }
         setStep(3);
-        return;
-    } if (!cf.name || !cf.phone || !cf.sex || !cf.address) {
-        alert("Fill Name, Sex, Phone, Address.");
-        return;
-    } setStep(3); }
+    }
     function step3Next() { if (!lf.type || !lf.amount || !lf.disburse) {
         alert("Fill Loan Type, Amount, Date.");
         return;
@@ -6643,11 +6659,6 @@ function Wizard({ db, setDb, user, onDone }) {
             React.createElement(ST, null, ex ? `Found — ${ex.name}` : "New Client Registration"),
             React.createElement(Sel, { label: "Entered By (who this loan is credited to)", value: enteredBy, disabled: user.role === "consultant", onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.roleLabel || s.role))),
             user.role === "consultant" && ex && ex.registeredById && ex.registeredById !== user.id && React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F This client belongs to ${ex.registeredByName || "another consultant"}. This loan will automatically be credited to them, not you.`),
-            React.createElement(Sel, { label: "Loan Type", req: true, value: lf.type, onChange: e => setLf(f => ({ ...f, type: e.target.value })) },
-                React.createElement("option", { value: "" }, "-- Select --"),
-                React.createElement("option", null, "Collateral"),
-                React.createElement("option", null, "Deduction")),
-            !lf.type && React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Select Collateral or Deduction first \u2014 this decides whether bank details are needed below."),
             blockedLoan && (React.createElement(Alrt, { type: "error" },
                 "\uD83D\uDEAB ",
                 React.createElement("strong", null, "Loan Rejected \u2014 Existing Unresolved Loan"),
@@ -6681,6 +6692,7 @@ function Wizard({ db, setDb, user, onDone }) {
                         React.createElement("option", { value: "" }, "--"),
                         React.createElement("option", null, "Male"),
                         React.createElement("option", null, "Female")),
+                    React.createElement(Inp, { label: "Date of Birth", type: "date", value: cf.dob, onChange: e => setCf(f => ({ ...f, dob: e.target.value })), note: calcAge(cf.dob) != null ? `Age: ${calcAge(cf.dob)} years` : null }),
                     React.createElement(Inp, { label: "Phone", req: true, value: cf.phone, onChange: e => setCf(f => ({ ...f, phone: e.target.value })), placeholder: "0977000000" }),
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                         React.createElement(Inp, { label: "Phone 2 (optional)", value: cf.phone2, onChange: e => setCf(f => ({ ...f, phone2: e.target.value })), placeholder: "Second number" }),
@@ -6704,19 +6716,27 @@ function Wizard({ db, setDb, user, onDone }) {
                             React.createElement("option", null, "Relative"),
                             React.createElement("option", null, "Friend"),
                             React.createElement("option", null, "Other")),
-                        React.createElement(Inp, { label: "NOK Address", value: cf.nok_address, onChange: e => setCf(f => ({ ...f, nok_address: e.target.value })), placeholder: "Address" })),
-                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "8px 0 10px", borderLeft: `3px solid ${C.orange}`, paddingLeft: 8 } }, "\uD83D\uDCCE Documents"),
-                    React.createElement(PhotoUpload, { small: true, label: "NRC Copy", value: docs.nrcPhoto, onChange: v => setDocs(d => ({ ...d, nrcPhoto: v })) }),
-                    React.createElement(PhotoUpload, { small: true, label: "Payslip", value: docs.payslip, onChange: v => setDocs(d => ({ ...d, payslip: v })) }),
-                    lf.type === "Deduction" && React.createElement("div", null,
-                        React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "8px 0 10px", borderLeft: `3px solid ${C.blue}`, paddingLeft: 8 } }, "\uD83C\uDFE6 Bank Details (Deduction Loan)"),
-                        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
-                            React.createElement(Sel, { label: "Bank Name", value: cf.bank, onChange: e => setCf(f => ({ ...f, bank: e.target.value })) },
-                                React.createElement("option", { value: "" }, "-- Select Bank --"),
-                                ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
-                            React.createElement(Inp, { label: "Account No.", value: cf.accountNo, onChange: e => setCf(f => ({ ...f, accountNo: e.target.value })) }),
-                            React.createElement(Inp, { label: "Bank Code", value: cf.bankCode, onChange: e => setCf(f => ({ ...f, bankCode: e.target.value })), placeholder: "e.g. 060144" })),
-                        React.createElement(PhotoUpload, { small: true, label: "Bank Statement", value: docs.bankStatement, onChange: v => setDocs(d => ({ ...d, bankStatement: v })) })))),
+                        React.createElement(Inp, { label: "NOK Address", value: cf.nok_address, onChange: e => setCf(f => ({ ...f, nok_address: e.target.value })), placeholder: "Address" })))),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "10px 0 8px", borderLeft: `3px solid ${C.purple}`, paddingLeft: 8 } }, "\uD83D\uDCCB Loan Type"),
+            React.createElement(Sel, { label: "Loan Type", req: true, value: lf.type, onChange: e => setLf(f => ({ ...f, type: e.target.value })) },
+                React.createElement("option", { value: "" }, "-- Select --"),
+                React.createElement("option", null, "Collateral"),
+                React.createElement("option", null, "Deduction")),
+            !lf.type && React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Select Collateral or Deduction \u2014 this decides whether bank details are needed below."),
+            lf.type === "Deduction" && React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "8px 0 10px", borderLeft: `3px solid ${C.blue}`, paddingLeft: 8 } }, "\uD83C\uDFE6 Bank Details (required for Deduction)"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Sel, { label: "Bank Name", req: true, value: cf.bank, onChange: e => setCf(f => ({ ...f, bank: e.target.value })) },
+                        React.createElement("option", { value: "" }, "-- Select Bank --"),
+                        ZM_BANKS.map(b => React.createElement("option", { key: b }, b))),
+                    React.createElement(Inp, { label: "Account No.", req: true, value: cf.accountNo, onChange: e => setCf(f => ({ ...f, accountNo: e.target.value })) }),
+                    React.createElement(Inp, { label: "Bank Code", req: true, value: cf.bankCode, onChange: e => setCf(f => ({ ...f, bankCode: e.target.value })), placeholder: "e.g. 060144" })),
+                React.createElement(Inp, { label: "TPIN No.", req: true, value: cf.tpin, onChange: e => setCf(f => ({ ...f, tpin: e.target.value })) }),
+                !cf.tpin && React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F TPIN is also required for Deduction loans.")),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "10px 0 8px", borderLeft: `3px solid ${C.orange}`, paddingLeft: 8 } }, "\uD83D\uDCCE Documents"),
+            !ex && React.createElement(PhotoUpload, { small: true, label: "NRC Copy", value: docs.nrcPhoto, onChange: v => setDocs(d => ({ ...d, nrcPhoto: v })) }),
+            !ex && React.createElement(PhotoUpload, { small: true, label: "Payslip", value: docs.payslip, onChange: v => setDocs(d => ({ ...d, payslip: v })) }),
+            lf.type === "Deduction" && React.createElement(PhotoUpload, { small: true, label: "Bank Statement", value: docs.bankStatement, onChange: v => setDocs(d => ({ ...d, bankStatement: v })) }),
             React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 8 } },
                 React.createElement(GBtn, { onClick: () => setStep(1) }, "\u2190 Back"),
                 React.createElement(Btn, { style: { flex: 1 }, onClick: step2Next, disabled: !!blockedLoan || !lf.type, color: (blockedLoan || !lf.type) ? C.muted : undefined }, blockedLoan ? "🚫 Blocked" : !lf.type ? "Select Loan Type First" : "Next →")))),
@@ -7366,6 +7386,7 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                     React.createElement("option", { value: "" }, "--"),
                     React.createElement("option", null, "Male"),
                     React.createElement("option", null, "Female")),
+                React.createElement(Inp, { label: "Date of Birth", type: "date", value: cef.dob, onChange: e => setCef(f => ({ ...f, dob: e.target.value })), note: calcAge(cef.dob) != null ? `Age: ${calcAge(cef.dob)} years` : null }),
                 React.createElement(Inp, { label: "Phone", value: cef.phone, onChange: e => setCef(f => ({ ...f, phone: e.target.value })) }),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                     React.createElement(Inp, { label: "Phone 2 (optional)", value: cef.phone2, onChange: e => setCef(f => ({ ...f, phone2: e.target.value })) }),
