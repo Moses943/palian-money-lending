@@ -52,8 +52,8 @@ function isEffectivelyActive(s) {
     }
     return s.active !== false;
 }
-function clientIn(r) { return { id: r.id, branch: r.branch, province: r.province, name: r.name, nrc: r.nrc, sex: r.sex, dob: r.dob, phone: r.phone, phone2: r.phone_2 || "", phone3: r.phone_3 || "", whatsapp: r.whatsapp || "", email: r.email, address: r.address, company: r.company, bank: r.bank, accountNo: r.account_no, bankCode: r.bank_code, tpin: r.tpin, nok_name: r.nok_name, nok_phone: r.nok_phone, nok_relationship: r.nok_relationship, nok_address: r.nok_address, passportPhoto: r.passport_photo, docs: r.docs || {}, regDate: r.reg_date, deletionRequested: r.deletion_requested || false, deletionRequestedBy: r.deletion_requested_by || "", deletionRequestedDate: r.deletion_requested_date || null, deletionReason: r.deletion_reason || "", registeredById: r.registered_by_id || null, registeredByName: r.registered_by_name || "" }; }
-function clientOut(c) { return { id: c.id, branch: c.branch, province: c.province, name: c.name, nrc: c.nrc, sex: c.sex, dob: c.dob || null, phone: c.phone, phone_2: c.phone2 || null, phone_3: c.phone3 || null, whatsapp: c.whatsapp || null, email: c.email, address: c.address, company: c.company, bank: c.bank, account_no: c.accountNo, bank_code: c.bankCode, tpin: c.tpin, nok_name: c.nok_name, nok_phone: c.nok_phone, nok_relationship: c.nok_relationship, nok_address: c.nok_address, passport_photo: c.passportPhoto || null, docs: c.docs || {}, reg_date: c.regDate || null, deletion_requested: c.deletionRequested || false, deletion_requested_by: c.deletionRequestedBy || null, deletion_requested_date: c.deletionRequestedDate || null, deletion_reason: c.deletionReason || null, registered_by_id: c.registeredById || null, registered_by_name: c.registeredByName || null }; }
+function clientIn(r) { return { id: r.id, branch: r.branch, province: r.province, name: r.name, nrc: r.nrc, sex: r.sex, dob: r.dob, phone: r.phone, phone2: r.phone_2 || "", phone3: r.phone_3 || "", whatsapp: r.whatsapp || "", email: r.email, address: r.address, company: r.company, bank: r.bank, accountNo: r.account_no, bankCode: r.bank_code, tpin: r.tpin, nok_name: r.nok_name, nok_phone: r.nok_phone, nok_relationship: r.nok_relationship, nok_address: r.nok_address, passportPhoto: r.passport_photo, docs: r.docs || {}, regDate: r.reg_date, deletionRequested: r.deletion_requested || false, deletionRequestedBy: r.deletion_requested_by || "", deletionRequestedDate: r.deletion_requested_date || null, deletionReason: r.deletion_reason || "", registeredById: r.registered_by_id || null, registeredByName: r.registered_by_name || "", employmentInfo: r.employment_info || {} }; }
+function clientOut(c) { return { id: c.id, branch: c.branch, province: c.province, name: c.name, nrc: c.nrc, sex: c.sex, dob: c.dob || null, phone: c.phone, phone_2: c.phone2 || null, phone_3: c.phone3 || null, whatsapp: c.whatsapp || null, email: c.email, address: c.address, company: c.company, bank: c.bank, account_no: c.accountNo, bank_code: c.bankCode, tpin: c.tpin, nok_name: c.nok_name, nok_phone: c.nok_phone, nok_relationship: c.nok_relationship, nok_address: c.nok_address, passport_photo: c.passportPhoto || null, docs: c.docs || {}, reg_date: c.regDate || null, deletion_requested: c.deletionRequested || false, deletion_requested_by: c.deletionRequestedBy || null, deletion_requested_date: c.deletionRequestedDate || null, deletion_reason: c.deletionReason || null, registered_by_id: c.registeredById || null, registered_by_name: c.registeredByName || null, employment_info: c.employmentInfo || {} }; }
 function loanIn(r) { return { loanNo: r.loan_no, clientId: r.client_id, nrc: r.nrc, name: r.name, branch: r.branch, province: r.province, branchCode: r.branch_code, type: r.type, principal: r.principal, interestRate: r.interest_rate, interest: r.interest, totalDue: r.total_due, period: r.period, appDate: r.app_date, disburseDate: r.disburse_date, dueDate: r.due_date, consultant: r.consultant, consultantId: r.consultant_id, approvalStatus: r.approval_status, approvedBy: r.approved_by, approvedDate: r.approved_date, remarks: r.remarks, collateral: r.collateral, deduction: r.deduction, signedLoanCopy: r.signed_loan_copy, ddaccStatus: r.ddacc_status || "Pending", collateralStatus: r.collateral_status || "Held" }; }
 function loanOut(l) { return { loan_no: l.loanNo, client_id: l.clientId, nrc: l.nrc, name: l.name, branch: l.branch, province: l.province, branch_code: l.branchCode, type: l.type, principal: l.principal, interest_rate: l.interestRate, interest: l.interest, total_due: l.totalDue, period: l.period, app_date: l.appDate || null, disburse_date: l.disburseDate || null, due_date: l.dueDate || null, consultant: l.consultant, consultant_id: l.consultantId, approval_status: l.approvalStatus, approved_by: l.approvedBy || null, approved_date: l.approvedDate || null, remarks: l.remarks, collateral: l.collateral || null, deduction: l.deduction || null, signed_loan_copy: l.signedLoanCopy || null, ddacc_status: l.ddaccStatus || "Pending", collateral_status: l.collateralStatus || "Held" }; }
 function paymentIn(r) { return { id: r.id, loanNo: r.loan_no, clientId: r.client_id, name: r.name, branch: r.branch, amount: r.amount, date: r.date, method: r.method, recordedBy: r.recorded_by, totalDue: r.total_due, newBalance: r.new_balance }; }
@@ -6527,7 +6527,8 @@ function Wizard({ db, setDb, user, onDone }) {
     const [blockedLoan, setBlockedLoan] = useState(null);
     const [cf, setCf] = useState({ name: "", sex: "", dob: "", phone: "", phone2: "", phone3: "", whatsapp: "", email: "", address: "", company: "", bank: "", accountNo: "", bankCode: "", tpin: "", nok_name: "", nok_phone: "", nok_relationship: "", nok_address: "" });
     const [photo, setPhoto] = useState(null);
-    const [docs, setDocs] = useState({ nrcPhoto: null, payslip: null, bankStatement: null });
+    const [docs, setDocs] = useState({ nrcFront: null, nrcBack: null, utilityBill: null, payslip: null, bankStatement: null });
+    const [emp, setEmp] = useState({ status: "Employed", jobTitle: "", position: "", contractPeriod: "Permanent", employer: "", years: "", months: "", netPay: "", salaryDate: "", businessName: "", businessAddress: "", businessType: "", businessTypeOther: "", businessInfo: "" });
     const [lf, setLf] = useState({ type: "", amount: "", rate: "0.35", period: "1 Month", disburse: today(), due: addMonths(today(), 1), remarks: "" });
     const [col, setCol] = useState({ item: "Television", desc: "", value: "", serial: "", location: "", photo: null });
     const [ded, setDed] = useState({ salary: "", monthly: "", payrollDate: "" });
@@ -6573,11 +6574,6 @@ function Wizard({ db, setDb, user, onDone }) {
     }
     function step2Next() {
         if (blockedLoan) return;
-        if (!lf.type) { alert("Select Collateral or Deduction."); return; }
-        if (lf.type === "Deduction" && (!cf.bank || !cf.accountNo || !cf.bankCode || !cf.tpin)) {
-            alert("For a Deduction loan, Bank Name, Account No., Bank Code, and TPIN are all required.");
-            return;
-        }
         if (ex) { setStep(3); return; }
         if (!cf.name || !cf.phone || !cf.sex || !cf.address) {
             alert("Fill Name, Sex, Phone, Address.");
@@ -6588,20 +6584,23 @@ function Wizard({ db, setDb, user, onDone }) {
     function step3Next() { if (!lf.type || !lf.amount || !lf.disburse) {
         alert("Fill Loan Type, Amount, Date.");
         return;
+    } if (lf.type === "Deduction" && (!cf.bank || !cf.accountNo || !cf.bankCode || !cf.tpin)) {
+        alert("For a Deduction loan, Bank Name, Account No., Bank Code, and TPIN are all required.");
+        return;
     } if (myFund < amt) {
         alert(`Insufficient fund: ${fmt(myFund)}`);
         return;
-    } setStep(4); }
+    } setStep(5); }
     function submit() {
         const nd = { ...db, clients: [...db.clients], loans: [...db.loans], payments: [...db.payments] };
         const enteredStaff = db.staff.find(s => s.id === enteredBy) || user;
         let client = ex;
         if (!client) {
-            client = { id: nextClientId(db.clients), regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs, registeredById: enteredStaff.id, registeredByName: enteredStaff.name };
+            client = { id: nextClientId(db.clients), regDate: today(), branch, province: info.province, name: cf.name.trim(), nrc: nrc.trim().toUpperCase(), sex: cf.sex, dob: cf.dob, phone: cf.phone.trim(), phone2: cf.phone2.trim(), phone3: cf.phone3.trim(), whatsapp: cf.whatsapp.trim(), email: cf.email.trim(), address: cf.address.trim(), company: cf.company.trim(), bank: cf.bank.trim(), accountNo: cf.accountNo.trim(), bankCode: cf.bankCode.trim(), tpin: cf.tpin.trim(), nok_name: cf.nok_name.trim(), nok_phone: cf.nok_phone.trim(), nok_relationship: cf.nok_relationship.trim(), nok_address: cf.nok_address.trim(), passportPhoto: photo, docs, registeredById: enteredStaff.id, registeredByName: enteredStaff.name, employmentInfo: emp };
             nd.clients.push(client);
         }
-        else if (!client.registeredById) {
-            client = { ...client, registeredById: enteredStaff.id, registeredByName: enteredStaff.name };
+        else {
+            client = { ...client, employmentInfo: emp, ...(!client.registeredById ? { registeredById: enteredStaff.id, registeredByName: enteredStaff.name } : {}) };
             nd.clients = nd.clients.map(c => c.id === client.id ? client : c);
         }
         if (enteredStaff.role === "consultant") {
@@ -6641,7 +6640,7 @@ function Wizard({ db, setDb, user, onDone }) {
             branch ? `, ${info.province}` : "",
             branch ? " \u00B7 Fund: " : "",
             branch && React.createElement("strong", { style: { color: myFund > 0 ? C.gold : "#ff6b6b" } }, fmt(myFund))),
-        React.createElement("div", { style: { display: "flex", marginBottom: 18, borderRadius: 10, overflow: "hidden" } }, ["NRC", "Client", "Loan", "Review"].map((l, i) => React.createElement("div", { key: l, style: { flex: 1, textAlign: "center", padding: "9px 4px", fontSize: 11, fontWeight: 700, background: step > i + 1 ? C.green : step === i + 1 ? C.navy : "#e5e7eb", color: (step > i + 1 || step === i + 1) ? "#fff" : C.muted, borderRight: i < 3 ? "1px solid rgba(255,255,255,0.2)" : "none" } },
+        React.createElement("div", { style: { display: "flex", marginBottom: 18, borderRadius: 10, overflow: "hidden" } }, ["NRC", "Client", "Employment", "Loan", "Review"].map((l, i) => React.createElement("div", { key: l, style: { flex: 1, textAlign: "center", padding: "9px 4px", fontSize: 10, fontWeight: 700, background: step > i + 1 ? C.green : step === i + 1 ? C.navy : "#e5e7eb", color: (step > i + 1 || step === i + 1) ? "#fff" : C.muted, borderRight: i < 4 ? "1px solid rgba(255,255,255,0.2)" : "none" } },
             step > i + 1 ? "✓ " : "",
             l))),
         step === 1 && React.createElement(Card, null,
@@ -6707,21 +6706,73 @@ function Wizard({ db, setDb, user, onDone }) {
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                         React.createElement(Inp, { label: "NOK Full Name", value: cf.nok_name, onChange: e => setCf(f => ({ ...f, nok_name: e.target.value })), placeholder: "Next of Kin name" }),
                         React.createElement(Inp, { label: "NOK Phone", value: cf.nok_phone, onChange: e => setCf(f => ({ ...f, nok_phone: e.target.value })), placeholder: "0977..." }),
-                        React.createElement(Sel, { label: "Relationship", value: cf.nok_relationship, onChange: e => setCf(f => ({ ...f, nok_relationship: e.target.value })) },
-                            React.createElement("option", { value: "" }, "-- Select --"),
-                            React.createElement("option", null, "Spouse"),
-                            React.createElement("option", null, "Parent"),
-                            React.createElement("option", null, "Sibling"),
-                            React.createElement("option", null, "Child"),
-                            React.createElement("option", null, "Relative"),
-                            React.createElement("option", null, "Friend"),
-                            React.createElement("option", null, "Other")),
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } }, "Relationship"),
+                            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
+                                ["Spouse", "Parent", "Child", "Sibling", "Relative", "Friend", "Other"].map(r => React.createElement("button", { key: r, type: "button", onClick: () => setCf(f => ({ ...f, nok_relationship: r })), style: { padding: "6px 12px", borderRadius: 20, border: `1.5px solid ${cf.nok_relationship === r ? C.navy : C.border}`, background: cf.nok_relationship === r ? C.navy : "#fff", color: cf.nok_relationship === r ? "#fff" : C.navy, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, r)))),
                         React.createElement(Inp, { label: "NOK Address", value: cf.nok_address, onChange: e => setCf(f => ({ ...f, nok_address: e.target.value })), placeholder: "Address" })))),
-            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "10px 0 8px", borderLeft: `3px solid ${C.purple}`, paddingLeft: 8 } }, "\uD83D\uDCCB Loan Type"),
-            React.createElement(Sel, { label: "Loan Type", req: true, value: lf.type, onChange: e => setLf(f => ({ ...f, type: e.target.value })) },
-                React.createElement("option", { value: "" }, "-- Select --"),
-                React.createElement("option", null, "Collateral"),
-                React.createElement("option", null, "Deduction")),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "10px 0 8px", borderLeft: `3px solid ${C.orange}`, paddingLeft: 8 } }, "\uD83D\uDCCE Documents"),
+            !ex && React.createElement(PhotoUpload, { small: true, label: "NRC Front", value: docs.nrcFront, onChange: v => setDocs(d => ({ ...d, nrcFront: v })) }),
+            !ex && React.createElement(PhotoUpload, { small: true, label: "NRC Back", value: docs.nrcBack, onChange: v => setDocs(d => ({ ...d, nrcBack: v })) }),
+            !ex && React.createElement(PhotoUpload, { small: true, label: "Utility Bill", value: docs.utilityBill, onChange: v => setDocs(d => ({ ...d, utilityBill: v })) }),
+            !ex && React.createElement(PhotoUpload, { small: true, label: "Payslip", value: docs.payslip, onChange: v => setDocs(d => ({ ...d, payslip: v })) }),
+            React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 8 } },
+                React.createElement(GBtn, { onClick: () => setStep(1) }, "\u2190 Back"),
+                React.createElement(Btn, { style: { flex: 1 }, onClick: step2Next, disabled: !!blockedLoan, color: blockedLoan ? C.muted : undefined }, blockedLoan ? "🚫 Blocked" : "Next →")))),
+        step === 3 && (React.createElement(Card, null,
+            React.createElement(ST, null, "Step 3 \u2014 Employment / Business"),
+            React.createElement("div", { style: { display: "flex", gap: 16, marginBottom: 12 } },
+                ["Employed", "Business"].map(s => React.createElement("label", { key: s, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer" } },
+                    React.createElement("input", { type: "radio", checked: emp.status === s, onChange: () => setEmp(f => ({ ...f, status: s })) }),
+                    React.createElement("span", { style: { fontWeight: 600, fontSize: 13 } }, s)))),
+            emp.status === "Employed" ? React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.green, marginBottom: 8 } }, "IF EMPLOYED"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Inp, { label: "Job Title", value: emp.jobTitle, onChange: e => setEmp(f => ({ ...f, jobTitle: e.target.value })) }),
+                    React.createElement(Inp, { label: "Position", value: emp.position, onChange: e => setEmp(f => ({ ...f, position: e.target.value })) })),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Sel, { label: "Contract Period", value: emp.contractPeriod, onChange: e => setEmp(f => ({ ...f, contractPeriod: e.target.value })) },
+                        React.createElement("option", null, "Permanent"),
+                        React.createElement("option", null, "Fixed-Term"),
+                        React.createElement("option", null, "Probation"),
+                        React.createElement("option", null, "Casual")),
+                    React.createElement(Inp, { label: "Organisation / Employer", value: emp.employer, onChange: e => setEmp(f => ({ ...f, employer: e.target.value })) })),
+                React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } }, "Worked Period"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Inp, { label: "Years", type: "number", value: emp.years, onChange: e => setEmp(f => ({ ...f, years: e.target.value })) }),
+                    React.createElement(Inp, { label: "Months", type: "number", value: emp.months, onChange: e => setEmp(f => ({ ...f, months: e.target.value })) })),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                    React.createElement(Inp, { label: "Net Pay (K)", type: "number", value: emp.netPay, onChange: e => setEmp(f => ({ ...f, netPay: e.target.value })) }),
+                    React.createElement(Inp, { label: "Salary Date", type: "date", value: emp.salaryDate, onChange: e => setEmp(f => ({ ...f, salaryDate: e.target.value })) })))
+                : React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 8 } }, "IF BUSINESS"),
+                    React.createElement(Inp, { label: "Business Name", value: emp.businessName, onChange: e => setEmp(f => ({ ...f, businessName: e.target.value })) }),
+                    React.createElement(Inp, { label: "Business Address", value: emp.businessAddress, onChange: e => setEmp(f => ({ ...f, businessAddress: e.target.value })) }),
+                    React.createElement(Sel, { label: "Type of Business", value: emp.businessType, onChange: e => setEmp(f => ({ ...f, businessType: e.target.value })) },
+                        React.createElement("option", { value: "" }, "-- Select --"),
+                        React.createElement("option", null, "Retail"),
+                        React.createElement("option", null, "Trading"),
+                        React.createElement("option", null, "Services"),
+                        React.createElement("option", null, "Farming"),
+                        React.createElement("option", null, "Transport"),
+                        React.createElement("option", null, "Other")),
+                    emp.businessType === "Other" && React.createElement(Inp, { label: "Specify Type", value: emp.businessTypeOther, onChange: e => setEmp(f => ({ ...f, businessTypeOther: e.target.value })) }),
+                    React.createElement("div", { style: { marginBottom: 8 } },
+                        React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } }, "Business Information"),
+                        React.createElement("textarea", { value: emp.businessInfo, onChange: e => setEmp(f => ({ ...f, businessInfo: e.target.value })), rows: 3, placeholder: "Provide business information...", style: { ...iSt, fontFamily: "inherit" } }))),
+            React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 8 } },
+                React.createElement(GBtn, { onClick: () => setStep(2) }, "\u2190 Back"),
+                React.createElement(Btn, { style: { flex: 1 }, onClick: () => setStep(4) }, "Next \u2192")))),
+        step === 4 && (React.createElement(Card, null,
+            React.createElement(ST, null, "Step 4 \u2014 Loan Details"),
+            React.createElement(Alrt, { type: myFund >= amt && amt > 0 ? "success" : "info" },
+                "Fund: ",
+                React.createElement("strong", null, fmt(myFund))),
+            React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } },
+                "Loan Type",
+                React.createElement("span", { style: { color: C.red } }, " *")),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 8 } },
+                ["Collateral", "Deduction"].map(t => React.createElement("button", { key: t, type: "button", onClick: () => setLf(f => ({ ...f, type: t })), style: { flex: 1, padding: "10px 0", borderRadius: 8, border: `1.5px solid ${lf.type === t ? C.navy : C.border}`, background: lf.type === t ? C.navy : "#fff", color: lf.type === t ? "#fff" : C.navy, fontWeight: 700, fontSize: 13, cursor: "pointer" } }, t))),
             !lf.type && React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F Select Collateral or Deduction \u2014 this decides whether bank details are needed below."),
             lf.type === "Deduction" && React.createElement("div", null,
                 React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "8px 0 10px", borderLeft: `3px solid ${C.blue}`, paddingLeft: 8 } }, "\uD83C\uDFE6 Bank Details (required for Deduction)"),
@@ -6732,20 +6783,8 @@ function Wizard({ db, setDb, user, onDone }) {
                     React.createElement(Inp, { label: "Account No.", req: true, value: cf.accountNo, onChange: e => setCf(f => ({ ...f, accountNo: e.target.value })) }),
                     React.createElement(Inp, { label: "Bank Code", req: true, value: cf.bankCode, onChange: e => setCf(f => ({ ...f, bankCode: e.target.value })), placeholder: "e.g. 060144" })),
                 React.createElement(Inp, { label: "TPIN No.", req: true, value: cf.tpin, onChange: e => setCf(f => ({ ...f, tpin: e.target.value })) }),
-                !cf.tpin && React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F TPIN is also required for Deduction loans.")),
-            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "10px 0 8px", borderLeft: `3px solid ${C.orange}`, paddingLeft: 8 } }, "\uD83D\uDCCE Documents"),
-            !ex && React.createElement(PhotoUpload, { small: true, label: "NRC Copy", value: docs.nrcPhoto, onChange: v => setDocs(d => ({ ...d, nrcPhoto: v })) }),
-            !ex && React.createElement(PhotoUpload, { small: true, label: "Payslip", value: docs.payslip, onChange: v => setDocs(d => ({ ...d, payslip: v })) }),
-            lf.type === "Deduction" && React.createElement(PhotoUpload, { small: true, label: "Bank Statement", value: docs.bankStatement, onChange: v => setDocs(d => ({ ...d, bankStatement: v })) }),
-            React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 8 } },
-                React.createElement(GBtn, { onClick: () => setStep(1) }, "\u2190 Back"),
-                React.createElement(Btn, { style: { flex: 1 }, onClick: step2Next, disabled: !!blockedLoan || !lf.type, color: (blockedLoan || !lf.type) ? C.muted : undefined }, blockedLoan ? "🚫 Blocked" : !lf.type ? "Select Loan Type First" : "Next →")))),
-        step === 3 && (React.createElement(Card, null,
-            React.createElement(ST, null, "Step 3 \u2014 Loan Details"),
-            React.createElement(Alrt, { type: myFund >= amt && amt > 0 ? "success" : "info" },
-                "Fund: ",
-                React.createElement("strong", null, fmt(myFund))),
-            React.createElement(IR, { label: "Loan Type", value: lf.type }),
+                !cf.tpin && React.createElement(Alrt, { type: "warn" }, "\u26A0\uFE0F TPIN is also required for Deduction loans."),
+                React.createElement(PhotoUpload, { small: true, label: "Bank Statement", value: docs.bankStatement, onChange: v => setDocs(d => ({ ...d, bankStatement: v })) })),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                 React.createElement(Inp, { label: "Amount (K)", req: true, type: "number", value: lf.amount, onChange: e => setLf(f => ({ ...f, amount: e.target.value })), placeholder: "0.00" }),
                 React.createElement(Sel, { label: "Interest Rate", value: lf.rate, onChange: e => setLf(f => ({ ...f, rate: e.target.value })) },
@@ -6788,10 +6827,10 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 700, marginBottom: 3 } }, l),
                 React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: c } }, v)))),
             React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 14 } },
-                React.createElement(GBtn, { onClick: () => setStep(2) }, "\u2190 Back"),
+                React.createElement(GBtn, { onClick: () => setStep(3) }, "\u2190 Back"),
                 React.createElement(Btn, { style: { flex: 1 }, onClick: step3Next }, "Review \u2192")))),
-        step === 4 && (React.createElement(Card, null,
-            React.createElement(ST, null, "Step 4 \u2014 Confirm"),
+        step === 5 && (React.createElement(Card, null,
+            React.createElement(ST, null, "Step 5 \u2014 Confirm"),
             React.createElement(Alrt, { type: "warn" },
                 "Loan will be ",
                 React.createElement("strong", null, "Pending"),
@@ -6808,8 +6847,13 @@ function Wizard({ db, setDb, user, onDone }) {
                     React.createElement(IR, { label: "Principal", value: fmt(amt) }),
                     React.createElement(IR, { label: "Interest", value: `${Math.round(rate * 100)}% = ${fmt(interest)}` }),
                     React.createElement(IR, { label: "Total Due", value: fmt(total), bold: true }))),
+            React.createElement("div", { style: { marginBottom: 16 } },
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, marginBottom: 8 } }, "LOAN CONSULTANT"),
+                React.createElement(IR, { label: "Consultant", value: (db.staff.find(s => s.id === enteredBy) || user).name }),
+                React.createElement(IR, { label: "Staff ID", value: enteredBy }),
+                React.createElement(IR, { label: "Branch", value: branch })),
             React.createElement("div", { style: { display: "flex", gap: 10 } },
-                React.createElement(GBtn, { onClick: () => setStep(3) }, "\u2190 Edit"),
+                React.createElement(GBtn, { onClick: () => setStep(4) }, "\u2190 Edit"),
                 React.createElement(Btn, { color: C.green, style: { flex: 1 }, onClick: submit }, "\u2705 Submit Loan"))))));
 }
 // ── APPROVALS ─────────────────────────────────────────────────────────────────
@@ -7449,6 +7493,9 @@ function Clients({ db, setDb, onNewLoan, user, onReport }) {
                     React.createElement(IR, { label: "Phone", value: c.nok_phone || "—" }),
                     React.createElement(IR, { label: "Address", value: c.nok_address || "—" }))),
                 React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 } },
+                    c.docs?.nrcFront && React.createElement("img", { src: c.docs.nrcFront, alt: "NRC Front", style: { width: 50, height: 50, borderRadius: 8, objectFit: "cover", border: `1px solid ${C.border}` } }),
+                    c.docs?.nrcBack && React.createElement("img", { src: c.docs.nrcBack, alt: "NRC Back", style: { width: 50, height: 50, borderRadius: 8, objectFit: "cover", border: `1px solid ${C.border}` } }),
+                    c.docs?.utilityBill && React.createElement("img", { src: c.docs.utilityBill, alt: "Utility Bill", style: { width: 50, height: 50, borderRadius: 8, objectFit: "cover", border: `1px solid ${C.border}` } }),
                     c.docs?.nrcPhoto && React.createElement("img", { src: c.docs.nrcPhoto, alt: "NRC", style: { width: 50, height: 50, borderRadius: 8, objectFit: "cover", border: `1px solid ${C.border}` } }),
                     c.docs?.payslip && React.createElement("img", { src: c.docs.payslip, alt: "Payslip", style: { width: 50, height: 50, borderRadius: 8, objectFit: "cover", border: `1px solid ${C.border}` } }),
                     c.docs?.bankStatement && React.createElement("img", { src: c.docs.bankStatement, alt: "Bank Stmt", style: { width: 50, height: 50, borderRadius: 8, objectFit: "cover", border: `1px solid ${C.border}` } })),
