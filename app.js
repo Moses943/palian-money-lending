@@ -6656,7 +6656,7 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement(Btn, { onClick: checkNRC, full: true, color: C.blue }, "Check NRC \u2192"))),
         step === 2 && (React.createElement(Card, null,
             React.createElement(ST, null, ex ? `Found — ${ex.name}` : "New Client Registration"),
-            React.createElement(Sel, { label: "Loan Consultant", req: true, value: enteredBy, disabled: user.role === "consultant", onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.id))),
+            React.createElement(Sel, { label: "Loan Consultant", req: true, value: enteredBy, onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s) && ["consultant", "manager"].includes(s.role)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.id, " (", s.roleLabel || s.role, ")"))),
             enteredBy !== user.id && (() => { const cons = db.staff.find(s => s.id === enteredBy); return React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Entered using a different account \u2014 ${cons ? cons.name : "another staff member"}'s account, not yours.`); })(),
             blockedLoan && (React.createElement(Alrt, { type: "error" },
                 "\uD83D\uDEAB ",
