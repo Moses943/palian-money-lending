@@ -6656,7 +6656,7 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement(Btn, { onClick: checkNRC, full: true, color: C.blue }, "Check NRC \u2192"))),
         step === 2 && (React.createElement(Card, null,
             React.createElement(ST, null, ex ? `Found — ${ex.name}` : "New Client Registration"),
-            React.createElement(Sel, { label: "Loan Consultant", req: true, value: enteredBy, onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s) && ["consultant", "manager"].includes(s.role)).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.id, " (", s.roleLabel || s.role, ")"))),
+            React.createElement(Sel, { label: "Loan Consultant", req: true, value: enteredBy, onChange: e => setEnteredBy(e.target.value) }, db.staff.filter(s => isEffectivelyActive(s) && ["consultant", "manager"].includes(s.role) && s.branch === branch).map(s => React.createElement("option", { key: s.id, value: s.id }, s.name, " — ", s.id, " (", s.roleLabel || s.role, ")"))),
             enteredBy !== user.id && (() => { const cons = db.staff.find(s => s.id === enteredBy); return React.createElement(Alrt, { type: "warn" }, `\u26A0\uFE0F Entered using a different account \u2014 ${cons ? cons.name : "another staff member"}'s account, not yours.`); })(),
             blockedLoan && (React.createElement(Alrt, { type: "error" },
                 "\uD83D\uDEAB ",
@@ -8104,8 +8104,9 @@ function SlidingPhotosBanner() {
         }, 4000);
         return () => clearInterval(t);
     }, [imgs]);
-    return React.createElement("div", { style: { width: "100%", maxWidth: 420, height: 210, borderRadius: 16, overflow: "hidden", position: "relative", marginBottom: 20, boxShadow: "0 8px 24px rgba(0,0,0,0.3)", background: "rgba(0,0,0,0.25)" } },
-        React.createElement("img", { src: imgs[idx % imgs.length], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", opacity: visible ? 1 : 0, transition: "opacity 0.6s ease" } }));
+    return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 0, overflow: "hidden" } },
+        React.createElement("img", { src: imgs[idx % imgs.length], style: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: visible ? 0.35 : 0, transition: "opacity 0.6s ease" } }),
+        React.createElement("div", { style: { position: "absolute", inset: 0, background: `linear-gradient(160deg,${C.navy}CC,${C.blue}CC)` } }));
 }
 function SysCard({ onClick, icon, label, ready }) {
     return React.createElement("button", { onClick: ready === false ? undefined : onClick, style: { background: ready === false ? "rgba(255,255,255,0.6)" : "#fff", border: "none", borderRadius: 14, padding: "16px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: ready === false ? "default" : "pointer", boxShadow: "0 6px 16px rgba(0,0,0,0.2)", opacity: ready === false ? 0.6 : 1, minHeight: 90 } },
@@ -8125,12 +8126,12 @@ function SystemSelect({ user, onSelect, onLogout }) {
         user.role === "admin" && { icon: "\uD83D\uDEE0\uFE0F", label: "System Admin", onClick: () => onSelect("sysadmin") },
     ].filter(Boolean);
     return (React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(160deg,${C.navy},${C.blue})`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", overflow: "hidden" } },
+        React.createElement(SlidingPhotosBanner, null),
         React.createElement("div", { style: { position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", width: "100%" } },
             React.createElement(PalianLogo, { size: 64 }),
             React.createElement("div", { style: { color: "#fff", fontWeight: 900, fontSize: 18, marginTop: 12 } }, "PALIAN"),
             React.createElement("div", { style: { color: "rgba(255,255,255,0.75)", fontSize: 13, marginBottom: 16 } },
                 "Welcome, ", user.name, " \u2014 choose a system"),
-            React.createElement(SlidingPhotosBanner, null),
             React.createElement("div", { style: { width: "100%", maxWidth: 420, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 } },
                 cards.map(c => React.createElement(SysCard, { key: c.label, icon: c.icon, label: c.label, onClick: c.onClick, ready: c.ready }))),
             React.createElement("button", { onClick: onLogout, style: { background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 28, cursor: "pointer" } }, "Logout"))));
