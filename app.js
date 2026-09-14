@@ -6965,6 +6965,8 @@ function PaymentPlans({ db, setDb, user }) {
     const [sortBy, setSortBy] = useState("dateDesc");
     const [selectedId, setSelectedId] = useState(null);
     const [overrideLoanNo, setOverrideLoanNo] = useState("");
+    const [payflexCustom, setPayflexCustom] = useState(false);
+    const [payflexSelections, setPayflexSelections] = useState({});
 
     const isAdmin = user.role === "admin";
     const isDirector = user.role === "director";
@@ -7045,6 +7047,24 @@ function PaymentPlans({ db, setDb, user }) {
         alert(`\u2705 Payment Plan ${plan.planNumber} created manually for ${l.loanNo}.`);
     }
 
+    function exportPayflex(mode, selections) {
+        const eligible = filtered.filter(e => e.balance > 0);
+        if (eligible.length === 0) { alert("No active payment plans with an outstanding balance to export."); return; }
+        const missingBank = eligible.filter(e => !e.client?.accountNo || !e.client?.bankCode);
+        const rows = [["Name ", "Account Number", "Sort Code", "Amount ", "Reference"]];
+        eligible.forEach(e => {
+            if (!e.client?.accountNo || !e.client?.bankCode) return;
+            const half = mode === "custom" ? (selections[e.plan.id] || "full") === "half" : mode === "half";
+            const amt = half ? Math.round(e.balance / 2) : Math.round(e.balance);
+            rows.push([(e.client.name || "").toUpperCase(), e.client.accountNo, e.client.bankCode, amt, `Payment Plan ${half ? "Half" : "Full"} Deduction`]);
+        });
+        const csv = rows.map(r => r.join(",")).join("\r\n") + "\r\n";
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        a.download = `Payflex_${mode === "custom" ? "Custom" : mode === "half" ? "Half" : "Full"}_${today()}.csv`;
+        a.click();
+        if (missingBank.length > 0) alert(`\u26A0\uFE0F ${missingBank.length} client(s) skipped \u2014 missing Account Number or Sort Code: ${missingBank.map(e => e.client?.name || e.loan?.name).join(", ")}`);
+    }
     function exportCSV() {
         const rows = [["#", "Client Name", "Loan No.", "Loan Consultant", "Branch", "Province", "Date Initiated", "Actual Amount", "10% Charge", "Amount After 10%", "Amount Paid", "Balance", "Days Late", "Payment Status"]];
         filtered.forEach((e, i) => rows.push([i + 1, e.client?.name || e.loan?.name || "", e.plan.loanNo, e.loan?.consultant || "", e.plan.branch, e.plan.province, e.plan.requestedDate, e.plan.actualAmount, e.plan.chargeAmount, e.plan.amountAfterCharge, e.amountPaid, e.balance, e.daysLate, e.status]));
@@ -7159,6 +7179,25 @@ function PaymentPlans({ db, setDb, user }) {
                 React.createElement(Inp, { label: "From Date", type: "date", value: dateFrom, onChange: e => setDateFrom(e.target.value) }),
                 React.createElement(Inp, { label: "To Date", type: "date", value: dateTo, onChange: e => setDateTo(e.target.value) })),
             (isManagement) && React.createElement(Btn, { color: C.blue, onClick: exportCSV, style: { marginTop: 8 } }, "\u2B07\uFE0F Export to Excel (CSV)")),
+        isManagement && React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "\uD83C\uDFE6 Payflex Export (Bank Salary Deduction Batch)"),
+            React.createElement(Alrt, { type: "info" }, "Generates a bank-ready file (Name, Account Number, Sort Code, Amount, Reference) for the payment plans currently shown above with an outstanding balance."),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
+                React.createElement(Btn, { color: C.navy, onClick: () => exportPayflex("full") }, "\uD83D\uDCC4 Full Payment Plan Report"),
+                React.createElement(Btn, { color: C.teal, onClick: () => exportPayflex("half") }, "\uD83D\uDCC4 Half Payment Plan Report"),
+                React.createElement(Btn, { color: payflexCustom ? C.red : C.orange, onClick: () => setPayflexCustom(x => !x) }, payflexCustom ? "\u2716\uFE0F Close Custom Selection" : "\u2611\uFE0F Custom Selection (Full/Half per client)")),
+            payflexCustom && React.createElement("div", null,
+                filtered.filter(e => e.balance > 0).length === 0 ? React.createElement("div", { style: { color: C.muted, fontSize: 12 } }, "No active plans with a balance to select.") :
+                    filtered.filter(e => e.balance > 0).map(e => {
+                        const sel = payflexSelections[e.plan.id] || "full";
+                        return React.createElement("div", { key: e.plan.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` } },
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy } }, e.client?.name || e.loan?.name),
+                                React.createElement("div", { style: { fontSize: 10, color: C.muted } }, e.plan.loanNo, " \u00B7 Balance: ", fmt(e.balance))),
+                            React.createElement("div", { style: { display: "flex", gap: 6 } },
+                                ["full", "half"].map(m => React.createElement("button", { key: m, onClick: () => setPayflexSelections(x => ({ ...x, [e.plan.id]: m })), style: { padding: "5px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, textTransform: "capitalize", background: sel === m ? C.navy : "#eee", color: sel === m ? "#fff" : C.muted } }, m))));
+                    }),
+                filtered.filter(e => e.balance > 0).length > 0 && React.createElement(Btn, { color: C.green, full: true, style: { marginTop: 10 }, onClick: () => exportPayflex("custom", payflexSelections) }, "\u2B07\uFE0F Export Custom Payflex"))),
         React.createElement(Card, null,
             React.createElement(ST, null, `Payment Plans (${filtered.length})`),
             filtered.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No payment plans match your filters.") :
