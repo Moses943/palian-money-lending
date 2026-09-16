@@ -7178,8 +7178,8 @@ function PaymentPlans({ db, setDb, user }) {
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 } },
                 React.createElement(Inp, { label: "From Date", type: "date", value: dateFrom, onChange: e => setDateFrom(e.target.value) }),
                 React.createElement(Inp, { label: "To Date", type: "date", value: dateTo, onChange: e => setDateTo(e.target.value) })),
-            (isManagement) && React.createElement(Btn, { color: C.blue, onClick: exportCSV, style: { marginTop: 8 } }, "\u2B07\uFE0F Export to Excel (CSV)")),
-        isManagement && React.createElement(Card, null,
+            React.createElement(Btn, { color: C.blue, onClick: exportCSV, style: { marginTop: 8 } }, "\u2B07\uFE0F Export to Excel (CSV)")),
+        React.createElement(Card, null,
             React.createElement(ST, { color: C.purple }, "\uD83C\uDFE6 Payflex Export (Bank Salary Deduction Batch)"),
             React.createElement(Alrt, { type: "info" }, "Generates a bank-ready file (Name, Account Number, Sort Code, Amount, Reference) for the payment plans currently shown above with an outstanding balance."),
             React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
@@ -7722,7 +7722,7 @@ function OverdueTab({ db, user, onReport }) {
                 React.createElement(Btn, { sm: true, color: C.navy, onClick: () => onReport(l, client) }, "\uD83D\uDCCB Report")))); })));
 }
 // ── REPORTS ───────────────────────────────────────────────────────────────────
-function Reports({ db, user, onReport }) {
+function Reports({ db, setDb, user, onReport }) {
     const [q, setQ] = useState("");
     const [cq, setCq] = useState("");
     const isHORole = isHO(user.role);
@@ -7835,6 +7835,70 @@ function Reports({ db, user, onReport }) {
                                 React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, getDOD(l), " days"),
                                 React.createElement("td", { style: { padding: "6px 8px" } }, React.createElement(Badge, { s: st }))); })))),
                 React.createElement(Btn, { sm: true, color: C.orange, style: { marginTop: 10 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print Report"));
+        })(),
+        (() => {
+            const canMarkSold = user.role === "admin" || user.role === "director" || user.role === "manager";
+            const heldCollateral = loans.filter(l => l.type === "Collateral" && (l.collateralStatus || "Held") !== "Sold");
+            function markSold(l) {
+                const amtStr = window.prompt(`Sale amount for ${l.name}'s collateral (${l.collateral?.item || "item"})?`);
+                if (!amtStr) return;
+                const soldAmt = parseFloat(amtStr);
+                if (isNaN(soldAmt) || soldAmt <= 0) { alert("Enter a valid amount."); return; }
+                const nd = { ...db, loans: db.loans.map(x => x.loanNo === l.loanNo ? { ...x, collateralStatus: "Sold", collateral: { ...x.collateral, soldAmount: soldAmt, soldDate: today(), soldBy: user.name } } : x) };
+                saveDB(nd); setDb(nd);
+                alert(`\u2705 Marked as sold for ${fmt(soldAmt)}.`);
+            }
+            return React.createElement(Card, null,
+                React.createElement(ST, { color: C.purple }, `\uD83D\uDD10 Collateral Report (${heldCollateral.length})`),
+                heldCollateral.length === 0 ? React.createElement("p", { style: { color: C.muted, fontSize: 13 } }, "No collateral loans currently held.") :
+                    heldCollateral.map(l => React.createElement("div", { key: l.loanNo, style: { border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 10 } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4 } },
+                            React.createElement("strong", { style: { color: C.navy } }, l.name),
+                            React.createElement(Badge, { s: getSt(l, payments) })),
+                        React.createElement(IR, { label: "Loan No.", value: l.loanNo }),
+                        React.createElement(IR, { label: "Item", value: l.collateral?.item || "\u2014" }),
+                        React.createElement(IR, { label: "Description", value: l.collateral?.desc || "\u2014" }),
+                        React.createElement(IR, { label: "Estimated Value", value: l.collateral?.value ? fmt(l.collateral.value) : "\u2014" }),
+                        React.createElement(IR, { label: "Balance", value: fmt(getBal(l, payments)), bold: true }),
+                        canMarkSold && getBal(l, payments) > 0 && React.createElement(Btn, { sm: true, color: C.red, full: true, style: { marginTop: 8 }, onClick: () => markSold(l) }, "\uD83D\uDCB0 Mark Collateral as Sold"))),
+                React.createElement(Btn, { sm: true, color: C.purple, style: { marginTop: 10 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print Report"));
+        })(),
+        (() => {
+            const soldCollateral = loans.filter(l => l.collateralStatus === "Sold");
+            return React.createElement(Card, null,
+                React.createElement(ST, { color: C.red }, `\uD83D\uDCB0 Collateral Sold Report (${soldCollateral.length})`),
+                soldCollateral.length === 0 ? React.createElement("p", { style: { color: C.muted, fontSize: 13 } }, "No collateral has been sold yet.") :
+                    React.createElement("div", { style: { overflowX: "auto" } },
+                        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+                            React.createElement("thead", null, React.createElement("tr", null,
+                                ["Client", "Loan No.", "Item", "Sold Amount", "Sold Date", "Sold By"].map(h => React.createElement("th", { key: h, style: { textAlign: "left", padding: "6px 8px", color: C.muted, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${C.border}` } }, h)))),
+                            React.createElement("tbody", null, soldCollateral.map(l => React.createElement("tr", { key: l.loanNo },
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, color: C.navy, whiteSpace: "nowrap" } }, l.name),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.loanNo),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.collateral?.item || "\u2014"),
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, whiteSpace: "nowrap" } }, l.collateral?.soldAmount ? fmt(l.collateral.soldAmount) : "\u2014"),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.collateral?.soldDate || "\u2014"),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.collateral?.soldBy || "\u2014")))))),
+                React.createElement(Btn, { sm: true, color: C.red, style: { marginTop: 10 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print Report"));
+        })(),
+        (() => {
+            const clearedLoans = loans.filter(l => getSt(l, payments) === "Cleared");
+            return React.createElement(Card, null,
+                React.createElement(ST, { color: C.green }, `\u2705 Completed Payments Report (${clearedLoans.length})`),
+                clearedLoans.length === 0 ? React.createElement("p", { style: { color: C.muted, fontSize: 13 } }, "No fully paid-off loans yet.") :
+                    React.createElement("div", { style: { overflowX: "auto" } },
+                        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+                            React.createElement("thead", null, React.createElement("tr", null,
+                                ["Client", "Loan No.", "Branch", "Consultant", "Principal", "Total Due", "Total Paid"].map(h => React.createElement("th", { key: h, style: { textAlign: "left", padding: "6px 8px", color: C.muted, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${C.border}` } }, h)))),
+                            React.createElement("tbody", null, clearedLoans.map(l => { const paid = payments.filter(p => p.loanNo === l.loanNo).reduce((s, p) => s + p.amount, 0); return React.createElement("tr", { key: l.loanNo },
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, color: C.navy, whiteSpace: "nowrap" } }, l.name),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.loanNo),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.branch),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, l.consultant),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, fmt(l.principal)),
+                                React.createElement("td", { style: { padding: "6px 8px", whiteSpace: "nowrap" } }, fmt(l.totalDue)),
+                                React.createElement("td", { style: { padding: "6px 8px", fontWeight: 700, color: C.green, whiteSpace: "nowrap" } }, fmt(paid))); })))),
+                React.createElement(Btn, { sm: true, color: C.green, style: { marginTop: 10 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print Report"));
         })()));
 }
 // ── EXPORT ────────────────────────────────────────────────────────────────────
@@ -8477,7 +8541,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "accounts" && React.createElement(WAccountsManager, { db: db, setDb: setDb, user: user }),
             page === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             page === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: () => { } }),
-            page === "reports" && React.createElement(Reports, { db: db, user: user, onReport: () => { } }),
+            page === "reports" && React.createElement(Reports, { db: db, setDb: setDb, user: user, onReport: () => { } }),
             page === "backup" && React.createElement(BackupRestore, { db: db, setDb: setDb }),
             page === "ai" && React.createElement(AIAdviser, { db: db, user: user }),
             page === "export" && React.createElement(Export, { db: db, user: user }),
@@ -8981,7 +9045,7 @@ function App() {
             tab === "loans" && React.createElement(AllLoans, { db: db, user: user, onReport: onReport }),
             tab === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: onReport }),
             tab === "daily" && React.createElement(DailyReports, { db: db, setDb: setDb, user: user }),
-            tab === "reports" && React.createElement(Reports, { db: db, user: user, onReport: onReport }),
+            tab === "reports" && React.createElement(Reports, { db: db, setDb: setDb, user: user, onReport: onReport }),
             tab === "backup" && React.createElement(BackupRestore, { db: db, setDb: setDb }),
             tab === "ai" && React.createElement(AIAdviser, { db: db, user: user }),
             tab === "export" && React.createElement(Export, { db: db, user: user }),
