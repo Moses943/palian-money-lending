@@ -7053,12 +7053,24 @@ function PaymentPlans({ db, setDb, user }) {
         const eligible = filtered.filter(e => e.balance > 0);
         if (eligible.length === 0) { alert("No active payment plans with an outstanding balance to export."); return; }
         const missingBank = eligible.filter(e => !e.client?.accountNo || !e.client?.bankCode);
-        const rows = [["Name ", "Account Number", "Sort Code", "Amount ", "Reference"]];
+        const grouped = new Map();
         eligible.forEach(e => {
             if (!e.client?.accountNo || !e.client?.bankCode) return;
             const half = mode === "custom" ? (selections[e.plan.id] || "full") === "half" : mode === "half";
             const amt = half ? Math.round(e.balance / 2) : Math.round(e.balance);
-            rows.push([(e.client.name || "").toUpperCase(), e.client.accountNo, e.client.bankCode, amt, `Payment Plan ${half ? "Half" : "Full"} Deduction`]);
+            const key = `${e.client.accountNo}|${e.client.bankCode}`;
+            if (grouped.has(key)) {
+                const g = grouped.get(key);
+                g.amt += amt;
+                g.plans += 1;
+            } else {
+                grouped.set(key, { name: e.client.name || "", accountNo: e.client.accountNo, bankCode: e.client.bankCode, amt, half, plans: 1 });
+            }
+        });
+        const rows = [["Name ", "Account Number", "Sort Code", "Amount ", "Reference"]];
+        grouped.forEach(g => {
+            const ref = g.plans > 1 ? `Payment Plan Deduction (${g.plans} loans combined)` : `Payment Plan ${g.half ? "Half" : "Full"} Deduction`;
+            rows.push([g.name.toUpperCase(), g.accountNo, g.bankCode, g.amt, ref]);
         });
         const csv = rows.map(r => r.join(",")).join("\r\n") + "\r\n";
         const a = document.createElement("a");
