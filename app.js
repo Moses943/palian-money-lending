@@ -25,14 +25,14 @@ const TI = buildTI();
 function gBI(town) { return TI[town] || { province: "—", provinceCode: "HO", townCode: "HOQ" }; }
 const HO_ROLES = ["admin", "ceo", "accounts", "hr", "director", "strategic"];
 const C = { navy: "#0F2D5C", blue: "#1565C0", orange: "#FF6F00", amber: "#FFB300", red: "#C62828", green: "#2E7D32", teal: "#00695C", purple: "#6A1B9A", gold: "#F9A825", muted: "#607D8B", light: "#F5F7FA", white: "#FFFFFF", border: "#E0E7EF", text: "#1A2744" };
-const SC = { Active: C.green, Overdue: C.orange, Defaulted: C.red, Cleared: C.blue, Pending: C.gold, Rejected: C.muted, Current: C.green, Late: C.gold, Critical: C.red, Completed: C.blue };
+const SC = { Active: C.green, Overdue: C.orange, Defaulted: C.red, Cleared: C.blue, Pending: C.gold, Rejected: C.muted, Current: C.green, Late: C.gold, Critical: C.red, Completed: C.blue, "Pending Verification": C.gold, Verified: C.green, "Partially Matched": C.teal, "Information Mismatch": C.orange, "Unable to Verify": C.muted, "Verification Failed": C.red, "Manual Review Required": C.purple };
 // ── STORAGE (Supabase — shared live database across all branches) ────────────
 let MDB = null;
 // Filled in by config.js (loaded before this file) — see index.html
 const SUPABASE_URL = window.PALIAN_SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.PALIAN_SUPABASE_ANON_KEY;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, provincialFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [], documentRequests: [], provincialDelegations: [], complianceChecks: [], regulatoryFilings: [], riskRegister: [] }; }
+function defDB() { return { clients: [], loans: [], payments: [], staff: [], bankBalance: 0, branchFunds: {}, provincialFunds: {}, branchDisbursements: [], consultantFunds: {}, consultantTargets: {}, leaveRequests: [], loginLogs: [], dailyReports: [], paymentPlans: [], messages: [], messageReads: [], withdrawalRequests: [], moneyAccounts: [], moneyAccountTxns: [], documentRequests: [], provincialDelegations: [], complianceChecks: [], regulatoryFilings: [], riskRegister: [], grzVerifications: [], grzSettings: { maxDeductionRatio: 0.20, requiredDocs: ["Payslip", "Government Employee ID"], expiryDays: 90 } }; }
 async function hashPin(pin) {
     const enc = new TextEncoder().encode(String(pin || ""));
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -95,6 +95,11 @@ function regulatoryFilingIn(r) { return { id: r.id, name: r.name, category: r.ca
 function regulatoryFilingOut(f) { return { id: f.id, name: f.name, category: f.category || null, due_date: f.dueDate || null, status: f.status || "Upcoming", filed_date: f.filedDate || null, filed_by: f.filedBy || null, notes: f.notes || null, created_by: f.createdBy || null }; }
 function riskRegisterIn(r) { return { id: r.id, riskNumber: r.risk_number || r.id, title: r.title, category: r.category || "", description: r.description || "", severity: r.severity || "Medium", likelihood: r.likelihood || "Medium", mitigation: r.mitigation || "", owner: r.owner || "", status: r.status || "Open", dateLogged: r.date_logged || null, loggedBy: r.logged_by || "", lastReviewed: r.last_reviewed || null, notes: r.notes || "" }; }
 function riskRegisterOut(r) { return { id: r.id, risk_number: r.riskNumber || r.id, title: r.title, category: r.category || null, description: r.description || null, severity: r.severity || "Medium", likelihood: r.likelihood || "Medium", mitigation: r.mitigation || null, owner: r.owner || null, status: r.status || "Open", date_logged: r.dateLogged || null, logged_by: r.loggedBy || null, last_reviewed: r.lastReviewed || null, notes: r.notes || null }; }
+function grzIn(r) { return { id: r.id, clientId: r.client_id, loanNo: r.loan_no || "", isGovtEmployee: r.is_govt_employee || false, employeeNumber: r.employee_number || "", nrc: r.nrc || "", fullName: r.full_name || "", ministry: r.ministry || "", department: r.department || "", institution: r.institution || "", province: r.province || "", district: r.district || "", position: r.position || "", employmentType: r.employment_type || "", dateFirstAppointment: r.date_first_appointment || null, workStation: r.work_station || "", officialContact: r.official_contact || "", officialEmail: r.official_email || "", status: r.status || "Pending Verification", verificationMethod: r.verification_method || "", verifiedBy: r.verified_by || "", verifiedDate: r.verified_date || null, comments: r.comments || "", documents: r.documents || [], payslip: r.payslip || {}, audit: r.audit || [] }; }
+function grzOut(g) { return { id: g.id, client_id: g.clientId, loan_no: g.loanNo || null, is_govt_employee: g.isGovtEmployee || false, employee_number: g.employeeNumber || null, nrc: g.nrc || null, full_name: g.fullName || null, ministry: g.ministry || null, department: g.department || null, institution: g.institution || null, province: g.province || null, district: g.district || null, position: g.position || null, employment_type: g.employmentType || null, date_first_appointment: g.dateFirstAppointment || null, work_station: g.workStation || null, official_contact: g.officialContact || null, official_email: g.officialEmail || null, status: g.status || "Pending Verification", verification_method: g.verificationMethod || null, verified_by: g.verifiedBy || null, verified_date: g.verifiedDate || null, comments: g.comments || null, documents: g.documents || [], payslip: g.payslip || {}, audit: g.audit || [], updated_at: new Date().toISOString() }; }
+function grzAddAudit(rec, action, by, note, prevValue, newValue) {
+    return { ...rec, audit: [...(rec.audit || []), { action, by, date: today(), time: new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }), note: note || "", previousValue: prevValue || "", newValue: newValue || "" }] };
+}
 function nextSeqId(list, prefix) {
     const maxNum = (list || []).reduce((max, x) => {
         const m = new RegExp(`^${prefix}-(\\d+)$`).exec(x.id || "");
@@ -197,7 +202,7 @@ function dailyReportIn(r){return{id:r.id,consultantId:r.consultant_id,consultant
 function dailyReportOut(r){return{id:r.id,consultant_id:r.consultantId,consultant_name:r.consultantName,branch:r.branch,province:r.province,report_date:r.reportDate||null,clients_seen:r.clientsSeen||0,loan_amount:r.loanAmount||0,notes:r.notes||"",status:r.status,approved_by:r.approvedBy||null,approved_date:r.approvedDate||null};}
 async function loadDB() {
     const results = { staff: null, clients: null, loans: null, payments: null, leaveRequests: null, loginLogs: null, branchFunds: null, consultantFunds: null, bankBalance: null, dailyReports: null, paymentPlans: null, messages: null, messageReads: null, branchDisbursements: null, withdrawalRequests: null, moneyAccounts: null, moneyAccountTxns: null };
-    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, pfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR, docR, delR, ccR, rfR, rrR] = await Promise.all([
+    const [staffR, clientsR, loansR, paymentsR, leaveR, logsR, bfR, pfR, cfR, bankR, drR, ppR, msgR, mrR, bdR, wrR, maR, mtR, meR, docR, delR, ccR, rfR, rrR, grzR, gsR] = await Promise.all([
         sb.from("staff").select("*"),
         sb.from("clients").select("*"),
         sb.from("loans").select("*"),
@@ -222,12 +227,14 @@ async function loadDB() {
         sb.from("compliance_checks").select("*"),
         sb.from("regulatory_filings").select("*").order("due_date", { ascending: true }).limit(500),
         sb.from("risk_register").select("*").order("date_logged", { ascending: false }).limit(500),
+        sb.from("grz_verifications").select("*"),
+        sb.from("grz_settings").select("*").eq("id", 1).maybeSingle(),
     ]);
     // Supabase-js returns { data, error } and does NOT throw on failure (bad
     // RLS policy, expired key, paused project, etc.) — checking .error here
     // is what stops a failed fetch from silently rendering as an empty/zero
     // dashboard with no indication anything went wrong.
-    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Provincial Funds", pfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR], ["Document Requests", docR], ["Provincial Delegations", delR], ["Compliance Checks", ccR], ["Regulatory Filings", rfR], ["Risk Register", rrR]];
+    const labeled = [["Staff", staffR], ["Clients", clientsR], ["Loans", loansR], ["Payments", paymentsR], ["Leave Requests", leaveR], ["Login Logs", logsR], ["Branch Funds", bfR], ["Provincial Funds", pfR], ["Consultant Funds", cfR], ["Bank Account", bankR], ["Daily Reports", drR], ["Payment Plans", ppR], ["Messages", msgR], ["Message Reads", mrR], ["Branch Disbursements", bdR], ["Withdrawal Requests", wrR], ["Money Accounts", maR], ["Money Account Txns", mtR], ["M&E Targets", meR], ["Document Requests", docR], ["Provincial Delegations", delR], ["Compliance Checks", ccR], ["Regulatory Filings", rfR], ["Risk Register", rrR], ["GRZ Verifications", grzR], ["GRZ Settings", gsR]];
     const errors = labeled.filter(([, r]) => r && r.error).map(([label, r]) => `${label}: ${r.error.message}`);
     if (errors.length) {
         const err = new Error("Failed to load data from the database:\n\n" + errors.join("\n") + "\n\nThis is a connection/permissions problem, not missing data — check your Supabase project status and API key.");
@@ -260,6 +267,8 @@ async function loadDB() {
         complianceChecks: (ccR.data || []).map(complianceCheckIn),
         regulatoryFilings: (rfR.data || []).map(regulatoryFilingIn),
         riskRegister: (rrR.data || []).map(riskRegisterIn),
+        grzVerifications: (grzR.data || []).map(grzIn),
+        grzSettings: gsR.data ? { maxDeductionRatio: gsR.data.max_deduction_ratio ?? 0.20, requiredDocs: gsR.data.required_docs || ["Payslip", "Government Employee ID"], expiryDays: gsR.data.expiry_days ?? 90 } : { maxDeductionRatio: 0.20, requiredDocs: ["Payslip", "Government Employee ID"], expiryDays: 90 },
     };
 }
 async function saveDB(db) {
@@ -301,6 +310,8 @@ async function saveDB(db) {
     await tryUpsert("Compliance Checks", "compliance_checks", db.complianceChecks?.length ? db.complianceChecks.map(complianceCheckOut) : null, { onConflict: "id" });
     await tryUpsert("Regulatory Filings", "regulatory_filings", db.regulatoryFilings?.length ? db.regulatoryFilings.map(regulatoryFilingOut) : null, { onConflict: "id" });
     await tryUpsert("Risk Register", "risk_register", db.riskRegister?.length ? db.riskRegister.map(riskRegisterOut) : null, { onConflict: "id" });
+    await tryUpsert("GRZ Verifications", "grz_verifications", db.grzVerifications?.length ? db.grzVerifications.map(grzOut) : null, { onConflict: "id" });
+    await tryUpsert("GRZ Settings", "grz_settings", db.grzSettings ? [{ id: 1, max_deduction_ratio: db.grzSettings.maxDeductionRatio, required_docs: db.grzSettings.requiredDocs, expiry_days: db.grzSettings.expiryDays }] : null, { onConflict: "id" });
     const bfRows = Object.entries(db.branchFunds || {}).map(([branch, amount]) => ({ branch, amount }));
     await tryUpsert("Branch Funds", "branch_funds", bfRows.length ? bfRows : null, { onConflict: "branch" });
     const pfRows = Object.entries(db.provincialFunds || {}).map(([province, amount]) => ({ province, amount }));
@@ -6529,6 +6540,21 @@ function Wizard({ db, setDb, user, onDone }) {
     const [photo, setPhoto] = useState(null);
     const [docs, setDocs] = useState({ nrcFront: null, nrcBack: null, utilityBill: null, payslip: null, bankStatement: null });
     const [emp, setEmp] = useState({ status: "Employed", jobTitle: "", position: "", contractPeriod: "Permanent", employer: "", years: "", months: "", netPay: "", salaryDate: "", businessName: "", businessAddress: "", businessType: "", businessTypeOther: "", businessInfo: "" });
+    const [grz, setGrz] = useState({
+        isGovtEmployee: false, employeeNumber: "", ministry: "", department: "", institution: "", district: "", employmentType: "", dateFirstAppointment: "", workStation: "", officialContact: "", officialEmail: "",
+        docs: {}, payslip: { employeeName: "", employeeNumber: "", nrc: "", ministry: "", position: "", basicSalary: "", allowances: "", grossSalary: "", existingDeductions: "", netSalary: "", payPeriod: "", refNumber: "" },
+    });
+    const [grzDupWarning, setGrzDupWarning] = useState(null);
+    function checkGrzDuplicate(employeeNumber) {
+        if (!employeeNumber.trim()) { setGrzDupWarning(null); return; }
+        const existing = (db.grzVerifications || []).find(g => g.employeeNumber === employeeNumber.trim() && g.clientId !== (ex?.id));
+        if (existing) {
+            const otherClient = db.clients.find(c => c.id === existing.clientId);
+            setGrzDupWarning(`\u26A0\uFE0F This Employee Number is already registered under ${otherClient?.name || "another client"} (${otherClient?.nrc || existing.nrc || "NRC unknown"}). Possible duplicate \u2014 review before proceeding.`);
+        } else {
+            setGrzDupWarning(null);
+        }
+    }
     const [lf, setLf] = useState({ type: "", amount: "", rate: "0.35", period: "1 Month", disburse: today(), due: addMonths(today(), 1), remarks: "" });
     const [col, setCol] = useState({ item: "Television", desc: "", value: "", serial: "", location: "", photo: null });
     const [ded, setDed] = useState({ salary: "", monthly: "", payrollDate: "" });
@@ -6616,6 +6642,21 @@ function Wizard({ db, setDb, user, onDone }) {
         const dedNote = lf.type === "Deduction" ? ` [Salary: ${ded.salary || "N/A"}, Payroll Date: ${ded.payrollDate || "N/A"}]` : "";
         const loan = { loanNo, clientId: client.id, nrc: client.nrc, name: client.name, branch, province: info.province, branchCode: `${info.provinceCode}-${info.townCode}`, type: lf.type, principal: amt, interestRate: rate, interest, totalDue: total, period: lf.period, appDate: today(), disburseDate: lf.disburse, dueDate: lf.due, consultant: enteredStaff.name, consultantId: enteredStaff.id, approvalStatus: "Pending", approvedBy: "", approvedDate: "", remarks: (lf.remarks || "") + dedNote, loanNumForClient: nd.loans.filter(l => l.clientId === client.id).length + 1, signedLoanCopy: signedLoan, ...extra };
         nd.loans.push(loan);
+        if (grz.isGovtEmployee) {
+            const existingGrz = (db.grzVerifications || []).find(g => g.clientId === client.id);
+            const grzRecord = {
+                id: existingGrz ? existingGrz.id : nextSeqId(db.grzVerifications, "GRZ"),
+                clientId: client.id, loanNo: loan.loanNo, isGovtEmployee: true, employeeNumber: grz.employeeNumber.trim(),
+                nrc: client.nrc, fullName: client.name, ministry: grz.ministry.trim(), department: grz.department.trim(), institution: grz.institution.trim(),
+                province: client.province, district: grz.district.trim(), position: emp.jobTitle.trim(), employmentType: grz.employmentType,
+                dateFirstAppointment: grz.dateFirstAppointment || null, workStation: grz.workStation.trim(), officialContact: grz.officialContact.trim(), officialEmail: grz.officialEmail.trim(),
+                status: existingGrz ? existingGrz.status : "Pending Verification", verificationMethod: "", verifiedBy: existingGrz?.verifiedBy || "", verifiedDate: existingGrz?.verifiedDate || null,
+                comments: existingGrz?.comments || "", documents: Object.entries(grz.docs).filter(([, v]) => v).map(([type, url]) => ({ type, url, uploadDate: today(), uploadedBy: enteredStaff.name, status: "Pending" })),
+                payslip: grz.payslip, audit: existingGrz?.audit || [],
+            };
+            const finalGrz = grzAddAudit(grzRecord, existingGrz ? "Updated" : "Submitted", enteredStaff.name, `GRZ verification ${existingGrz ? "updated" : "submitted"} with loan ${loan.loanNo}`);
+            nd.grzVerifications = existingGrz ? (db.grzVerifications || []).map(g => g.id === existingGrz.id ? finalGrz : g) : [...(db.grzVerifications || []), finalGrz];
+        }
         saveDB(nd);
         setDb(nd);
         setDone({ client, loan });
@@ -6737,7 +6778,64 @@ function Wizard({ db, setDb, user, onDone }) {
                 React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, color: C.navy, marginBottom: 3 } }, "Worked Period"),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                     React.createElement(Inp, { label: "Years", type: "number", value: emp.years, onChange: e => setEmp(f => ({ ...f, years: e.target.value })) }),
-                    React.createElement(Inp, { label: "Months", type: "number", value: emp.months, onChange: e => setEmp(f => ({ ...f, months: e.target.value })) })))
+                    React.createElement(Inp, { label: "Months", type: "number", value: emp.months, onChange: e => setEmp(f => ({ ...f, months: e.target.value })) })),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy, margin: "12px 0 8px", borderLeft: `3px solid ${C.purple}`, paddingLeft: 8 } }, "\uD83C\uDFDB\uFE0F GRZ Employee Verification"),
+                React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" } },
+                    React.createElement("input", { type: "checkbox", checked: grz.isGovtEmployee, onChange: e => setGrz(f => ({ ...f, isGovtEmployee: e.target.checked })) }),
+                    React.createElement("span", { style: { fontWeight: 600, fontSize: 13 } }, "This client is a Government Employee")),
+                grz.isGovtEmployee && React.createElement("div", null,
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Employee Number", req: true, value: grz.employeeNumber, onChange: e => { setGrz(f => ({ ...f, employeeNumber: e.target.value })); checkGrzDuplicate(e.target.value); } }),
+                        React.createElement(Sel, { label: "Employment Type", value: grz.employmentType, onChange: e => setGrz(f => ({ ...f, employmentType: e.target.value })) },
+                            React.createElement("option", { value: "" }, "-- Select --"),
+                            React.createElement("option", null, "Permanent & Pensionable"),
+                            React.createElement("option", null, "Contract"),
+                            React.createElement("option", null, "Casual"))),
+                    grzDupWarning && React.createElement(Alrt, { type: "error" }, grzDupWarning),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Ministry", value: grz.ministry, onChange: e => setGrz(f => ({ ...f, ministry: e.target.value })) }),
+                        React.createElement(Inp, { label: "Department", value: grz.department, onChange: e => setGrz(f => ({ ...f, department: e.target.value })) })),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Institution", value: grz.institution, onChange: e => setGrz(f => ({ ...f, institution: e.target.value })) }),
+                        React.createElement(Inp, { label: "District", value: grz.district, onChange: e => setGrz(f => ({ ...f, district: e.target.value })) })),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Work Station", value: grz.workStation, onChange: e => setGrz(f => ({ ...f, workStation: e.target.value })) }),
+                        React.createElement(Inp, { label: "Date of First Appointment", type: "date", value: grz.dateFirstAppointment, onChange: e => setGrz(f => ({ ...f, dateFirstAppointment: e.target.value })) })),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Official Work Contact", value: grz.officialContact, onChange: e => setGrz(f => ({ ...f, officialContact: e.target.value })) }),
+                        React.createElement(Inp, { label: "Official Government Email", type: "email", value: grz.officialEmail, onChange: e => setGrz(f => ({ ...f, officialEmail: e.target.value })) })),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "10px 0 6px" } }, "Supporting Documents"),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 } },
+                        React.createElement(PhotoUpload, { small: true, label: "Payslip", value: grz.docs.payslip, onChange: v => setGrz(f => ({ ...f, docs: { ...f.docs, payslip: v } })) }),
+                        React.createElement(PhotoUpload, { small: true, label: "Govt Employee ID", value: grz.docs.govtId, onChange: v => setGrz(f => ({ ...f, docs: { ...f.docs, govtId: v } })) }),
+                        React.createElement(PhotoUpload, { small: true, label: "Employment Confirmation", value: grz.docs.employmentConfirmation, onChange: v => setGrz(f => ({ ...f, docs: { ...f.docs, employmentConfirmation: v } })) })),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, margin: "12px 0 6px" } }, "Payslip Details"),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Basic Salary (K)", type: "number", value: grz.payslip.basicSalary, onChange: e => setGrz(f => ({ ...f, payslip: { ...f.payslip, basicSalary: e.target.value } })) }),
+                        React.createElement(Inp, { label: "Allowances (K)", type: "number", value: grz.payslip.allowances, onChange: e => setGrz(f => ({ ...f, payslip: { ...f.payslip, allowances: e.target.value } })) })),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Gross Salary (K)", type: "number", value: grz.payslip.grossSalary, onChange: e => setGrz(f => ({ ...f, payslip: { ...f.payslip, grossSalary: e.target.value } })) }),
+                        React.createElement(Inp, { label: "Existing Deductions (K)", type: "number", value: grz.payslip.existingDeductions, onChange: e => setGrz(f => ({ ...f, payslip: { ...f.payslip, existingDeductions: e.target.value } })) })),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
+                        React.createElement(Inp, { label: "Pay Period", placeholder: "e.g. August 2026", value: grz.payslip.payPeriod, onChange: e => setGrz(f => ({ ...f, payslip: { ...f.payslip, payPeriod: e.target.value } })) }),
+                        React.createElement(Inp, { label: "Payslip Reference No.", value: grz.payslip.refNumber, onChange: e => setGrz(f => ({ ...f, payslip: { ...f.payslip, refNumber: e.target.value } })) })),
+                    (() => {
+                        const gross = parseFloat(grz.payslip.grossSalary) || 0;
+                        const existingDed = parseFloat(grz.payslip.existingDeductions) || 0;
+                        const proposedDed = parseFloat(ded.monthly) || 0;
+                        const disposable = gross - existingDed - proposedDed;
+                        const ratio = gross > 0 ? (existingDed + proposedDed) / gross : 0;
+                        const maxRatio = db.grzSettings?.maxDeductionRatio ?? 0.20;
+                        const affordable = gross > 0 && ratio <= maxRatio;
+                        return gross > 0 ? React.createElement("div", { style: { background: "#F5F5F5", borderRadius: 10, padding: 12, marginTop: 10 } },
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy, marginBottom: 6 } }, "\uD83D\uDCCA Loan Affordability Assessment"),
+                            React.createElement(IR, { label: "Gross Income", value: fmt(gross) }),
+                            React.createElement(IR, { label: "Existing Deductions", value: fmt(existingDed) }),
+                            React.createElement(IR, { label: "Proposed Loan Deduction", value: fmt(proposedDed) }),
+                            React.createElement(IR, { label: "Estimated Disposable Income", value: fmt(disposable), bold: true }),
+                            React.createElement(IR, { label: `Total Deduction Ratio (max ${(maxRatio * 100).toFixed(0)}%)`, value: `${(ratio * 100).toFixed(1)}%` }),
+                            React.createElement(Alrt, { type: affordable ? "success" : "error" }, affordable ? "\u2705 Within approved affordability policy" : "\u26D4 Exceeds approved affordability policy \u2014 requires manual review")) : null;
+                    })()))
                 : React.createElement("div", null,
                     React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 8 } }, "IF BUSINESS"),
                     React.createElement(Inp, { label: "Business Name", value: emp.businessName, onChange: e => setEmp(f => ({ ...f, businessName: e.target.value })) }),
@@ -6955,6 +7053,126 @@ function MessageRow({ m, unread, onOpen }) {
         React.createElement("div", { style: { fontSize: 11, color: C.muted, marginBottom: 6 } }, m.sentDate, " \u00B7 ", m.sentTime),
         m.text && React.createElement("div", { style: { fontSize: 13, color: C.text, marginBottom: 8, whiteSpace: "pre-wrap" } }, m.text),
         m.attachmentUrl && React.createElement("a", { href: m.attachmentUrl, target: "_blank", rel: "noreferrer", onClick: e => e.stopPropagation(), style: { fontSize: 12, color: C.blue } }, "\uD83D\uDCCE ", m.attachmentName || "Attachment"));
+}
+const GRZ_STATUSES = ["Pending Verification", "Verified", "Partially Matched", "Information Mismatch", "Unable to Verify", "Verification Failed", "Manual Review Required"];
+const GRZ_STATUS_COLOR = { "Pending Verification": C.gold, "Verified": C.green, "Partially Matched": C.teal, "Information Mismatch": C.orange, "Unable to Verify": C.muted, "Verification Failed": C.red, "Manual Review Required": C.purple };
+function GRZVerification({ db, setDb, user }) {
+    const [statusFilter, setStatusFilter] = useState("All");
+    const [search, setSearch] = useState("");
+    const [selectedId, setSelectedId] = useState(null);
+    const [comment, setComment] = useState("");
+    const canVerify = ["manager", "admin", "director"].includes(user.role) || isProvincial(user.role);
+    const canViewSalary = canVerify || user.role === "consultant";
+    const scopedLoanNos = new Set(scopeLoans(db, user).map(l => l.loanNo));
+    let records = (db.grzVerifications || []).filter(g => scopedLoanNos.has(g.loanNo) || scopeClients(db, user).some(c => c.id === g.clientId));
+    if (user.role === "consultant") records = records.filter(g => scopeClients(db, user).some(c => c.id === g.clientId));
+    const loanByNo = {};
+    db.loans.forEach(l => { loanByNo[l.loanNo] = l; });
+    const enriched = records.map(g => ({ g, loan: loanByNo[g.loanNo], client: db.clients.find(c => c.id === g.clientId) }));
+    const filtered = enriched.filter(e => {
+        if (statusFilter !== "All" && e.g.status !== statusFilter) return false;
+        if (search.trim()) {
+            const q = search.trim().toLowerCase();
+            const hay = [e.client?.name, e.g.employeeNumber, e.g.nrc, e.g.ministry, e.g.loanNo].join(" ").toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    const totals = {
+        total: enriched.length,
+        pending: enriched.filter(e => e.g.status === "Pending Verification").length,
+        verified: enriched.filter(e => e.g.status === "Verified").length,
+        partial: enriched.filter(e => e.g.status === "Partially Matched").length,
+        mismatch: enriched.filter(e => e.g.status === "Information Mismatch").length,
+        manual: enriched.filter(e => e.g.status === "Manual Review Required").length,
+        failed: enriched.filter(e => e.g.status === "Verification Failed").length,
+        approved: enriched.filter(e => e.loan?.approvalStatus === "Approved").length,
+        rejected: enriched.filter(e => e.loan?.approvalStatus === "Rejected").length,
+        amountApplied: enriched.reduce((s, e) => s + (e.loan?.principal || 0), 0),
+        amountApproved: enriched.filter(e => e.loan?.approvalStatus === "Approved").reduce((s, e) => s + (e.loan?.principal || 0), 0),
+        outstanding: enriched.reduce((s, e) => s + (e.loan ? getBal(e.loan, db.payments) : 0), 0),
+    };
+    const byMinistry = {};
+    enriched.forEach(e => { const m = e.g.ministry || "Unspecified"; byMinistry[m] = (byMinistry[m] || 0) + 1; });
+    const byProvince = {};
+    enriched.forEach(e => { const p = e.g.province || "Unspecified"; byProvince[p] = (byProvince[p] || 0) + 1; });
+    function setStatus(g, newStatus) {
+        const prev = g.status;
+        const updated = grzAddAudit({ ...g, status: newStatus, verifiedBy: user.name, verifiedDate: today() }, "Status Changed", user.name, comment || `Status changed from ${prev} to ${newStatus}`, prev, newStatus);
+        const nd = { ...db, grzVerifications: db.grzVerifications.map(x => x.id === g.id ? updated : x) };
+        saveDB(nd); setDb(nd);
+        setComment("");
+    }
+    function printReport(e) {
+        const w = window.open("", "_blank");
+        if (!w) return;
+        w.document.write(`<!DOCTYPE html><html><head><title>GRZ Verification Report</title><style>body{font-family:Arial;padding:24px;max-width:650px;margin:0 auto;font-size:13px}h2{color:#0F2D5C}.row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0}.lb{color:#888}@media print{.np{display:none}}</style></head><body>
+        <div style="text-align:center;margin-bottom:16px">${LSVG}<h2>GRZ EMPLOYEE VERIFICATION REPORT</h2></div>
+        ${[["Customer Name", e.client?.name], ["NRC", e.g.nrc], ["Employee Number", e.g.employeeNumber], ["Ministry", e.g.ministry], ["Department", e.g.department], ["Institution", e.g.institution], ["Position", e.g.position], ["Province", e.g.province], ["Verification Method", e.g.verificationMethod || "Manual/Document-based"], ["Verification Status", e.g.status], ["Documents Checked", (e.g.documents || []).map(d => d.type).join(", ") || "None"], ["Date Verified", e.g.verifiedDate || "\u2014"], ["Verified By", e.g.verifiedBy || "\u2014"], ["Comments", e.g.comments || "\u2014"], ["Reference No.", e.g.id]].map(([l, v]) => `<div class="row"><span class="lb">${l}</span><strong>${v || "\u2014"}</strong></div>`).join("")}
+        <br><button class="np" onclick="window.print()" style="width:100%;padding:11px;background:#0F2D5C;color:#fff;border:none;border-radius:8px;cursor:pointer;">\uD83D\uDDA8\uFE0F Print</button></body></html>`);
+        w.document.close();
+    }
+    const selected = selectedId ? enriched.find(e => e.g.id === selectedId) : null;
+    if (selected) {
+        return React.createElement("div", null,
+            React.createElement(Btn, { onClick: () => setSelectedId(null), color: C.navy, style: { marginBottom: 12 } }, "\u2190 Back"),
+            React.createElement(Card, null,
+                React.createElement(ST, null, selected.client?.name || "Unknown Client"),
+                React.createElement(Badge, { s: selected.g.status }),
+                React.createElement("div", { style: { marginTop: 12 } },
+                    React.createElement(IR, { label: "NRC", value: selected.g.nrc }),
+                    React.createElement(IR, { label: "Employee Number", value: selected.g.employeeNumber }),
+                    React.createElement(IR, { label: "Ministry", value: selected.g.ministry || "\u2014" }),
+                    React.createElement(IR, { label: "Department", value: selected.g.department || "\u2014" }),
+                    React.createElement(IR, { label: "Institution", value: selected.g.institution || "\u2014" }),
+                    React.createElement(IR, { label: "Province / District", value: `${selected.g.province || "\u2014"} / ${selected.g.district || "\u2014"}` }),
+                    React.createElement(IR, { label: "Position", value: selected.g.position || "\u2014" }),
+                    React.createElement(IR, { label: "Employment Type", value: selected.g.employmentType || "\u2014" }),
+                    React.createElement(IR, { label: "Work Station", value: selected.g.workStation || "\u2014" }),
+                    React.createElement(IR, { label: "Loan No.", value: selected.g.loanNo }),
+                    canViewSalary && selected.g.payslip?.grossSalary && React.createElement(IR, { label: "Gross Salary", value: fmt(parseFloat(selected.g.payslip.grossSalary)) })),
+                React.createElement(Btn, { color: C.blue, full: true, style: { marginTop: 10 }, onClick: () => printReport(selected) }, "\uD83D\uDDA8\uFE0F Print Verification Report")),
+            (selected.g.documents || []).length > 0 && React.createElement(Card, null,
+                React.createElement(ST, null, "Documents"),
+                React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                    selected.g.documents.map((d, i) => React.createElement("a", { key: i, href: d.url, target: "_blank", rel: "noopener noreferrer", style: { textAlign: "center" } },
+                        React.createElement("img", { src: d.url, style: { width: 70, height: 70, objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` } }),
+                        React.createElement("div", { style: { fontSize: 9, color: C.muted, marginTop: 2 } }, d.type))))),
+            canVerify && React.createElement(Card, null,
+                React.createElement(ST, null, "Update Verification Status"),
+                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 } },
+                    GRZ_STATUSES.map(s => React.createElement("button", { key: s, onClick: () => setStatus(selected.g, s), style: { padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: selected.g.status === s ? GRZ_STATUS_COLOR[s] : "#eee", color: selected.g.status === s ? "#fff" : C.muted } }, s))),
+                React.createElement(Inp, { label: "Comment (optional, recorded with the change)", value: comment, onChange: e => setComment(e.target.value) })),
+            React.createElement(Card, null,
+                React.createElement(ST, null, "Audit Trail"),
+                (selected.g.audit || []).length === 0 ? React.createElement("div", { style: { color: C.muted, fontSize: 12 } }, "No audit entries.") :
+                    selected.g.audit.slice().reverse().map((a, i) => React.createElement("div", { key: i, style: { borderLeft: `3px solid ${C.blue}`, paddingLeft: 10, marginBottom: 10 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.navy } }, a.action, " \u2014 ", a.by),
+                        React.createElement("div", { style: { fontSize: 10, color: C.muted } }, a.date, " ", a.time),
+                        a.previousValue && React.createElement("div", { style: { fontSize: 11 } }, a.previousValue, " \u2192 ", a.newValue),
+                        a.note && React.createElement("div", { style: { fontSize: 12, marginTop: 2 } }, a.note)))));
+    }
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, marginBottom: 14 } },
+            [["Total Applications", totals.total, C.navy], ["Pending", totals.pending, C.gold], ["Verified", totals.verified, C.green], ["Partial Match", totals.partial, C.teal], ["Mismatch", totals.mismatch, C.orange], ["Manual Review", totals.manual, C.purple], ["Failed", totals.failed, C.red], ["Approved Loans", totals.approved, C.green], ["Rejected", totals.rejected, C.red], ["Amount Applied", fmt(totals.amountApplied), C.blue], ["Amount Approved", fmt(totals.amountApproved), C.green], ["Outstanding", fmt(totals.outstanding), C.red]].map(([label, value, color]) => React.createElement(StatCard, { key: label, label, value, color, small: typeof value === "string" }))),
+        Object.keys(byMinistry).length > 0 && React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "By Ministry"),
+            React.createElement(HRBarChart, { data: Object.entries(byMinistry).map(([m, c]) => ({ label: m, value: c })), color: C.navy })),
+        Object.keys(byProvince).length > 0 && React.createElement(Card, null,
+            React.createElement(ST, { color: C.teal }, "By Province"),
+            React.createElement(HRBarChart, { data: Object.entries(byProvince).map(([p, c]) => ({ label: p, value: c })), color: C.teal })),
+        React.createElement(Card, null,
+            React.createElement(Inp, { label: "Search (name, employee no., NRC, ministry, loan no.)", value: search, onChange: e => setSearch(e.target.value) }),
+            React.createElement(Sel, { label: "Status", value: statusFilter, onChange: e => setStatusFilter(e.target.value) },
+                ["All", ...GRZ_STATUSES].map(s => React.createElement("option", { key: s, value: s }, s)))),
+        React.createElement(Card, null,
+            React.createElement(ST, null, `GRZ Applications (${filtered.length})`),
+            filtered.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: C.muted, padding: 24 } }, "No GRZ verification records match your filters.") :
+                filtered.map(e => React.createElement("div", { key: e.g.id, onClick: () => setSelectedId(e.g.id), style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer" } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color: C.navy } }, e.client?.name || "\u2014"),
+                        React.createElement("div", { style: { fontSize: 10, color: C.muted } }, e.g.ministry || "\u2014", " \u00B7 ", e.g.loanNo)),
+                    React.createElement(Badge, { s: e.g.status })))));
 }
 function PaymentPlans({ db, setDb, user }) {
     const [search, setSearch] = useState("");
@@ -9005,7 +9223,7 @@ function App() {
     // any direct-permission checks elsewhere (canApprove, canEditClient etc.)
     // already exclude these roles too, so this isn't the only guard.
     const isViewOnlyRole = user.role === "ceo" || user.role === "accountant";
-    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "docreq", lb: "📝 Documents", badge: (db.documentRequests || []).filter(d => d.requestedBy === user.name && d.status === "rejected").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
+    const coreTabs = [{ id: "dashboard", lb: "🏠 Home" }, ...(isViewOnlyRole ? [] : [{ id: "newloan", lb: "➕ Loan" }, { id: "approvals", lb: "✅ Approve", badge: pendN }, { id: "payments", lb: "💳 Pay" }]), { id: "clients", lb: "👥 Clients" }, { id: "loans", lb: "📋 Loans" }, { id: "daily", lb: "🗒️ Daily" }, { id: "overdue", lb: "⚠️ Overdue", badge: ovN }, { id: "planpay", lb: "🗓️ Pay Plans", badge: (db.paymentPlans || []).filter(p => p.status === "Pending").length }, { id: "docreq", lb: "📝 Documents", badge: (db.documentRequests || []).filter(d => d.requestedBy === user.name && d.status === "rejected").length }, { id: "messages", lb: "💬 Messages", badge: unreadMsgN }, { id: "notify", lb: "🔔 Alerts" }, { id: "reports", lb: "📄 Reports" }, { id: "grz", lb: "🏛️ GRZ Verification" }, { id: "backup", lb: "💾 Backup" }, { id: "ai", lb: "🤖 AI" }, { id: "export", lb: "⬇️ Export" }, { id: "leave", lb: "🏖️ Leave" }, { id: "install", lb: "📱 Install" }];
     const extraTabs = { admin: [{ id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], director: [{ id: "mgr-funds", lb: "🔑 Branch Funds" }, { id: "deletions", lb: "🗑️ Deletions", badge: delN }], manager: [{ id: "mgr-funds", lb: "💼 Fund Mgmt" }], provincial: [{ id: "mgr-funds", lb: "🔑 Branch Funds" }] };
     const allTabs = [...coreTabs, ...(extraTabs[user.role] || []), ...(hoRole ? [{ id: "admin-provinces", lb: "\uD83C\uDFDB\uFE0F Provinces" }, { id: "admin-branches", lb: "\uD83C\uDFE2 Branches" }] : []), ...((user.role === "admin" || user.role === "director") ? [{ id: "settings", lb: "\u2699\uFE0F Settings" }] : [])];
     function newLoan(nrc) { setPrefNrc(nrc || ""); setTab("newloan"); }
@@ -9062,6 +9280,7 @@ function App() {
             tab === "notify" && React.createElement(Notifications, { db: db, user: user, onReport: onReport }),
             tab === "daily" && React.createElement(DailyReports, { db: db, setDb: setDb, user: user }),
             tab === "reports" && React.createElement(Reports, { db: db, setDb: setDb, user: user, onReport: onReport }),
+            tab === "grz" && React.createElement(GRZVerification, { db: db, setDb: setDb, user: user }),
             tab === "backup" && React.createElement(BackupRestore, { db: db, setDb: setDb }),
             tab === "ai" && React.createElement(AIAdviser, { db: db, user: user }),
             tab === "export" && React.createElement(Export, { db: db, user: user }),
