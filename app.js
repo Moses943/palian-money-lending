@@ -4006,7 +4006,7 @@ function AdminProvincialView({ db }) {
                 React.createElement("div", { style: { fontWeight: 700 } }, v))))))))
     );
 }
-function SettingsTab({ user }) {
+function SettingsTab({ user, db, setDb }) {
     const [wallpapers, setWallpapers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -4036,10 +4036,25 @@ function SettingsTab({ user }) {
         if (res.error) { alert("❌ Delete failed: " + res.error); return; }
         refresh();
     }
+    const [grzMaxRatio, setGrzMaxRatio] = useState(((db?.grzSettings?.maxDeductionRatio ?? 0.20) * 100).toString());
+    const [grzExpiryDays, setGrzExpiryDays] = useState((db?.grzSettings?.expiryDays ?? 90).toString());
+    const [grzDocs, setGrzDocs] = useState((db?.grzSettings?.requiredDocs || ["Payslip", "Government Employee ID"]).join(", "));
+    function saveGrzSettings() {
+        const nd = { ...db, grzSettings: { maxDeductionRatio: (parseFloat(grzMaxRatio) || 20) / 100, expiryDays: parseInt(grzExpiryDays) || 90, requiredDocs: grzDocs.split(",").map(s => s.trim()).filter(Boolean) } };
+        saveDB(nd); setDb(nd);
+        alert("\u2705 GRZ Verification settings saved.");
+    }
     return (React.createElement("div", null,
         React.createElement(Card, { style: { background: `linear-gradient(135deg,${C.navy},${C.blue})`, color: "#fff", padding: 18, marginBottom: 14 } },
             React.createElement("div", { style: { fontSize: 15, fontWeight: 800, marginBottom: 4 } }, "\u2699\uFE0F System Settings"),
             React.createElement("div", { style: { fontSize: 12, opacity: 0.85 } }, "Admin / Director only")),
+        React.createElement(Card, null,
+            React.createElement(ST, { color: C.purple }, "\uD83C\uDFDB\uFE0F GRZ Verification Settings"),
+            React.createElement(Inp, { label: "Maximum Total Deduction Ratio (%)", type: "number", value: grzMaxRatio, onChange: e => setGrzMaxRatio(e.target.value), note: "Existing deductions + proposed loan deduction must not exceed this % of gross salary for a loan to be marked affordable." }),
+            React.createElement(Inp, { label: "Verification Expiry (days)", type: "number", value: grzExpiryDays, onChange: e => setGrzExpiryDays(e.target.value), note: "How long a Verified status remains valid before requiring re-verification." }),
+            React.createElement(Inp, { label: "Required Documents (comma-separated)", value: grzDocs, onChange: e => setGrzDocs(e.target.value) }),
+            React.createElement(Alrt, { type: "info" }, "API configuration is not shown here because no officially authorized GRZ/PMEC verification API currently exists to connect to. Verification is manual/document-based until one is available."),
+            React.createElement(Btn, { color: C.purple, full: true, onClick: saveGrzSettings }, "\uD83D\uDCBE Save GRZ Settings")),
         React.createElement(Card, null,
             React.createElement(ST, null, "\uD83D\uDDBC\uFE0F Wallpaper Sliding Photos"),
             React.createElement(Alrt, { type: "info" }, "These photos rotate in the background on the login screen and throughout the app. Upload as many as you like \u2014 no need to touch any code."),
@@ -8785,7 +8800,7 @@ function AccountsApp({ db, setDb, user, onLogout, onSwitch }) {
             page === "deletions" && canAdmin && React.createElement(DeletionRequests, { db: db, setDb: setDb }),
             page === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             page === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
-            page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user }))));
+            page === "settings" && canAdmin && React.createElement(SettingsTab, { user: user, db: db, setDb: setDb }))));
 }
 function AccSidebar({ allTabs, tab, setTab, user, onSwitch, onLogout, isWide }) {
     const w = isWide ? 240 : 100;
@@ -9271,7 +9286,7 @@ function App() {
             tab === "messages" && React.createElement(MessageCenter, { db: db, setDb: setDb, user: user, allStaff: db.staff }),
             tab === "admin-provinces" && React.createElement(AdminProvincialView, { db: db }),
             tab === "admin-branches" && React.createElement(AdminBranchView, { db: db }),
-            tab === "settings" && (user.role === "admin" || user.role === "director") && React.createElement(SettingsTab, { user: user }),
+            tab === "settings" && (user.role === "admin" || user.role === "director") && React.createElement(SettingsTab, { user: user, db: db, setDb: setDb }),
             tab === "newloan" && React.createElement(Wizard, { key: "w" + prefNrc, db: db, setDb: setDb, user: user, onDone: () => setTab("dashboard") }),
             tab === "approvals" && React.createElement(Approvals, { db: db, setDb: setDb, user: user }),
             tab === "payments" && React.createElement(Payments, { db: db, setDb: setDb, user: user, onReport: onReport }),
