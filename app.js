@@ -234,13 +234,39 @@ function rawTimeStatus(loan) {
         return "Overdue";
     return "Active";
 }
-function getPen(loan, pmts) { const d = getDOD(loan), b = getBal(loan, pmts); if (!d || !b)
-    return 0; return b * 0.05 * Math.min(d, 7); }
+function loanPenaltyEnd(loan, pmts) {
+    const mine = pmts.filter(p => p.loanNo === loan.loanNo).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    let cum = 0;
+    for (const p of mine) { cum += p.amount; if (cum >= (loan.totalDue || 0) - 0.005 && p.date) return new Date(p.date); }
+    return new Date();
+}
+function penaltyRounds(loan, pmts) {
+    if (!loan.dueDate) return [];
+    const due = new Date(loan.dueDate), end = loanPenaltyEnd(loan, pmts);
+    const out = [];
+    [[0, "Penalty: first 7 days after due date (5% per day)"], [1, "Penalty: 7 days after 1 month overdue (5% per day)"]].forEach(([m, label]) => {
+        const start = new Date(due.getFullYear(), due.getMonth() + m, due.getDate());
+        const days = Math.min(7, Math.floor((end - start) / 86400000));
+        if (days > 0) out.push({ days, label: `${label} \u2014 ${days} day${days > 1 ? "s" : ""}`, amount: (loan.totalDue || 0) * 0.05 * days });
+    });
+    return out;
+}
+function oneYearPenaltyApplies(loan, pmts) {
+    if (!loan.dueDate) return false;
+    const due = new Date(loan.dueDate);
+    if (new Date() < new Date(due.getFullYear() + 1, due.getMonth(), due.getDate())) return false;
+    return !pmts.some(p => p.loanNo === loan.loanNo);
+}
+function getPaid(loan, pmts) { return pmts.filter(p => p.loanNo === loan.loanNo).reduce((s, p) => s + p.amount, 0); }
+function getPen(loan, pmts) { return penaltyRounds(loan, pmts).reduce((s, r) => s + r.amount, 0) + (oneYearPenaltyApplies(loan, pmts) ? (loan.totalDue || 0) * 0.35 : 0); }
 function getDI(loan, pmts) { if (rawTimeStatus(loan) !== "Defaulted")
-    return 0; return getBal(loan, pmts) * 0.05 * 7; }
-function getTotalOwed(loan, pmts) { const bal = getBal(loan, pmts); const rst = rawTimeStatus(loan); if (rst === "Defaulted")
-    return bal + getDI(loan, pmts); if (rst === "Overdue")
-    return bal + getPen(loan, pmts); return bal; }
+    return 0; return getPen(loan, pmts); }
+function penaltyBreakdown(loan, pmts) {
+    const out = penaltyRounds(loan, pmts).map(r => ({ label: r.label, amount: r.amount }));
+    if (oneYearPenaltyApplies(loan, pmts)) out.push({ label: "Penalty: nothing paid for 1 year (35%)", amount: (loan.totalDue || 0) * 0.35 });
+    return out;
+}
+function getTotalOwed(loan, pmts) { return Math.max(0, (loan.totalDue || 0) + getPen(loan, pmts) - getPaid(loan, pmts)); }
 function getSt(loan, pmts) {
     if (loan.approvalStatus === "Pending")
         return "Pending";
@@ -469,7 +495,7 @@ function PhotoUpload({ label, value, onChange, small }) {
 }
 function DIBadge({ loan, pmts }) { const di = getDI(loan, pmts); if (!di)
     return null; const dod = getDOD(loan); return (React.createElement("div", { style: { background: "#FFF3E0", border: `1.5px solid ${C.orange}`, borderRadius: 9, padding: "9px 12px", marginBottom: 8 } },
-    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 3 } }, "\uD83D\uDCC8 Default Interest (flat 5% \u00D7 7 days)"),
+    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 3 } }, "\uD83D\uDCC8 Default Interest (5%/day \u00D7 7 days at due date and after 1 month, +35% if nothing paid in 1 year)"),
     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11 } }, [["Days OD", dod], ["Default Int.", fmt(di)]].map(([l, v]) => React.createElement("div", { key: l },
         React.createElement("div", { style: { color: C.muted, fontWeight: 600 } }, l),
         React.createElement("div", { style: { fontWeight: 700, color: C.red } }, v)))),
@@ -607,10 +633,9 @@ function buildFinancialReportPDF(loan, client, db) {
     line("Total Amount Paid", fmt(paid));
     line("Outstanding Balance", fmt(bal));
     line("Days Late", dod > 0 ? `${dod} days` : "Not overdue");
-    if (st === "Defaulted")
-        line("Default Interest", fmt(di));
-    if (st === "Overdue")
-        line("Penalty Charge", fmt(pen));
+    penaltyBreakdown(loan, db.payments).forEach(r => line(r.label, fmt(r.amount)));
+    if (pen > 0)
+        line("Total Penalties", fmt(pen));
     y += 2;
     doc.setDrawColor(255, 179, 0);
     doc.line(14, y, 196, y);
@@ -847,8 +872,8 @@ function FinancialReportView({ loan, client, db, onClose }) {
                     React.createElement(IR, { label: "Total Amount Paid", value: fmt(paid), color: C.green }),
                     React.createElement(IR, { label: "Outstanding Balance (Before Charges)", value: fmt(bal) }),
                     React.createElement(IR, { label: "Days Late", value: dod > 0 ? `${dod} days` : "Not overdue", color: dod > 0 ? C.red : C.green }),
-                    st === "Defaulted" && React.createElement(IR, { label: "Default Interest (flat 5% \u00D7 7 days)", value: fmt(di), color: C.red }),
-                    st === "Overdue" && React.createElement(IR, { label: "Penalty Charge", value: fmt(pen), color: C.red }),
+                    penaltyBreakdown(loan, db.payments).map(r => React.createElement(IR, { key: r.label, label: r.label, value: fmt(r.amount), color: C.red })),
+                    pen > 0 && React.createElement(IR, { label: "Total Penalties", value: fmt(pen), color: C.red, bold: true }),
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: `2px solid ${C.amber}`, marginTop: 10 } },
                         React.createElement("span", { style: { fontWeight: 800, color: C.navy, fontSize: 13 } }, "TOTAL AMOUNT DUE (Including Charges)"),
                         React.createElement("span", { style: { fontSize: 18, fontWeight: 900, color: C.red } }, fmt(totalOwed))),
@@ -861,7 +886,7 @@ function FinancialReportView({ loan, client, db, onClose }) {
                 React.createElement("div", { style: { background: C.light, borderRadius: 8, padding: 14, fontSize: 13, color: "#444", lineHeight: 1.8, marginBottom: 16 } }, st === "Cleared"
                     ? `The loan ${loan.loanNo} has been fully repaid by ${client?.name || loan.name}. No outstanding obligations remain. This client is eligible for a new loan.`
                     : st === "Defaulted"
-                        ? `Since the ${loan.type} repayment is ${dod} days overdue, automatic default interest of 5% per 7-day period has been applied, increasing the total outstanding amount to ${fmt(totalOwed)}. Immediate payment is advised to avoid further interest accumulation.`
+                        ? `Since the ${loan.type} repayment is ${dod} days overdue, automatic default interest of 5% per day for 7 days at the due date and again after one month (plus 35% if nothing is paid in one year) has been applied, increasing the total outstanding amount to ${fmt(totalOwed)}. Immediate payment is advised to avoid further interest accumulation.`
                         : st === "Overdue"
                             ? `The loan ${loan.loanNo} is ${dod} days overdue. A penalty charge has been applied. Total outstanding: ${fmt(totalOwed)}. Immediate payment is strongly advised.`
                             : `Loan ${loan.loanNo} is currently Active. Outstanding balance: ${fmt(bal)}. Due: ${loan.dueDate || "—"}.`),
@@ -2917,7 +2942,7 @@ function Notifications({ db, user, onReport }) {
     const payments = scopePayments(db, user);
     const due7 = loans.filter(l => { if (!l.dueDate || getSt(l, payments) !== "Active")
         return false; const d = Math.floor((new Date(l.dueDate) - new Date()) / 86400000); return d >= 0 && d <= 7; });
-    function msgFor(l, type) { return type === "due" ? `Dear ${l.name}, your loan ${l.loanNo} of ${fmt(l.totalDue)} is due on ${l.dueDate}. Outstanding: ${fmt(getBal(l, payments))}. Please pay promptly. Palian Money Lending Ltd — ${l.branch}.` : `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Default interest: 5% per 7 days. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
+    function msgFor(l, type) { return type === "due" ? `Dear ${l.name}, your loan ${l.loanNo} of ${fmt(l.totalDue)} is due on ${l.dueDate}. Outstanding: ${fmt(getBal(l, payments))}. Please pay promptly. Palian Money Lending Ltd — ${l.branch}.` : `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Penalty: 5% per day for 7 days at the due date and again after 1 month, plus 35% if nothing is paid in a year. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
     function copySMS(l, type) { const msg = msgFor(l, type); navigator.clipboard?.writeText(msg).then(() => alert("✅ Copied!")).catch(() => prompt("Copy:", msg)); }
     return (React.createElement("div", null,
         React.createElement(Card, { style: { borderLeft: `4px solid ${C.amber}` } },
@@ -2953,7 +2978,7 @@ function OverdueTab({ db, user, onReport }) {
     const [q, setQ] = useState("");
     const ovAll = loans.filter(l => ["Overdue", "Defaulted"].includes(getSt(l, payments)));
     const ov = q ? ovAll.filter(l => l.name.toLowerCase().includes(q.toLowerCase()) || l.nrc.includes(q) || l.loanNo.toUpperCase().includes(q.toUpperCase())) : ovAll;
-    function msgFor(l) { return `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Default interest: 5% per 7 days. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
+    function msgFor(l) { return `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Penalty: 5% per day for 7 days at the due date and again after 1 month, plus 35% if nothing is paid in a year. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
     function copySMS(l) { const msg = msgFor(l); navigator.clipboard?.writeText(msg).then(() => alert("✅ Copied!")).catch(() => prompt("Copy:", msg)); }
     return (React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
         React.createElement(ST, { color: C.red },
@@ -3000,7 +3025,7 @@ function Reports({ db, user, onReport }) {
             totalDI > 0 && React.createElement(Alrt, { type: "warn" },
                 "\u26A0\uFE0F ",
                 fmt(totalDI),
-                " in auto-accrued default interest (5% per 7 days) on defaulted loans."),
+                " in auto-accrued default interest (5% per day for 7 days at the due date and after 1 month, +35% if nothing paid in 1 year) on defaulted loans."),
             React.createElement(Btn, { sm: true, color: C.green, style: { marginTop: 10 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print Summary")),
         React.createElement(Card, null,
             React.createElement(ST, { color: C.blue }, "\uD83D\uDCCB Generate Financial Report"),
@@ -3094,7 +3119,7 @@ function AIAdviser({ db }) {
         setLoading(true);
         setMsgs(m => [...m, { role: "user", text: msg }]);
         try {
-            const ctx = `Palian Money Lending Ltd, Zambia. ${db.clients.length} clients, ${db.loans.length} loans. Default interest: 5% per 7 days. Interest rates: 20%,23%,25%,30%,35%. Be concise.`;
+            const ctx = `Palian Money Lending Ltd, Zambia. ${db.clients.length} clients, ${db.loans.length} loans. Penalty: 5% per day for 7 days at the due date and again after 1 month, plus 35% if nothing is paid in a year. Interest rates: 20%,23%,25%,30%,35%. Be concise.`;
             const res = await fetch("/api/adviser", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: ctx, messages: [...msgs.filter((_, i) => i > 0).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })), { role: "user", content: msg }] }) });
             if (!res.ok) { const errBody = await res.json().catch(() => ({})); throw new Error(errBody.error || `Server error (${res.status})`); }
             const data = await res.json();
