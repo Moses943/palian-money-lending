@@ -507,13 +507,48 @@ function rawTimeStatus(loan) {
         return "Overdue";
     return "Active";
 }
-function getPen(loan, pmts) { const d = getDOD(loan), b = getBal(loan, pmts); if (!d || !b)
-    return 0; return b * 0.05 * Math.min(d, 7); }
-function getDI(loan, pmts) { if (rawTimeStatus(loan) !== "Defaulted")
-    return 0; return getBal(loan, pmts) * 0.05 * 7; }
-function getTotalOwed(loan, pmts) { const bal = getBal(loan, pmts); const rst = rawTimeStatus(loan); if (rst === "Defaulted")
-    return bal + getDI(loan, pmts); if (rst === "Overdue")
-    return bal + getPen(loan, pmts); return bal; }
+// ── PENALTY RULES (automatic, calculated from dates every time) ───────────────
+// Each monthly due date the loan is unpaid: 5% of Total Due per day for 7 days.
+// Repeats every month until the loan is cleared or 1 year after issue.
+// Nothing paid at all by the 1-year mark: one extra 35% of Total Due.
+const PEN_RATE_PER_DAY = 0.05, PEN_DAYS_PER_CYCLE = 7, PEN_ONE_YEAR_RATE = 0.35;
+function penParse(d) { if (!d) return null; const x = typeof d === "string" && d.length <= 10 ? new Date(d + "T00:00:00") : new Date(d); return isNaN(x) ? null : x; }
+function penAddMonths(d, m) { return new Date(d.getFullYear(), d.getMonth() + m, d.getDate()); }
+function penFmtDate(d) { return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); }
+function penLoanStart(loan) { const due = penParse(loan.dueDate); return penParse(loan.disburseDate) || penParse(loan.appDate) || (due ? penAddMonths(due, -1) : null); }
+function penEndDate(loan, pmts) {
+    const mine = pmts.filter(p => p.loanNo === loan.loanNo).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    let cum = 0;
+    for (const p of mine) { cum += p.amount; if (cum >= (loan.totalDue || 0) - 0.005 && p.date) return penParse(p.date); }
+    return new Date();
+}
+function penaltyRounds(loan, pmts) {
+    const due = penParse(loan.dueDate), start = penLoanStart(loan);
+    if (!due || !start) return [];
+    const end = penEndDate(loan, pmts), yearEnd = penAddMonths(start, 12), out = [];
+    for (let k = 0; k < 24; k++) {
+        const cs = penAddMonths(due, k);
+        if (cs >= yearEnd) break;
+        const days = Math.min(PEN_DAYS_PER_CYCLE, Math.floor((end - cs) / 86400000));
+        if (days <= 0) break;
+        out.push({ days, start: cs, label: `Penalty ${penFmtDate(cs)}: ${days} day${days > 1 ? "s" : ""} x 5%`, amount: (loan.totalDue || 0) * PEN_RATE_PER_DAY * days });
+    }
+    return out;
+}
+function oneYearPenaltyApplies(loan, pmts) {
+    const start = penLoanStart(loan);
+    if (!start || new Date() < penAddMonths(start, 12)) return false;
+    return !pmts.some(p => p.loanNo === loan.loanNo);
+}
+function penaltyBreakdown(loan, pmts) {
+    const out = penaltyRounds(loan, pmts).map(r => ({ label: r.label, amount: r.amount }));
+    if (oneYearPenaltyApplies(loan, pmts)) out.push({ label: "Penalty: nothing paid in 1 year (35%)", amount: (loan.totalDue || 0) * PEN_ONE_YEAR_RATE });
+    return out;
+}
+function getPaid(loan, pmts) { return pmts.filter(p => p.loanNo === loan.loanNo).reduce((s, p) => s + p.amount, 0); }
+function getPen(loan, pmts) { return penaltyBreakdown(loan, pmts).reduce((s, r) => s + r.amount, 0); }
+function getDI(loan, pmts) { return rawTimeStatus(loan) === "Defaulted" ? getPen(loan, pmts) : 0; }
+function getTotalOwed(loan, pmts) { return Math.max(0, (loan.totalDue || 0) + getPen(loan, pmts) - getPaid(loan, pmts)); }
 function getSt(loan, pmts) {
     if (loan.approvalStatus === "Pending")
         return "Pending";
@@ -2694,7 +2729,7 @@ function PhotoUpload({ label, value, onChange, small }) {
 }
 function DIBadge({ loan, pmts }) { const di = getDI(loan, pmts); if (!di)
     return null; const dod = getDOD(loan); return (React.createElement("div", { style: { background: "#FFF3E0", border: `1.5px solid ${C.orange}`, borderRadius: 9, padding: "9px 12px", marginBottom: 8 } },
-    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 3 } }, "\uD83D\uDCC8 Default Interest (flat 5% \u00D7 7 days)"),
+    React.createElement("div", { style: { fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 3 } }, "\uD83D\uDCC8 Penalties (5% per day for 7 days, every month unpaid)"),
     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11 } }, [["Days OD", dod], ["Default Int.", fmt(di)]].map(([l, v]) => React.createElement("div", { key: l },
         React.createElement("div", { style: { color: C.muted, fontWeight: 600 } }, l),
         React.createElement("div", { style: { fontWeight: 700, color: C.red } }, v)))),
@@ -2740,6 +2775,16 @@ function openClearanceCert(loan, client, db) {
   </body></html>`);
     w.document.close();
 }
+// ── PAY DAY: payslips are due on the 25th of every month ─────────────────────
+const PAYDAY = 25;
+const PAY_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function payDateFor(month, year) { return new Date(parseInt(year), parseInt(month) - 1, PAYDAY); }
+function payDateLabel(month, year) { return `${PAYDAY} ${PAY_MONTHS[parseInt(month) - 1]} ${year}`; }
+function staffPayableIn(s, month, year) { const sd = s.startDate ? new Date(s.startDate) : null; return !sd || isNaN(sd) || sd <= payDateFor(month, year); }
+function payStatusFor(month, year) {
+    const d = Math.round((payDateFor(month, year) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
+    return d > 0 ? `Due in ${d} day${d > 1 ? "s" : ""}` : d === 0 ? "Due TODAY" : "Past (can still be run)";
+}
 // ── PAYSLIP (print window) ────────────────────────────────────────────────────
 function openPayslip(staff, opts) {
     const basic = staff.salary || 0, house = opts.houseAllowance || 0, transport = opts.transport || 0, other = opts.other || 0;
@@ -2764,13 +2809,13 @@ function openPayslip(staff, opts) {
         return;
     w.document.write(`<!DOCTYPE html><html><head><title>Payslip — ${staff.name}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;padding:30px;color:#1A2744;max-width:680px;margin:0 auto}.hdr{text-align:center;background:#0F2D5C;color:#fff;padding:16px}.hdr-co{font-size:17px;font-weight:900;letter-spacing:1px;margin:6px 0 2px}.hdr-ps{font-size:13px;font-weight:700;color:#FFB300;letter-spacing:2px;margin:3px 0}.hdr-ct{font-size:10px;color:rgba(255,255,255,0.7)}.period{background:#FF6F00;color:#fff;text-align:center;padding:7px;font-weight:800;font-size:11px;letter-spacing:1.5px}.emp{width:100%;border-collapse:collapse;border:1.5px solid #0F2D5C}.emp td{padding:6px 8px;border:1px solid #ccc;font-size:11px}.emp .l{background:#F5F7FA;font-weight:700;color:#0F2D5C;width:14%}.pay{width:100%;border-collapse:collapse;border:1.5px solid #0F2D5C}.pay th{background:#0F2D5C;color:#fff;padding:8px;text-align:left;font-size:11px}.pay .a{text-align:right}.pay td{padding:7px 8px;border-bottom:1px solid #eee;font-size:12px}.pay tr:nth-child(even) td{background:#FAFBFD}.tot td{background:#E8F5E9;font-weight:800;border-top:2px solid #0F2D5C}.sm{background:#0F2D5C;color:#fff;padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px}.si{text-align:center}.sl{font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.5px}.sv{font-size:12px;font-weight:800;color:#FFB300}.np2{background:#2E7D32;color:#fff;padding:14px;text-align:center}.nl{font-size:11px;opacity:.8;letter-spacing:1px}.na{font-size:24px;font-weight:900}.ft{text-align:center;font-size:10px;color:#888;margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;line-height:1.7}@media print{.np{display:none!important}}</style></head><body>
   <div class="hdr"><div style="margin-bottom:6px">${LSVG}</div><div class="hdr-co">PALIAN MONEY LENDING LIMITED</div><div class="hdr-ps">PAY STATEMENT</div><div class="hdr-ct">Chingola | Kasama • palianml2023@gmail.com • HR: palianhr40@gmail.com • 0977 903 111</div></div>
-  <div class="period">PAY PERIOD: ${mName.toUpperCase()} ${opts.year}</div>
+  <div class="period">PAY PERIOD: ${mName.toUpperCase()} ${opts.year} &nbsp;|&nbsp; PAY DATE: ${payDateLabel(opts.month, opts.year).toUpperCase()}</div>
   <table class="emp"><tr><td class="l">EMP NAME</td><td colspan="3">${staff.name.toUpperCase()}</td><td class="l">EMP NO.</td><td>${staff.id}</td><td class="l">NRC NO.</td><td>${staff.nrc || "—"}</td></tr>
   <tr><td class="l">ENG. DATE</td><td>${staff.startDate || "—"}</td><td class="l">JOB TITLE</td><td>${(staff.roleLabel || staff.role).toUpperCase()}</td><td class="l">BANK</td><td colspan="3">${staff.bank || "—"}</td></tr>
   <tr><td class="l">PROVINCE</td><td>${staff.province || "—"}</td><td class="l">BRANCH</td><td>${staff.branch || "—"}</td><td class="l">GRADE/PT</td><td>${staff.grade || staff.dept || "—"}</td><td class="l">CURRENCY</td><td>ZMW</td></tr></table>
   <table class="pay"><thead><tr><th>Description (INCOMES)</th><th class="a">Amount (K)</th><th>Description (DEDUCTIONS)</th><th class="a">Amount (K)</th></tr></thead>
   <tbody>${tRows}<tr class="tot"><td>TOTAL INCOME</td><td class="a">${kf(total)}</td><td>TOTAL DEDUCTIONS</td><td class="a">${kf(napsa + paye)}</td></tr></tbody></table>
-  <div class="sm"><div class="si"><div class="sl">Taxable</div><div class="sv">${kf(Math.max(0, total - napsa))}</div></div><div class="si"><div class="sl">Leave Days</div><div class="sv">${opts.leaveDays || 0}</div></div><div class="si"><div class="sl">Gross YTD</div><div class="sv">${kf(basic * 12)}</div></div><div class="si"><div class="sl">Xmas Bonus</div><div class="sv">${kf(opts.xmasBonus || 0)}</div></div></div>
+  <div class="sm"><div class="si"><div class="sl">Taxable</div><div class="sv">${kf(Math.max(0, total - napsa))}</div></div><div class="si"><div class="sl">Leave Days</div><div class="sv">${opts.leaveDays || 0}</div></div><div class="si"><div class="sl">Gross YTD</div><div class="sv">${kf(total * (opts.month || 1))}</div></div><div class="si"><div class="sl">Xmas Bonus</div><div class="sv">${kf(opts.xmasBonus || 0)}</div></div></div>
   <div class="np2"><div class="nl">NET PAY (BANK TRANSFER)</div><div class="na">K ${kf(net)}</div></div>
   <div style="text-align:right;margin-top:14px"><img src="data:image/png;base64,${PALIAN_STAMP_B64}" style="width:80px;opacity:0.9" alt="Official Stamp"/></div>
   <div class="ft">Computer-generated payslip. No signature required.<br>Palian Money Lending Limited — Licensed Microfinance Institution, Zambia · ${new Date().toLocaleString()}</div>
@@ -2853,10 +2898,9 @@ function buildFinancialReportPDF(loan, client, db) {
     line("Total Amount Paid", fmt(paid));
     line("Outstanding Balance", fmt(bal));
     line("Days Late", dod > 0 ? `${dod} days` : "Not overdue");
-    if (st === "Defaulted")
-        line("Default Interest", fmt(di));
-    if (st === "Overdue")
-        line("Penalty Charge", fmt(pen));
+    penaltyBreakdown(loan, db.payments).forEach(r => line(r.label, fmt(r.amount)));
+    if (pen > 0)
+        line("Total Penalties", fmt(pen), true);
     y += 2;
     doc.setDrawColor(255, 179, 0);
     doc.line(14, y, 196, y);
@@ -2948,14 +2992,15 @@ function buildPayslipPDF(staff, opts) {
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const mName = months[(opts.month || 1) - 1];
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+    const doc = opts._doc || new jsPDF();
+    if (opts._doc) doc.addPage();
     let y = 18;
     doc.setFontSize(15); doc.setFont(undefined, "bold");
     doc.text("PALIAN MONEY LENDING LIMITED", 14, y); y += 7;
     doc.setFontSize(11); doc.setTextColor(255, 179, 0);
     doc.text("PAY STATEMENT", 14, y); doc.setTextColor(0, 0, 0); y += 8;
     doc.setFontSize(9); doc.setFont(undefined, "normal");
-    doc.text(`Pay Period: ${mName.toUpperCase()} ${opts.year}`, 14, y); y += 10;
+    doc.text(`Pay Period: ${mName.toUpperCase()} ${opts.year}   |   Pay Date: ${payDateLabel(opts.month, opts.year)}`, 14, y); y += 10;
     doc.setDrawColor(200); doc.line(14, y, 196, y); y += 8;
     const line = (label, value, bold) => { doc.setFont(undefined, bold ? "bold" : "normal"); doc.setFontSize(10); doc.text(String(label), 14, y); doc.text(String(value), 120, y); y += 7; };
     line("Employee Name", staff.name.toUpperCase());
@@ -2990,7 +3035,15 @@ function downloadPayslipPDF(staff, opts) {
     const doc = buildPayslipPDF(staff, opts);
     doc.save(`Payslip-${staff.name.replace(/\s+/g, "-")}-${opts.month}-${opts.year}.pdf`);
 }
+function downloadAllPayslipsPDF(staffList, month, year) {
+    const list = staffList.filter(s => s.salary > 0 && staffPayableIn(s, month, year));
+    if (!list.length) { alert("No staff to pay for " + payDateLabel(month, year) + "."); return; }
+    let doc = null;
+    list.forEach(s => { doc = buildPayslipPDF(s, { month: parseInt(month), year: parseInt(year), _doc: doc }); });
+    doc.save(`Payslips-ALL-${PAY_MONTHS[month - 1]}-${year}.pdf`);
+}
 function runPayrollReport(staffList, month, year) {
+    staffList = staffList.filter(s => staffPayableIn(s, month, year));
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const mName = months[(month || 1) - 1];
     let totalGross = 0, totalNapsa = 0, totalPaye = 0, totalNet = 0;
@@ -3006,7 +3059,7 @@ function runPayrollReport(staffList, month, year) {
     if (!w) { alert("Popup blocked — allow popups to view the payroll report."); return; }
     w.document.write(`<!DOCTYPE html><html><head><title>Payroll Report — ${mName} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#1A2744}h1{font-size:16px;color:#0F2D5C;margin-bottom:4px}.sub{font-size:11px;color:#888;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#0F2D5C;color:#fff;padding:8px;text-align:left;font-size:11px}td{padding:7px 8px;border-bottom:1px solid #eee;font-size:11px}.a{text-align:right}tr.tot td{background:#E8F5E9;font-weight:800;border-top:2px solid #0F2D5C}@media print{.np{display:none!important}}</style></head><body>
     <h1>PALIAN MONEY LENDING LIMITED — Payroll Report</h1>
-    <div class="sub">Pay Period: ${mName.toUpperCase()} ${year} · Generated: ${new Date().toLocaleString()} · Staff: ${staffList.filter(s => s.salary > 0).length}</div>
+    <div class="sub">Pay Period: ${mName.toUpperCase()} ${year} · Pay Date: ${payDateLabel(month, year)} · Generated: ${new Date().toLocaleString()} · Staff: ${staffList.filter(s => s.salary > 0).length}</div>
     <table><thead><tr><th>Name</th><th>Role</th><th>Branch</th><th class="a">Basic (K)</th><th class="a">NAPSA (K)</th><th class="a">PAYE (K)</th><th class="a">Net Pay (K)</th></tr></thead>
     <tbody>${rows}<tr class="tot"><td colspan="3">TOTAL</td><td class="a">${fmt(totalGross)}</td><td class="a">${fmt(totalNapsa)}</td><td class="a">${fmt(totalPaye)}</td><td class="a">${fmt(totalNet)}</td></tr></tbody></table>
     <br><button class="np" onclick="window.print()" style="width:100%;padding:12px;background:#0F2D5C;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700;">🖨️ Print / Save as PDF</button>
@@ -3099,8 +3152,8 @@ function FinancialReportView({ loan, client, db, onClose }) {
                     React.createElement(IR, { label: "Total Amount Paid", value: fmt(paid), color: C.green }),
                     React.createElement(IR, { label: "Outstanding Balance (Before Charges)", value: fmt(bal) }),
                     React.createElement(IR, { label: "Days Late", value: dod > 0 ? `${dod} days` : "Not overdue", color: dod > 0 ? C.red : C.green }),
-                    st === "Defaulted" && React.createElement(IR, { label: "Default Interest (flat 5% \u00D7 7 days)", value: fmt(di), color: C.red }),
-                    st === "Overdue" && React.createElement(IR, { label: "Penalty Charge", value: fmt(pen), color: C.red }),
+                    penaltyBreakdown(loan, db.payments).map(r => React.createElement(IR, { key: r.label, label: r.label, value: fmt(r.amount), color: C.red })),
+                    pen > 0 && React.createElement(IR, { label: "Total Penalties", value: fmt(pen), color: C.red }),
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: `2px solid ${C.amber}`, marginTop: 10 } },
                         React.createElement("span", { style: { fontWeight: 800, color: C.navy, fontSize: 13 } }, "TOTAL AMOUNT DUE (Including Charges)"),
                         React.createElement("span", { style: { fontSize: 18, fontWeight: 900, color: C.red } }, fmt(totalOwed))),
@@ -3113,7 +3166,7 @@ function FinancialReportView({ loan, client, db, onClose }) {
                 React.createElement("div", { style: { background: C.light, borderRadius: 8, padding: 14, fontSize: 13, color: "#444", lineHeight: 1.8, marginBottom: 16 } }, st === "Cleared"
                     ? `The loan ${loan.loanNo} has been fully repaid by ${client?.name || loan.name}. No outstanding obligations remain. This client is eligible for a new loan.`
                     : st === "Defaulted"
-                        ? `Since the ${loan.type} repayment is ${dod} days overdue, automatic default interest of 5% per 7-day period has been applied, increasing the total outstanding amount to ${fmt(totalOwed)}. Immediate payment is advised to avoid further interest accumulation.`
+                        ? `Since the ${loan.type} repayment is ${dod} days overdue, automatic penalties (5% per day for 7 days each month unpaid) have been applied, increasing the total outstanding amount to ${fmt(totalOwed)}. Immediate payment is advised to avoid further interest accumulation.`
                         : st === "Overdue"
                             ? `The loan ${loan.loanNo} is ${dod} days overdue. A penalty charge has been applied. Total outstanding: ${fmt(totalOwed)}. Immediate payment is strongly advised.`
                             : `Loan ${loan.loanNo} is currently Active. Outstanding balance: ${fmt(bal)}. Due: ${loan.dueDate || "—"}.`),
@@ -3400,6 +3453,7 @@ function PayslipGenerator({ db }) {
     const [leave, setLeave] = useState("0");
     const [xmas, setXmas] = useState("0");
     const staff = db.staff.find(s => s.id === sel);
+    const notYetEmployed = staff && !staffPayableIn(staff, month, year);
     const basic = staff?.salary || 0;
     const hN = parseFloat(house) || 0;
     const tN = parseFloat(transport) || 0;
@@ -3412,11 +3466,11 @@ function PayslipGenerator({ db }) {
     function generate() { if (!staff) {
         alert("Select a staff member.");
         return;
-    } openPayslip(staff, { month: parseInt(month), year: parseInt(year), houseAllowance: hN, transport: tN, other: oN, leaveDays: parseFloat(leave) || 0, xmasBonus: parseFloat(xmas) || 0 }); }
+    } if (notYetEmployed && !confirm(staff.name + " started on " + staff.startDate + ", after this pay date. Generate anyway?")) return; openPayslip(staff, { month: parseInt(month), year: parseInt(year), houseAllowance: hN, transport: tN, other: oN, leaveDays: parseFloat(leave) || 0, xmasBonus: parseFloat(xmas) || 0 }); }
     function generateDownload() { if (!staff) {
         alert("Select a staff member.");
         return;
-    } downloadPayslipPDF(staff, { month: parseInt(month), year: parseInt(year), houseAllowance: hN, transport: tN, other: oN }); }
+    } if (notYetEmployed && !confirm(staff.name + " started on " + staff.startDate + ", after this pay date. Generate anyway?")) return; downloadPayslipPDF(staff, { month: parseInt(month), year: parseInt(year), houseAllowance: hN, transport: tN, other: oN }); }
     return (React.createElement(HRPanel, { title: "Generate Payslip" },
         React.createElement(HRAlrt, { type: "info" }, "Ledger-format payslip \u2014 opens for printing, or downloads directly as a PDF."),
         React.createElement(HRSel, { label: "Staff Member", value: sel, onChange: e => setSel(e.target.value) },
@@ -3432,6 +3486,7 @@ function PayslipGenerator({ db }) {
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
             React.createElement(HRSel, { label: "Pay Month", value: month, onChange: e => setMonth(e.target.value) }, months.map((m, i) => React.createElement("option", { key: i + 1, value: i + 1 }, m))),
             React.createElement(HRInp, { label: "Year", type: "number", value: year, onChange: e => setYear(e.target.value) }),
+            React.createElement("div", { style: { gridColumn: "1 / -1", fontSize: 11, color: HRT.ink600, margin: "-4px 0 8px" } }, "Pay date: " + payDateLabel(month, year) + " \u2014 " + payStatusFor(month, year) + ". Pick any earlier month or year to run a previous payslip."),
             React.createElement(HRInp, { label: "House Allowance (K)", type: "number", value: house, onChange: e => setHouse(e.target.value), placeholder: "0.00" }),
             React.createElement(HRInp, { label: "Transport Allowance (K)", type: "number", value: transport, onChange: e => setTransport(e.target.value), placeholder: "0.00" }),
             React.createElement(HRInp, { label: "Other Income (K)", type: "number", value: other, onChange: e => setOther(e.target.value), placeholder: "0.00" }),
@@ -3453,7 +3508,8 @@ function PayrollTab({ db }) {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const salaried = db.staff.filter(s => s.salary > 0 && isEffectivelyActive(s));
+    const salaried = db.staff.filter(s => s.salary > 0 && isEffectivelyActive(s) && staffPayableIn(s, month, year));
+    const calendar = Array.from({ length: 12 }, (_, i) => { const d = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1); return { m: d.getMonth() + 1, y: d.getFullYear() }; });
     return (React.createElement("div", null,
         React.createElement(HRHeading, { eyebrow: "Register \u2014 Payroll", title: "Payroll Summary" }),
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 } },
@@ -3463,7 +3519,13 @@ function PayrollTab({ db }) {
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" } },
                 React.createElement(HRSel, { label: "Month", value: month, onChange: e => setMonth(e.target.value) }, months.map((m, i) => React.createElement("option", { key: i + 1, value: i + 1 }, m))),
                 React.createElement(HRInp, { label: "Year", type: "number", value: year, onChange: e => setYear(e.target.value) })),
-            React.createElement(HRBtn, { full: true, bg: HRT.gold500, onClick: () => runPayrollReport(salaried, parseInt(month), parseInt(year)) }, `Run Payroll Report — ${months[month - 1]} ${year}`)),
+            React.createElement("div", { style: { fontSize: 11, color: HRT.ink600, margin: "0 0 8px" } }, "Pay date: " + payDateLabel(month, year) + " \u2014 " + payStatusFor(month, year) + " \u00B7 " + salaried.length + " staff"),
+            React.createElement(HRBtn, { full: true, bg: HRT.gold500, onClick: () => runPayrollReport(salaried, parseInt(month), parseInt(year)) }, `Run Payroll Report — ${months[month - 1]} ${year}`),
+            React.createElement("div", { style: { height: 8 } }),
+            React.createElement(HRBtn, { full: true, bg: HRT.navy700, onClick: () => downloadAllPayslipsPDF(salaried, parseInt(month), parseInt(year)) }, `All Payslips (one PDF) — ${months[month - 1]} ${year}`)),
+        React.createElement(HRPanel, { title: "Pay Calendar \u2014 paid every 25th" }, calendar.map(c => React.createElement("div", { key: c.y + "-" + c.m, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${HRT.parchment100}`, fontSize: 12 } },
+            React.createElement("div", null, React.createElement("div", { style: { fontWeight: 600 } }, payDateLabel(c.m, c.y)), React.createElement("div", { style: { fontSize: 10, color: HRT.ink600 } }, payStatusFor(c.m, c.y))),
+            React.createElement(HRGBtn, { onClick: () => { setMonth(c.m); setYear(c.y); } }, "Select")))),
         React.createElement(HRPanel, null, salaried.map(s => (React.createElement("div", { key: s.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${HRT.parchment100}` } },
             React.createElement("div", null,
                 React.createElement("div", { style: { fontFamily: HRF.display, fontWeight: 600, fontSize: 13 } }, s.name),
@@ -7909,7 +7971,7 @@ function Notifications({ db, user, onReport }) {
     const payments = scopePayments(db, user);
     const due7 = loans.filter(l => { if (!l.dueDate || getSt(l, payments) !== "Active")
         return false; const d = Math.floor((new Date(l.dueDate) - new Date()) / 86400000); return d >= 0 && d <= 7; });
-    function msgFor(l, type) { return type === "due" ? `Dear ${l.name}, your loan ${l.loanNo} of ${fmt(l.totalDue)} is due on ${l.dueDate}. Outstanding: ${fmt(getBal(l, payments))}. Please pay promptly. Palian Money Lending Ltd — ${l.branch}.` : `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Default interest: 5% per 7 days. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
+    function msgFor(l, type) { return type === "due" ? `Dear ${l.name}, your loan ${l.loanNo} of ${fmt(l.totalDue)} is due on ${l.dueDate}. Outstanding: ${fmt(getBal(l, payments))}. Please pay promptly. Palian Money Lending Ltd — ${l.branch}.` : `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Penalties: 5% per day for 7 days each month unpaid. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
     function copySMS(l, type) { const msg = msgFor(l, type); navigator.clipboard?.writeText(msg).then(() => alert("✅ Copied!")).catch(() => prompt("Copy:", msg)); }
     return (React.createElement("div", null,
         React.createElement(Card, { style: { borderLeft: `4px solid ${C.amber}` } },
@@ -7945,7 +8007,7 @@ function OverdueTab({ db, user, onReport }) {
     const [q, setQ] = useState("");
     const ovAll = loans.filter(l => ["Overdue", "Defaulted"].includes(getSt(l, payments)));
     const ov = q ? ovAll.filter(l => l.name.toLowerCase().includes(q.toLowerCase()) || l.nrc.includes(q) || l.loanNo.toUpperCase().includes(q.toUpperCase())) : ovAll;
-    function msgFor(l) { return `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Default interest: 5% per 7 days. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
+    function msgFor(l) { return `Dear ${l.name}, loan ${l.loanNo} is OVERDUE. Balance: ${fmt(getBal(l, payments))}. Penalties: 5% per day for 7 days each month unpaid. Total owed: ${fmt(getTotalOwed(l, payments))}. Contact us urgently. Palian Money Lending Ltd.`; }
     function copySMS(l) { const msg = msgFor(l); navigator.clipboard?.writeText(msg).then(() => alert("✅ Copied!")).catch(() => prompt("Copy:", msg)); }
     return (React.createElement(Card, { style: { borderLeft: `4px solid ${C.red}` } },
         React.createElement(ST, { color: C.red },
@@ -7992,7 +8054,7 @@ function Reports({ db, setDb, user, onReport }) {
             totalDI > 0 && React.createElement(Alrt, { type: "warn" },
                 "\u26A0\uFE0F ",
                 fmt(totalDI),
-                " in auto-accrued default interest (5% per 7 days) on defaulted loans."),
+                " in auto-accrued penalties (5% per day for 7 days each month unpaid) on defaulted loans."),
             React.createElement(Btn, { sm: true, color: C.green, style: { marginTop: 10 }, onClick: () => window.print() }, "\uD83D\uDDA8\uFE0F Print Summary")),
         React.createElement(Card, null,
             React.createElement(ST, { color: C.blue }, "\uD83D\uDCCB Generate Financial Report"),
@@ -8188,7 +8250,7 @@ function AIAdviser({ db }) {
         setLoading(true);
         setMsgs(m => [...m, { role: "user", text: msg }]);
         try {
-            const ctx = `Palian Money Lending Ltd, Zambia. ${db.clients.length} clients, ${db.loans.length} loans. Default interest: 5% per 7 days. Interest rates: 20%,23%,25%,30%,35%. Be concise.`;
+            const ctx = `Palian Money Lending Ltd, Zambia. ${db.clients.length} clients, ${db.loans.length} loans. Penalties: 5% per day for 7 days each month unpaid, plus 35% if nothing paid in 1 year. Interest rates: 20%,23%,25%,30%,35%. Be concise.`;
             const res = await fetch("/api/adviser", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: ctx, messages: [...msgs.filter((_, i) => i > 0).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })), { role: "user", content: msg }] }) });
             if (!res.ok) { const errBody = await res.json().catch(() => ({})); throw new Error(errBody.error || `Server error (${res.status})`); }
             const data = await res.json();
